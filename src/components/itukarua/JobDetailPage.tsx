@@ -113,7 +113,6 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">{job.title}</h1>
           <div className="flex flex-wrap gap-4 text-sm text-green-100">
             <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
-            <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> {daysLeft} days left</span>
             <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {job.bids_count} bids</span>
           </div>
         </div>
@@ -124,7 +123,26 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-3">Job Description</h2>
-              <p className="text-gray-600 leading-relaxed">{job.description}</p>
+              <p className="text-gray-600 leading-relaxed mb-6">{job.description}</p>
+              
+              {job.images && job.images.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Job Images</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {job.images.map((img, i) => (
+                      <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-gray-100 group">
+                        <img 
+                          src={img} 
+                          alt={`Job image ${i + 1}`} 
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                          onClick={() => window.open(img, '_blank')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100">
                 <div><p className="text-xs text-gray-400">Budget Range</p><p className="font-bold text-green-700">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p></div>
                 <div><p className="text-xs text-gray-400">Deadline</p><p className="font-semibold text-gray-900">{new Date(job.deadline).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>

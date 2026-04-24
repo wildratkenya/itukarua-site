@@ -4,7 +4,8 @@ import HeroSection from './HeroSection';
 import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
 import { IMAGES } from '@/data/siteData';
-import { getJobs, getServiceAds, getWorkers, getPlatformStats, type DbJob, type DbServiceAd, type DbProfile, type PlatformStats } from '@/lib/database';
+import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
+import { getPlatformStats, type PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 
 interface HomePageProps {
@@ -14,36 +15,46 @@ interface HomePageProps {
 }
 
 const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) => {
-  const [jobs, setJobs] = useState<DbJob[]>([]);
-  const [services, setServices] = useState<DbServiceAd[]>([]);
-  const [workers, setWorkers] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
-  const [loading, setLoading] = useState(true);
+  const [selectedService, setSelectedService] = useState<any | null>(null);
+
+  // Load homepage data with retry logic
+  const { data: jobsData = [], isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useJobs({ limit: 6 });
+  const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ limit: 4 });
+  const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 6 });
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [j, s, w, st] = await Promise.all([
-          getJobs({ limit: 6, status: 'open' }),
-          getServiceAds({ activeOnly: true, limit: 4 }),
-          getWorkers(6),
-          getPlatformStats(),
-        ]);
-        setJobs(j);
-        setServices(s);
-        setWorkers(w);
-        setStats(st);
-      } catch (err) {
-        console.error('Error loading homepage data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    console.log('HomePage Data Check:', { 
+      jobs: jobsData.length, 
+      services: servicesData.length, 
+      loading: { jobsLoading, servicesLoading, workersLoading },
+      errors: { jobsError, servicesError, workersError }
+    });
+  }, [jobsData, servicesData, jobsLoading, servicesLoading, workersLoading, jobsError, servicesError, workersError]);
+
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 3000);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Map DB job to component-compatible format
-  const mapJob = (j: DbJob) => ({
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const st = await getPlatformStats();
+        setStats(st);
+      } catch (err) {
+        console.error('Error loading stats:', err);
+      }
+    };
+    loadStats();
+  }, []);
+
+  const loading = (jobsLoading || servicesLoading || workersLoading) && !timedOut;
+  const hasError = jobsError || servicesError || workersError;
+
+  // Simple mapping for jobs
+  const jobs = jobsData.map((j: any) => ({
     id: j.id,
     title: j.title,
     description: j.description,
@@ -56,27 +67,58 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
     postedDate: j.created_at?.split('T')[0] || '',
     bidsCount: j.bids_count,
     urgent: j.urgent,
-    status: j.status as 'open' | 'in-progress' | 'completed',
-  });
+    status: j.status,
+    images: j.images,
+  }));
 
-  const mapService = (s: DbServiceAd) => ({
-    id: s.id,
-    businessName: s.business_name,
-    description: s.description,
-    category: s.category,
-    image: s.image || IMAGES.services[0],
-    location: s.location,
-    contact: s.contact,
-    plan: s.plan,
-    expiryDate: s.expiry_date,
-    featured: s.featured,
-    rating: Number(s.rating) || 0,
-    reviews: s.reviews_count,
-  });
+  // Simple mapping for services
+  const services = servicesData.map((s: any) => {
+    try {
+      return {
+        id: s.id,
+        businessName: s.business_name,
+        description: s.description,
+        category: s.category,
+        image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
+        location: s.location,
+        contact: s.contact,
+        expiryDate: s.expiry_date,
+        featured: s.featured,
+        rating: Number(s.rating) || 0,
+        reviews: s.reviews_count,
+      };
+    } catch (err) {
+      console.error('Mapping error for service:', s.id, err);
+      return null;
+    }
+  }).filter(Boolean);
 
   return (
-    <div>
+    <div className="pb-12">
       <HeroSection onNavigate={onNavigate} onSearch={onSearch} stats={stats} />
+
+      {/* Service Detail Modal - Matches ServicesPage logic */}
+      {selectedService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.businessName} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{selectedService.category}</span>
+                {selectedService.featured && <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Featured</span>}
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedService.businessName}</h2>
+              <p className="text-gray-600 mb-4">{selectedService.description}</p>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p><span className="font-medium text-gray-900">Location:</span> {selectedService.location}</p>
+                <p><span className="font-medium text-gray-900">Contact:</span> {selectedService.contact}</p>
+                <p><span className="font-medium text-gray-900">Rating:</span> {Number(selectedService.rating) || 0}/5 ({selectedService.reviews} reviews)</p>
+              </div>
+              <button onClick={() => setSelectedService(null)} className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* How It Works */}
       <section className="py-16 lg:py-20 bg-white">
@@ -121,12 +163,10 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
           </div>
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[1,2,3,4,5,6].map(i => (
+              {[1,2,3].map(i => (
                 <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
                   <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
                   <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
-                  <div className="h-3 bg-gray-200 rounded w-full mb-2" />
-                  <div className="h-3 bg-gray-200 rounded w-2/3 mb-4" />
                   <div className="h-4 bg-gray-200 rounded w-1/2" />
                 </div>
               ))}
@@ -134,13 +174,10 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {jobs.map(job => (
-                <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} />
+                <JobCard key={job.id} job={job} onViewJob={onViewJob} />
               ))}
             </div>
           )}
-          <div className="sm:hidden mt-6 text-center">
-            <button onClick={() => onNavigate('jobs')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">View All Jobs</button>
-          </div>
         </div>
       </section>
 
@@ -156,24 +193,44 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
               View All Services <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {services.map(service => (
-              <ServiceCard key={service.id} service={mapService(service)} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[1,2,3,4].map(i => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
+                  <div className="h-48 bg-gray-200" />
+                  <div className="p-4"><div className="h-4 bg-gray-200 rounded w-1/3 mb-2" /><div className="h-5 bg-gray-200 rounded w-3/4 mb-2" /></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {services.map(service => (
+                <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       {/* Top Workers */}
-      {workers.length > 0 && (
-        <section className="py-16 lg:py-20 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-10">
-              <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">Top Rated Workers</h2>
-              <p className="text-gray-500 mt-1">Verified and trusted professionals in your area</p>
-            </div>
+      <section className="py-16 lg:py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">Top Rated Workers</h2>
+            <p className="text-gray-500 mt-1">Verified and trusted professionals in your area</p>
+          </div>
+          {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-              {workers.map((worker, idx) => (
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} className="bg-white rounded-xl p-4 animate-pulse">
+                  <div className="w-16 h-16 bg-gray-200 rounded-full mx-auto mb-3" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {workersData.map((worker, idx) => (
                 <div key={worker.id} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group">
                   <img src={worker.profile_image || IMAGES.workers[idx % IMAGES.workers.length]} alt={worker.full_name} className="w-16 h-16 rounded-full mx-auto mb-3 object-cover ring-2 ring-gray-100 group-hover:ring-green-200 transition-all" />
                   <h4 className="font-semibold text-gray-900 text-sm mb-0.5 line-clamp-1">{worker.full_name}</h4>
@@ -190,9 +247,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+      </section>
 
       {/* Why Choose Us */}
       <section className="py-16 lg:py-20 bg-white">

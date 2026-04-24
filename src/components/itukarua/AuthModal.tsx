@@ -20,10 +20,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     password: '',
     location: '',
     skills: '',
+    resume: '',
   });
+  const [certFiles, setCertFiles] = useState<FileList | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [loginAttempts, setLoginAttempts] = useState(0);
 
   if (!isOpen) return null;
 
@@ -46,7 +49,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
 
     try {
       if (tab === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
+        // Pre-flight check to prevent rate limits
+        const { data: existingUser } = await supabase
+          .from('profiles')
+          .select('id, email, phone')
+          .or(`email.eq.${formData.email},phone.eq.${formData.phone}`)
+          .maybeSingle();
+
+        if (existingUser) {
+          if (existingUser.email === formData.email) throw new Error('Email already exists');
+          if (existingUser.phone === formData.phone) throw new Error('Phone number already exists');
+        }
+
+        const signupPromise = supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
@@ -59,30 +74,84 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
             },
           },
         });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 5000));
+        
+        const { data, error } = await Promise.race([signupPromise, timeoutPromise]) as any;
         if (error) throw error;
 
         // Update profile with extra fields after signup
         if (data.user) {
-          await supabase.from('profiles').update({
+          const profileUpdates: any = {
+            email: formData.email,
             phone: formData.phone,
             location: formData.location,
             skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
-          }).eq('id', data.user.id);
+            resume: formData.resume,
+          };
+
+          // Handle certificates upload
+          if (certFiles && certFiles.length > 0) {
+            const certUrls = [];
+            for (let i = 0; i < Math.min(certFiles.length, 3); i++) {
+              const file = certFiles[i];
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${data.user.id}_${i}_${Math.random()}.${fileExt}`;
+              const filePath = `certificates/${fileName}`;
+              
+              const { error: uploadError } = await supabase.storage
+                .from('certificates')
+                .upload(filePath, file);
+              
+              if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage
+                  .from('certificates')
+                  .getPublicUrl(filePath);
+                certUrls.push(publicUrl);
+              }
+            }
+            profileUpdates.certificates = certUrls;
+          }
+
+          await supabase.from('profiles').update(profileUpdates).eq('id', data.user.id);
         }
 
         onAuth();
         onClose();
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const signinPromise = supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 5000));
+        
+        const { error } = await Promise.race([signinPromise, timeoutPromise]) as any;
         if (error) throw error;
+        
+        // Reset login attempts on success
+        setLoginAttempts(0);
         onAuth();
         onClose();
       }
     } catch (err: any) {
-      setServerError(err.message || 'An error occurred. Please try again.');
+      if (err.message === 'AUTH_TIMEOUT') {
+        console.warn('Auth lock stuck during login! Clearing local storage to self-heal...');
+        localStorage.clear();
+        setServerError('Browser lock cleared. Please try logging in again.');
+      } else {
+        setServerError(err.message || 'An error occurred. Please try again.');
+        
+        // Handle failed login attempts
+        if (tab === 'login') {
+          const newAttempts = loginAttempts + 1;
+          setLoginAttempts(newAttempts);
+          
+          if (newAttempts >= 3) {
+            setServerError('Too many failed attempts. A password reset email has been sent to your inbox.');
+            await supabase.auth.resetPasswordForEmail(formData.email);
+            setLoginAttempts(0); // Reset after triggering email
+          }
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -230,6 +299,45 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                   placeholder="e.g. Painting, Plumbing, Carpentry"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Professional Resume (Max 500 words)
+                </label>
+                <textarea
+                  value={formData.resume}
+                  onChange={e => {
+                    const words = e.target.value.trim().split(/\s+/).length;
+                    if (words <= 500 || e.target.value.length < formData.resume.length) {
+                      setFormData({ ...formData, resume: e.target.value });
+                    }
+                  }}
+                  rows={4}
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none text-sm"
+                  placeholder="Paste your resume here..."
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {formData.resume.trim() ? formData.resume.trim().split(/\s+/).length : 0} / 500 words
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Certificates (Max 3, PDF or Image)
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,image/*"
+                  onChange={e => setCertFiles(e.target.files)}
+                  className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                {certFiles && (
+                  <p className="text-[10px] text-green-600 mt-1">
+                    {certFiles.length} file(s) selected (max 3 will be uploaded)
+                  </p>
+                )}
               </div>
             </>
           )}

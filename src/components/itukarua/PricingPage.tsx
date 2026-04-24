@@ -10,8 +10,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-700 to-green-800 py-14 lg:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <div className="relative py-14 lg:py-20 bg-cover bg-center" style={{ backgroundImage: 'url(/images/pricing.png)' }}>
+        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3">Simple, Transparent Pricing</h1>
           <p className="text-green-100 max-w-2xl mx-auto">Choose the plan that works for you. All payments are processed securely through M-Pesa.</p>
         </div>

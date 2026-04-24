@@ -5,10 +5,10 @@ interface Job {
   id: string; title: string; description: string; location: string; budgetMin: number; budgetMax: number;
   deadline: string; category: string; postedBy: string; postedDate: string; bidsCount: number; urgent: boolean;
   status: 'open' | 'in-progress' | 'completed';
+  images?: string[];
 }
 
 interface JobCardProps {
-
   job: Job;
   onViewJob: (jobId: string) => void;
 }
@@ -29,56 +29,69 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
     Welding: 'bg-slate-200 text-slate-700',
   };
 
-  const daysLeft = Math.max(0, Math.ceil((new Date(job.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
   return (
     <div
       onClick={() => onViewJob(job.id)}
-      className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group overflow-hidden"
+      className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group overflow-hidden flex flex-col"
     >
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryColors[job.category] || 'bg-gray-100 text-gray-700'}`}>
-                {job.category}
-              </span>
-              {job.urgent && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Urgent
+      <div className="w-full h-40 bg-gray-100 relative overflow-hidden">
+        <img 
+          src={(job.images && job.images.length > 0) ? job.images[0] : 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800'} 
+          alt={job.title} 
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800';
+          }}
+        />
+      </div>
+      <div className="p-5 flex-1 flex flex-col justify-between">
+        <div>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryColors[job.category] || 'bg-gray-100 text-gray-700'}`}>
+                  {job.category}
                 </span>
-              )}
+                {job.urgent && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Urgent
+                  </span>
+                )}
+              </div>
+              <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors line-clamp-2">
+                {job.title}
+              </h3>
             </div>
-            <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors line-clamp-2">
-              {job.title}
-            </h3>
           </div>
+
+          <p className="text-sm text-gray-500 line-clamp-3 mb-4">{job.description}</p>
         </div>
 
-        <p className="text-sm text-gray-500 line-clamp-2 mb-4">{job.description}</p>
-
-        <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
-          <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-green-600" />
-            {job.location}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-orange-500" />
-            {daysLeft} days left
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-          <div>
-            <p className="text-xs text-gray-400">Budget</p>
-            <p className="font-bold text-green-700 text-sm">
-              KES {job.budgetMin.toLocaleString()} - {job.budgetMax.toLocaleString()}
-            </p>
+        <div>
+          <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
+            <span className="flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-green-600" />
+              {job.location}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-lg">
-            <Users className="w-3.5 h-3.5 text-gray-500" />
-            <span className="text-xs font-medium text-gray-600">{job.bidsCount} bids</span>
+
+          <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+            <div>
+              <p className="text-xs text-gray-400">Budget</p>
+              <p className="font-bold text-green-700 text-sm">
+                KES {job.budgetMin.toLocaleString()} - {job.budgetMax.toLocaleString()}
+              </p>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewJob(job.id);
+              }}
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              More Details
+            </button>
           </div>
         </div>
       </div>

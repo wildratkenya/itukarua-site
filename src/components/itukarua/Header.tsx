@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Menu, X, User, LogOut, ChevronDown, Search } from 'lucide-react';
 
-export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'post-job' | 'post-advert';
+export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'post-job' | 'post-advert' | 'admin';
 
 interface HeaderProps {
   currentPage: Page;
@@ -88,6 +88,14 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                     >
                       <User className="w-4 h-4" /> Dashboard
                     </button>
+                    {user.role === 'super_admin' && (
+                      <button
+                        onClick={() => { handleNav('admin'); setUserMenuOpen(false); }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <User className="w-4 h-4" /> Admin Panel
+                      </button>
+                    )}
                     <button
                       onClick={() => { onLogout(); setUserMenuOpen(false); }}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"

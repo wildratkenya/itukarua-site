@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight } from 'lucide-react';
 import { IMAGES } from '@/data/siteData';
+import { supabase } from '@/lib/supabase';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 

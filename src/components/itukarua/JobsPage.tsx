@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import { JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
-import { getJobs, type DbJob } from '@/lib/database';
+import { useJobs } from '@/hooks/useQueries';
 import type { Page } from './Header';
 
 interface JobsPageProps {
@@ -16,35 +16,28 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const [category, setCategory] = useState('All Categories');
   const [location, setLocation] = useState('All Locations');
   const [sortBy, setSortBy] = useState<'newest' | 'budget-high' | 'budget-low' | 'urgent'>('newest');
+
   const [showFilters, setShowFilters] = useState(false);
-  const [jobs, setJobs] = useState<DbJob[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const loadJobs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getJobs({
-        category: category !== 'All Categories' ? category : undefined,
-        location: location !== 'All Locations' ? location : undefined,
-        search: search.trim() || undefined,
-      });
-      // Client-side sort
-      let sorted = [...data];
-      switch (sortBy) {
-        case 'newest': sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
-        case 'budget-high': sorted.sort((a, b) => b.budget_max - a.budget_max); break;
-        case 'budget-low': sorted.sort((a, b) => a.budget_min - b.budget_min); break;
-        case 'urgent': sorted.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)); break;
-      }
-      setJobs(sorted);
-    } catch (err) {
-      console.error('Error loading jobs:', err);
-    } finally {
-      setLoading(false);
+  const filters = useMemo(() => ({
+    category: category !== 'All Categories' ? category : undefined,
+    location: location !== 'All Locations' ? location : undefined,
+    search: search.trim() || undefined,
+  }), [category, location, search]);
+
+  const { data: jobsData = [], isLoading } = useJobs(filters);
+
+  // Client-side sort
+  const jobs = useMemo(() => {
+    let sorted = [...jobsData];
+    switch (sortBy) {
+      case 'newest': sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+      case 'budget-high': sorted.sort((a, b) => b.budget_max - a.budget_max); break;
+      case 'budget-low': sorted.sort((a, b) => a.budget_min - b.budget_min); break;
+      case 'urgent': sorted.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)); break;
     }
-  }, [search, category, location, sortBy]);
-
-  useEffect(() => { loadJobs(); }, [loadJobs]);
+    return sorted;
+  }, [jobsData, sortBy]);
 
   const mapJob = (j: DbJob) => ({
     id: j.id,
@@ -60,6 +53,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     bidsCount: j.bids_count,
     urgent: j.urgent,
     status: j.status as 'open' | 'in-progress' | 'completed',
+    images: j.images,
   });
 
   const clearFilters = () => {
@@ -73,8 +67,9 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-r from-green-700 to-green-800 py-10 lg:py-14">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative py-10 lg:py-14 bg-cover bg-center" style={{ backgroundImage: 'url(/images/plumber.png)' }}>
+        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">Browse Jobs</h1>
           <p className="text-green-100 mb-6">Find local work opportunities across Itukarua County</p>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -135,7 +130,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
           </div>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[1,2,3,4,5,6].map(i => (
               <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">

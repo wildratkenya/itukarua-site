@@ -1,9 +1,18 @@
 import React from 'react';
-import { MapPin, Star, Clock, Sparkles } from 'lucide-react';
+import { MapPin, Star, Sparkles } from 'lucide-react';
 
 interface ServiceAd {
-  id: string; businessName: string; description: string; category: string; image: string; location: string;
-  contact: string; plan: '10-day' | '20-day' | '30-day'; expiryDate: string; featured: boolean; rating: number; reviews: number;
+  id: string; 
+  businessName: string; 
+  description: string; 
+  category: string; 
+  image: string; 
+  location: string;
+  contact: string; 
+  expiryDate: string; 
+  featured: boolean; 
+  rating: number; 
+  reviews: number;
 }
 
 
@@ -13,8 +22,6 @@ interface ServiceCardProps {
 }
 
 const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
-  const daysLeft = Math.max(0, Math.ceil((new Date(service.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
   const categoryColors: Record<string, string> = {
     Shops: 'bg-blue-100 text-blue-700',
     Plumbing: 'bg-cyan-100 text-cyan-700',
@@ -38,7 +45,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
         <img
           src={service.image}
           alt={service.businessName}
+          loading="lazy"
           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg';
+          }}
         />
         {service.featured && (
           <div className="absolute top-3 left-3 px-2.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold rounded-full flex items-center gap-1 shadow-lg">
@@ -46,10 +57,6 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
             Featured
           </div>
         )}
-        <div className="absolute top-3 right-3 px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-xs rounded-full flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          {daysLeft}d left
-        </div>
       </div>
 
       <div className="p-4">
@@ -57,25 +64,28 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${categoryColors[service.category] || 'bg-gray-100 text-gray-700'}`}>
             {service.category}
           </span>
-          <span className="text-xs text-gray-400">{service.plan}</span>
         </div>
 
         <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors mb-1 line-clamp-1">
           {service.businessName}
         </h3>
 
-        <p className="text-sm text-gray-500 line-clamp-2 mb-3">{service.description}</p>
+        <p className="text-sm text-gray-500 line-clamp-3 mb-4">{service.description}</p>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <MapPin className="w-3.5 h-3.5 text-green-600" />
             {service.location}
           </span>
-          <span className="flex items-center gap-1 text-xs">
-            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            <span className="font-medium text-gray-700">{service.rating}</span>
-            <span className="text-gray-400">({service.reviews})</span>
-          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClick) onClick();
+            }}
+            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+          >
+            More Details
+          </button>
         </div>
       </div>
     </div>

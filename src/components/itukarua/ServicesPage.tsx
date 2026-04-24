@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, SlidersHorizontal, X, Plus } from 'lucide-react';
 import ServiceCard from './ServiceCard';
 import { SERVICE_CATEGORIES, LOCATIONS, IMAGES } from '@/data/siteData';
-import { getServiceAds, type DbServiceAd } from '@/lib/database';
+import { useServiceAds } from '@/hooks/useQueries';
 import type { Page } from './Header';
 
 interface ServicesPageProps {
@@ -14,40 +14,46 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const [category, setCategory] = useState('All Services');
   const [location, setLocation] = useState('All Locations');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedService, setSelectedService] = useState<DbServiceAd | null>(null);
-  const [services, setServices] = useState<DbServiceAd[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedService, setSelectedService] = useState<any | null>(null);
 
-  const loadServices = useCallback(async () => {
-    setLoading(true);
+  const filters = useMemo(() => ({
+    category: category !== 'All Services' ? category : undefined,
+    location: location !== 'All Locations' ? location : undefined,
+    search: search.trim() || undefined,
+    activeOnly: true,
+  }), [category, location, search]);
+
+  const { data: servicesData = [], isLoading, error, refetch } = useServiceAds(filters);
+
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const loading = isLoading && !timedOut;
+  const hasError = !!error;
+
+  const services = servicesData.map((s: any) => {
     try {
-      const data = await getServiceAds({
-        category: category !== 'All Services' ? category : undefined,
-        location: location !== 'All Locations' ? location : undefined,
-        search: search.trim() || undefined,
-        activeOnly: true,
-      });
-      setServices(data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }, [search, category, location]);
-
-  useEffect(() => { loadServices(); }, [loadServices]);
-
-  const mapService = (s: DbServiceAd) => ({
-    id: s.id,
-    businessName: s.business_name,
-    description: s.description,
-    category: s.category,
-    image: s.image || IMAGES.services[0],
-    location: s.location,
-    contact: s.contact,
-    plan: s.plan,
-    expiryDate: s.expiry_date,
-    featured: s.featured,
-    rating: Number(s.rating) || 0,
-    reviews: s.reviews_count,
-  });
+      return {
+        id: s.id,
+        businessName: s.business_name,
+        description: s.description,
+        category: s.category,
+        image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
+        location: s.location,
+        contact: s.contact,
+        expiryDate: s.expiry_date,
+        featured: s.featured,
+        rating: Number(s.rating) || 0,
+        reviews: s.reviews_count,
+      };
+    } catch (err) {
+      console.error('Mapping error for service:', s.id, err);
+      return null;
+    }
+  }).filter(Boolean);
 
   const clearFilters = () => { setSearch(''); setCategory('All Services'); setLocation('All Locations'); };
   const hasActiveFilters = search || category !== 'All Services' || location !== 'All Locations';
@@ -57,7 +63,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.business_name} className="w-full h-56 object-cover rounded-t-2xl" />
+            <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.business_name} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
             <div className="p-6">
               <div className="flex items-center gap-2 mb-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{selectedService.category}</span>
@@ -68,8 +74,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
               <div className="space-y-2 text-sm text-gray-600">
                 <p><span className="font-medium text-gray-900">Location:</span> {selectedService.location}</p>
                 <p><span className="font-medium text-gray-900">Contact:</span> {selectedService.contact}</p>
-                <p><span className="font-medium text-gray-900">Plan:</span> {selectedService.plan}</p>
-                <p><span className="font-medium text-gray-900">Rating:</span> {Number(selectedService.rating) || 0}/5 ({selectedService.reviews_count} reviews)</p>
+                <p><span className="font-medium text-gray-900">Rating:</span> {Number(selectedService.rating) || 0}/5 ({selectedService.reviews} reviews)</p>
               </div>
               <button onClick={() => setSelectedService(null)} className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">Close</button>
             </div>
@@ -77,8 +82,9 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      <div className="bg-gradient-to-r from-green-700 to-green-800 py-10 lg:py-14">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative py-10 lg:py-14 bg-cover bg-center" style={{ backgroundImage: 'url(/images/services.png)' }}>
+        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">Services & Business Directory</h1>
           <p className="text-green-100 mb-6">Discover local businesses and service providers in your area</p>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -132,7 +138,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <p className="text-sm text-gray-500 mb-6">Showing <span className="font-semibold text-gray-900">{services.length}</span> businesses & services</p>
-        {loading ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {[1,2,3,4].map(i => (
               <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
@@ -144,7 +150,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
         ) : services.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {services.map(service => (
-              <ServiceCard key={service.id} service={mapService(service)} onClick={() => setSelectedService(service)} />
+              <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} />
             ))}
           </div>
         ) : (

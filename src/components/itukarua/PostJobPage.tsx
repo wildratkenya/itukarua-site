@@ -102,10 +102,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
-                <select value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.location ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
-                  <option value="">Select location</option>
-                  {LOCATIONS.filter(l => l !== 'All Locations').map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <input type="text" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.location ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} placeholder="e.g. Regen, Near PCEA Baraka Church" />
                 {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
               </div>
             </div>

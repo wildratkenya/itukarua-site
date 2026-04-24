@@ -7,7 +7,7 @@ export interface DbProfile {
   full_name: string;
   email: string;
   phone: string;
-  role: 'admin' | 'jobseeker' | 'employer';
+  role: 'super_admin' | 'admin' | 'jobseeker' | 'employer';
   location: string;
   skills: string[];
   qualifications: string;
@@ -20,6 +20,8 @@ export interface DbProfile {
   registration_paid: boolean;
   created_at: string;
   updated_at: string;
+  resume?: string;
+  certificates?: string[];
 }
 
 export interface DbJob {
@@ -36,6 +38,7 @@ export interface DbJob {
   urgent: boolean;
   status: 'open' | 'in-progress' | 'completed' | 'cancelled';
   bids_count: number;
+  images?: string[];
   created_at: string;
   updated_at: string;
   // from view
@@ -70,6 +73,7 @@ export interface DbServiceAd {
   description: string;
   category: string;
   image: string;
+  images: string[];
   location: string;
   contact: string;
   plan: '10-day' | '20-day' | '30-day';
@@ -99,6 +103,23 @@ export interface DbPayment {
   updated_at: string;
 }
 
+export interface DbMessage {
+  id: string;
+  sender_id: string | null;
+  sender_name: string;
+  sender_email: string;
+  subject: string;
+  message: string;
+  type: 'support' | 'feedback' | 'complaint' | 'other';
+  status: 'unread' | 'read' | 'replied' | 'closed';
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  admin_response: string | null;
+  responded_by: string | null;
+  responded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PlatformStats {
   active_jobs: number;
   registered_workers: number;
@@ -115,7 +136,7 @@ export async function getProfile(userId: string): Promise<DbProfile | null> {
     .from('profiles')
     .select('*')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
   if (error) { console.error('getProfile error:', error); return null; }
   return data;
 }
@@ -149,6 +170,35 @@ export async function getAllProfiles(): Promise<DbProfile[]> {
     .select('*')
     .order('created_at', { ascending: false });
   if (error) { console.error('getAllProfiles error:', error); return []; }
+  return data || [];
+}
+
+export async function getProfiles(filters?: {
+  role?: string;
+  location?: string;
+  search?: string;
+  limit?: number;
+}): Promise<DbProfile[]> {
+  let query = supabase.from('profiles').select('*');
+
+  if (filters?.role) {
+    query = query.eq('role', filters.role);
+  }
+  if (filters?.location) {
+    query = query.eq('location', filters.location);
+  }
+  if (filters?.search) {
+    query = query.or(`full_name.ilike.%${filters.search}%,skills.ilike.%${filters.search}%`);
+  }
+
+  query = query.order('created_at', { ascending: false });
+
+  if (filters?.limit) {
+    query = query.limit(filters.limit);
+  }
+
+  const { data, error } = await query;
+  if (error) { console.error('getProfiles error:', error); return []; }
   return data || [];
 }
 
@@ -188,7 +238,8 @@ export async function getJobs(filters?: {
 
   const { data, error } = await query;
   if (error) { console.error('getJobs error:', error); return []; }
-  return data || [];
+  console.log('Fetched Jobs:', data?.length);
+  return data as DbJob[];
 }
 
 export async function getJobById(jobId: string): Promise<DbJob | null> {
@@ -216,7 +267,7 @@ export async function createJob(job: {
   const { data, error } = await supabase
     .from('jobs')
     .insert(job)
-    .select()
+    .select('*')
     .single();
   if (error) throw error;
   return data as DbJob;
@@ -227,7 +278,7 @@ export async function updateJob(jobId: string, updates: Partial<DbJob>) {
     .from('jobs')
     .update(updates)
     .eq('id', jobId)
-    .select()
+    .select('*')
     .single();
   if (error) throw error;
   return data as DbJob;
@@ -322,7 +373,8 @@ export async function getServiceAds(filters?: {
 
   const { data, error } = await query;
   if (error) { console.error('getServiceAds error:', error); return []; }
-  return data || [];
+  console.log('Fetched Service Ads:', data?.length);
+  return data as DbServiceAd[];
 }
 
 export async function createServiceAd(ad: {
@@ -365,12 +417,26 @@ export async function updateServiceAd(adId: string, updates: Partial<DbServiceAd
 
 // ─── Payments ───────────────────────────────────────────────────────────────
 
-export async function getPayments(userId?: string): Promise<DbPayment[]> {
+export async function getPayments(filters?: {
+  userId?: string;
+  status?: string;
+  paymentType?: string;
+  limit?: number;
+}): Promise<DbPayment[]> {
   let query = supabase.from('payments').select('*');
-  if (userId) {
-    query = query.eq('user_id', userId);
+  if (filters?.userId) {
+    query = query.eq('user_id', filters.userId);
+  }
+  if (filters?.status) {
+    query = query.eq('status', filters.status);
+  }
+  if (filters?.paymentType) {
+    query = query.eq('payment_type', filters.paymentType);
   }
   query = query.order('created_at', { ascending: false });
+  if (filters?.limit) {
+    query = query.limit(filters.limit);
+  }
   const { data, error } = await query;
   if (error) { console.error('getPayments error:', error); return []; }
   return data || [];
@@ -409,6 +475,54 @@ export async function updatePaymentStatus(paymentId: string, status: DbPayment['
   return data as DbPayment;
 }
 
+// ─── Messages ───────────────────────────────────────────────────────────────
+
+export async function getMessages(filters?: {
+  senderId?: string;
+  status?: string;
+  type?: string;
+  limit?: number;
+}): Promise<DbMessage[]> {
+  let query = supabase.from('messages').select('*');
+
+  if (filters?.senderId) {
+    query = query.eq('sender_id', filters.senderId);
+  }
+  if (filters?.status) {
+    query = query.eq('status', filters.status);
+  }
+  if (filters?.type) {
+    query = query.eq('type', filters.type);
+  }
+
+  query = query.order('created_at', { ascending: false });
+
+  if (filters?.limit) {
+    query = query.limit(filters.limit);
+  }
+
+  const { data, error } = await query;
+  if (error) { console.error('getMessages error:', error); return []; }
+  return data || [];
+}
+
+export async function updateMessageStatus(messageId: string, status: DbMessage['status'], adminResponse?: string, respondedBy?: string) {
+  const updates: any = { status, updated_at: new Date().toISOString() };
+  if (adminResponse) updates.admin_response = adminResponse;
+  if (respondedBy) {
+    updates.responded_by = respondedBy;
+    updates.responded_at = new Date().toISOString();
+  }
+  const { data, error } = await supabase
+    .from('messages')
+    .update(updates)
+    .eq('id', messageId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbMessage;
+}
+
 // ─── Stats ──────────────────────────────────────────────────────────────────
 
 export async function getPlatformStats(): Promise<PlatformStats> {
@@ -420,5 +534,6 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     console.error('getPlatformStats error:', error);
     return { active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 };
   }
+  console.log('Fetched Platform Stats:', data);
   return data;
 }

@@ -14,6 +14,9 @@ interface PostAdvertPageProps {
 
 const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
   const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', contact: '', plan: '' });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,6 +36,19 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     return Object.keys(errs).length === 0;
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setServerError('Image size must be less than 5MB');
+        return;
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+      setServerError('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { onOpenAuth('login'); return; }
@@ -40,11 +56,32 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     setLoading(true);
     setServerError('');
     try {
+      let imageUrl = '';
+      if (imageFile) {
+        setUploadingImage(true);
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError, data } = await supabase.storage
+          .from('adverts')
+          .upload(fileName, imageFile);
+          
+        if (uploadError) throw uploadError;
+        
+        const { data: publicUrlData } = supabase.storage
+          .from('adverts')
+          .getPublicUrl(fileName);
+          
+        imageUrl = publicUrlData.publicUrl;
+        setUploadingImage(false);
+      }
+
       const planKey = formData.plan.includes('10') ? '10-day' : formData.plan.includes('20') ? '20-day' : '30-day';
       const ad = await createServiceAd({
         business_name: formData.businessName,
         description: formData.description,
         category: formData.category,
+        image: imageUrl || undefined,
         location: formData.location,
         contact: formData.contact,
         plan: planKey as '10-day' | '20-day' | '30-day',
@@ -63,6 +100,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       setSubmitted(true);
     } catch (err: any) {
       setServerError(err.message || 'Failed to post advert. Please try again.');
+      setUploadingImage(false);
     } finally { setLoading(false); }
   };
 
@@ -112,10 +150,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
-                <select value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.location ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
-                  <option value="">Select location</option>
-                  {LOCATIONS.filter(l => l !== 'All Locations').map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <input type="text" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.location ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} placeholder="e.g. Near Catholic Church or LandMark" />
                 {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
               </div>
             </div>
@@ -131,10 +166,27 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Business Images</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-green-400 transition-colors cursor-pointer">
-                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Click to upload images</p>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each</p>
+              <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-green-400 transition-colors cursor-pointer overflow-hidden">
+                <input 
+                  type="file" 
+                  accept="image/png, image/jpeg" 
+                  onChange={handleImageChange} 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                />
+                {imagePreview ? (
+                  <div className="relative w-full h-40">
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <p className="text-white font-medium">Click to change</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Click to upload images</p>
+                    <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each</p>
+                  </>
+                )}
               </div>
             </div>
             <div>

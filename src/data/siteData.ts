@@ -56,7 +56,9 @@ export const SERVICE_CATEGORIES = [
 
 export const LOCATIONS = [
   'All Locations',
-  'Itukarua Town',
+  'Kikuyu',
+  'Kiambu',
+  'Limuru',
   'Karatina',
   'Nyeri',
   'Sagana',
@@ -73,7 +75,7 @@ export const LOCATIONS = [
 export const PRICING_PLANS = {
   jobseeker: {
     name: 'Jobseeker Registration',
-    price: 500,
+    price: 200,
     period: 'one-time',
     features: [
       'Create professional profile',
