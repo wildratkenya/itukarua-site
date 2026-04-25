@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, Upload, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { SERVICE_CATEGORIES, LOCATIONS, PRICING_PLANS } from '@/data/siteData';
 import { createServiceAd, createPayment } from '@/lib/database';
 import type { Page } from './Header';

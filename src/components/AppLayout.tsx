@@ -85,6 +85,9 @@ const AppLayout: React.FC = () => {
       if (!mounted) return;
       
       if (event === 'SIGNED_IN' && session?.user) {
+        // Check if user just confirmed their email
+        const justConfirmed = session.user.email_confirmed_at && 
+          (Date.now() - new Date(session.user.email_confirmed_at).getTime()) < 60000; // Within last minute
         const profile = await getProfile(session.user.id);
         if (!mounted) return;
 
@@ -99,9 +102,27 @@ const AppLayout: React.FC = () => {
             role: profile?.role || 'employer',
             profile,
           });
+          // Update profile with email confirmation status
+          if (justConfirmed && session.user.confirmed_at) {
+            await supabase.from('profiles').update({ 
+              email_confirmed: true,
+              updated_at: new Date().toISOString()
+            }).eq('id', session.user.id);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        // Handle token refresh - update user state
+        const profile = await getProfile(session.user.id);
+        if (!mounted) return;
+        setUser({
+          id: session.user.id,
+          name: profile?.full_name || session.user.email?.split('@')[0] || '',
+          email: session.user.email || '',
+          role: profile?.role || 'employer',
+          profile,
+        });
       }
       
       if (mounted) setAuthLoading(false);

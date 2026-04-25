@@ -20,7 +20,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
     category: category !== 'All Services' ? category : undefined,
     location: location !== 'All Locations' ? location : undefined,
     search: search.trim() || undefined,
-    activeOnly: true,
+    // activeOnly: true,
   }), [category, location, search]);
 
   const { data: servicesData = [], isLoading, error, refetch } = useServiceAds(filters);
@@ -73,7 +73,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
               <p className="text-gray-600 mb-4">{selectedService.description}</p>
               <div className="space-y-2 text-sm text-gray-600">
                 <p><span className="font-medium text-gray-900">Location:</span> {selectedService.location}</p>
-                <p><span className="font-medium text-gray-900">Contact:</span> {selectedService.contact}</p>
+                {selectedService.contact_person && <p><span className="font-medium text-gray-900">Contact Person:</span> {selectedService.contact_person}</p>}
+                <p><span className="font-medium text-gray-900">Phone:</span> {selectedService.contact}</p>
                 <p><span className="font-medium text-gray-900">Rating:</span> {Number(selectedService.rating) || 0}/5 ({selectedService.reviews} reviews)</p>
               </div>
               <button onClick={() => setSelectedService(null)} className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">Close</button>

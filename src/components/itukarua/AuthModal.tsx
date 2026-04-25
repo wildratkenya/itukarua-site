@@ -27,6 +27,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
+  const [emailSent, setEmailSent] = useState(false);
 
   if (!isOpen) return null;
 
@@ -41,7 +42,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
@@ -49,18 +50,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
 
     try {
       if (tab === 'signup') {
-        // Pre-flight check to prevent rate limits
-        const { data: existingUser } = await supabase
-          .from('profiles')
-          .select('id, email, phone')
-          .or(`email.eq.${formData.email},phone.eq.${formData.phone}`)
-          .maybeSingle();
-
-        if (existingUser) {
-          if (existingUser.email === formData.email) throw new Error('Email already exists');
-          if (existingUser.phone === formData.phone) throw new Error('Phone number already exists');
-        }
-
         const signupPromise = supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -79,44 +68,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
         const { data, error } = await Promise.race([signupPromise, timeoutPromise]) as any;
         if (error) throw error;
 
-        // Update profile with extra fields after signup
         if (data.user) {
-          const profileUpdates: any = {
-            email: formData.email,
-            phone: formData.phone,
-            location: formData.location,
-            skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
-            resume: formData.resume,
-          };
-
-          // Handle certificates upload
-          if (certFiles && certFiles.length > 0) {
-            const certUrls = [];
-            for (let i = 0; i < Math.min(certFiles.length, 3); i++) {
-              const file = certFiles[i];
-              const fileExt = file.name.split('.').pop();
-              const fileName = `${data.user.id}_${i}_${Math.random()}.${fileExt}`;
-              const filePath = `certificates/${fileName}`;
-              
-              const { error: uploadError } = await supabase.storage
-                .from('certificates')
-                .upload(filePath, file);
-              
-              if (!uploadError) {
-                const { data: { publicUrl } } = supabase.storage
-                  .from('certificates')
-                  .getPublicUrl(filePath);
-                certUrls.push(publicUrl);
-              }
-            }
-            profileUpdates.certificates = certUrls;
-          }
-
-          await supabase.from('profiles').update(profileUpdates).eq('id', data.user.id);
+          setEmailSent(true);
+          setServerError('');
+          onAuth();
+          onClose();
         }
-
-        onAuth();
-        onClose();
       } else {
         const signinPromise = supabase.auth.signInWithPassword({
           email: formData.email,
@@ -127,30 +84,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
         const { error } = await Promise.race([signinPromise, timeoutPromise]) as any;
         if (error) throw error;
         
-        // Reset login attempts on success
         setLoginAttempts(0);
         onAuth();
         onClose();
       }
     } catch (err: any) {
+      console.error('Auth error:', err);
       if (err.message === 'AUTH_TIMEOUT') {
         console.warn('Auth lock stuck during login! Clearing local storage to self-heal...');
         localStorage.clear();
         setServerError('Browser lock cleared. Please try logging in again.');
+      } else if (err.message?.includes('rate limit') || err.status === 429) {
+        setServerError('Too many signup attempts. Please wait a few minutes and try again.');
+      } else if (err.message?.includes('Email rate limit')) {
+        setServerError('Confirmation email already sent. Check your inbox or spam folder.');
       } else {
         setServerError(err.message || 'An error occurred. Please try again.');
-        
-        // Handle failed login attempts
-        if (tab === 'login') {
-          const newAttempts = loginAttempts + 1;
-          setLoginAttempts(newAttempts);
-          
-          if (newAttempts >= 3) {
-            setServerError('Too many failed attempts. A password reset email has been sent to your inbox.');
-            await supabase.auth.resetPasswordForEmail(formData.email);
-            setLoginAttempts(0); // Reset after triggering email
-          }
-        }
       }
     } finally {
       setLoading(false);
@@ -197,7 +146,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
             </div>
           )}
 
-          {tab === 'signup' && (
+          {emailSent && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-green-800 mb-1">Check Your Email!</h3>
+              <p className="text-sm text-green-700 mb-3">
+                We've sent a confirmation link to <span className="font-medium">{formData.email}</span>
+              </p>
+              <p className="text-xs text-green-600">
+                Click the link in your email to activate your account and complete your registration.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '', skills: '', resume: '' }); setCertFiles(null); }}
+                className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          )}
+
+          {!emailSent && tab === 'signup' && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">I am a...</label>
@@ -342,19 +315,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
             </>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              tab === 'login' ? 'Sign In' : 'Create Account'
-            )}
-          </button>
+          {!emailSent && (
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                tab === 'login' ? 'Sign In' : 'Create Account'
+              )}
+            </button>
+          )}
 
-          {tab === 'signup' && role === 'jobseeker' && (
+          {!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
               Jobseeker registration requires a one-time M-Pesa payment of <span className="font-semibold text-green-700">KES 500</span> to activate your profile.
             </p>

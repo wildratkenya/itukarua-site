@@ -23,6 +23,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     category: category !== 'All Categories' ? category : undefined,
     location: location !== 'All Locations' ? location : undefined,
     search: search.trim() || undefined,
+    activeOnly: true,
   }), [category, location, search]);
 
   const { data: jobsData = [], isLoading } = useJobs(filters);
@@ -121,13 +122,16 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {JOB_CATEGORIES.map(c => (
+            <button key={c} onClick={() => setCategory(c)} className={`px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === c ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>{c}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-gray-500">Showing <span className="font-semibold text-gray-900">{jobs.length}</span> jobs</p>
-          <div className="hidden lg:flex gap-2 overflow-x-auto">
-            {JOB_CATEGORIES.slice(0, 6).map(c => (
-              <button key={c} onClick={() => setCategory(c)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === c ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{c}</button>
-            ))}
-          </div>
         </div>
 
         {isLoading ? (

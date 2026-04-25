@@ -9,12 +9,13 @@ export function useJobs(filters?: {
   location?: string;
   search?: string;
   status?: string;
+  activeOnly?: boolean;
   limit?: number;
   postedBy?: string;
 }) {
   return useQuery({
     queryKey: ['jobs', filters],
-    queryFn: () => getJobs({ ...filters, limit: filters?.limit || 50 }), // Default limit of 50
+    queryFn: () => getJobs({ ...filters, limit: filters?.limit || 50 }),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -223,9 +224,9 @@ export function useUpdateServiceAd() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceAds'] });
-      queryClient.invalidateQueries({ queryKey: ['serviceAd'] });
+    onSuccess: (data) => {
+      // Don't invalidate everything, just update the specific cache entry
+      queryClient.setQueryData(['serviceAd', data.id], data);
     },
   });
 }

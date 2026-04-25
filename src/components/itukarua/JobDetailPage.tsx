@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, createPayment, type DbJob, type DbBid } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, createPayment, updateJob, type DbJob, type DbBid } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -27,6 +27,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [selectedBid, setSelectedBid] = useState<string | null>(null);
   const [contactUnlocked, setContactUnlocked] = useState(false);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
+  const [winnerId, setWinnerId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -87,6 +88,25 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const handleSelectBidder = (bidId: string) => {
     if (!user) { onOpenAuth('login'); return; }
     setSelectedBid(bidId);
+    setWinnerId(bidId);
+  };
+
+  const handleAcceptBid = async (bid: DbBid) => {
+    if (!user) { onOpenAuth('login'); return; }
+    if (user.id !== job.posted_by) {
+      alert('Only the job poster can accept bids');
+      return;
+    }
+    try {
+      await updateJob(job.id, { status: 'in-progress' });
+      setJob({ ...job, status: 'in-progress' });
+      setSelectedBid(bid.id);
+      setWinnerId(bid.id);
+      alert(`Bid accepted for ${bid.bidder_name || 'this bidder'}! Job is now in progress. Contact will be shared after payment.`);
+    } catch (err) {
+      console.error('Error accepting bid:', err);
+      alert('Failed to accept bid. Please try again.');
+    }
   };
 
   const handleUnlockContact = async () => {
@@ -146,7 +166,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
               <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100">
                 <div><p className="text-xs text-gray-400">Budget Range</p><p className="font-bold text-green-700">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p></div>
                 <div><p className="text-xs text-gray-400">Deadline</p><p className="font-semibold text-gray-900">{new Date(job.deadline).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
-                <div><p className="text-xs text-gray-400">Posted By</p><p className="font-semibold text-gray-900">{job.posted_by_name}</p></div>
+                <div><p className="text-xs text-gray-400">Posted By</p><p className="font-semibold text-gray-400">{job.posted_by_name}</p></div>
                 <div><p className="text-xs text-gray-400">Posted Date</p><p className="font-semibold text-gray-900">{new Date(job.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
               </div>
             </div>
@@ -185,20 +205,31 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                           </button>
                           {expandedBid === bid.id && <p className="text-sm text-gray-600 mt-2 p-3 bg-gray-50 rounded-lg">{bid.proposal}</p>}
                           <div className="flex gap-2 mt-3">
-                            {selectedBid === bid.id ? (
-                              contactUnlocked ? (
-                                <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
-                                  <Phone className="w-4 h-4" /> Contact: {bid.bidder_phone || '+254 7XX XXX XXX'}
-                                </div>
-                              ) : (
-                                <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
-                                  <Phone className="w-4 h-4" /> Unlock Contact (KES 200)
-                                </button>
-                              )
+                            {winnerId === bid.id ? (
+                              <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                                <Shield className="w-4 h-4" /> Selected
+                              </span>
                             ) : (
-                              <button onClick={() => handleSelectBidder(bid.id)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">Select Bidder</button>
+                              <>
+                                {user && user.id === job.posted_by && (
+                                  <button onClick={() => handleAcceptBid(bid)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    Accept Bid
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
+                          {winnerId === bid.id && user && user.id === job.posted_by && (
+                            contactUnlocked ? (
+                              <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium mt-2">
+                                <Phone className="w-4 h-4" /> Contact: {bid.bidder_phone || '+254 7XX XXX XXX'}
+                              </div>
+                            ) : (
+                              <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 mt-2">
+                                <Phone className="w-4 h-4" /> Unlock Contact (KES 200)
+                              </button>
+                            )
+                          )}
                         </div>
                       </div>
                     </div>

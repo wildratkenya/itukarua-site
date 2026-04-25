@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapPin, Clock, Users, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, Clock, Users, AlertTriangle, Camera } from 'lucide-react';
 
 interface Job {
   id: string; title: string; description: string; location: string; budgetMin: number; budgetMax: number;
@@ -14,6 +14,10 @@ interface JobCardProps {
 }
 
 const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const images = job.images && job.images.length > 0 ? job.images : [];
+  const hasMultipleImages = images.length > 1;
+
   const categoryColors: Record<string, string> = {
     Construction: 'bg-orange-100 text-orange-700',
     Painting: 'bg-blue-100 text-blue-700',
@@ -35,14 +39,62 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
       className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group overflow-hidden flex flex-col"
     >
       <div className="w-full h-40 bg-gray-100 relative overflow-hidden">
-        <img 
-          src={(job.images && job.images.length > 0) ? job.images[0] : 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800'} 
-          alt={job.title} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800';
-          }}
-        />
+        {images.length > 0 ? (
+          <>
+            <img
+              src={images[currentImageIndex]}
+              alt={`${job.title} - Image ${currentImageIndex + 1}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800';
+              }}
+            />
+            {hasMultipleImages && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1);
+                  }}
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1);
+                  }}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  ›
+                </button>
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(i);
+                      }}
+                      className={`w-2 h-2 rounded-full transition-colors ${i === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
+                    />
+                  ))}
+                </div>
+                <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full flex items-center gap-1">
+                  <Camera className="w-3 h-3" />
+                  {images.length}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <img
+            src='https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800'
+            alt={job.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        )}
       </div>
       <div className="p-5 flex-1 flex flex-col justify-between">
         <div>

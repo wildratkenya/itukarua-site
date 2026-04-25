@@ -18,6 +18,7 @@ export interface DbProfile {
   jobs_completed: number;
   verified: boolean;
   registration_paid: boolean;
+  email_confirmed?: boolean;
   created_at: string;
   updated_at: string;
   resume?: string;
@@ -198,8 +199,12 @@ export async function getProfiles(filters?: {
   }
 
   const { data, error } = await query;
-  if (error) { console.error('getProfiles error:', error); return []; }
-  return data || [];
+  if (error) { 
+    if (error.message?.includes('AbortError')) return [];
+    console.error('getProfiles error:', error); 
+    return []; 
+  }
+  return data as DbProfile[];
 }
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
@@ -209,6 +214,7 @@ export async function getJobs(filters?: {
   location?: string;
   search?: string;
   status?: string;
+  activeOnly?: boolean;
   limit?: number;
   postedBy?: string;
 }): Promise<DbJob[]> {
@@ -222,6 +228,9 @@ export async function getJobs(filters?: {
   }
   if (filters?.status) {
     query = query.eq('status', filters.status);
+  }
+  if (filters?.activeOnly) {
+    query = query.eq('status', 'open');
   }
   if (filters?.postedBy) {
     query = query.eq('posted_by', filters.postedBy);
@@ -237,8 +246,11 @@ export async function getJobs(filters?: {
   }
 
   const { data, error } = await query;
-  if (error) { console.error('getJobs error:', error); return []; }
-  console.log('Fetched Jobs:', data?.length);
+  if (error) { 
+    if (error.message?.includes('AbortError')) return [];
+    console.error('getJobs error:', error); 
+    return []; 
+  }
   return data as DbJob[];
 }
 
@@ -371,9 +383,14 @@ export async function getServiceAds(filters?: {
     query = query.limit(filters.limit);
   }
 
+  console.log('📡 getServiceAds: Fetching service ads with filters:', filters);
   const { data, error } = await query;
-  if (error) { console.error('getServiceAds error:', error); return []; }
-  console.log('Fetched Service Ads:', data?.length);
+  console.log('📡 getServiceAds result:', JSON.stringify({ count: data?.length, error: error ? { message: error.message, status: error.status, code: error.code } : null }, null, 2));
+  if (error) { 
+    if (error.message?.includes('AbortError')) return [];
+    console.error('getServiceAds error:', error); 
+    return []; 
+  }
   return data as DbServiceAd[];
 }
 
@@ -531,6 +548,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     .select('*')
     .single();
   if (error) {
+    if (error.message?.includes('AbortError')) return { active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 };
     console.error('getPlatformStats error:', error);
     return { active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 };
   }

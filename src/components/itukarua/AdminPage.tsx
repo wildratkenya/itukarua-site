@@ -42,11 +42,18 @@ interface Job {
 interface Ad {
   id: string;
   title: string;
-  category: string;
   business_name: string;
+  description: string;
+  category: string;
+  location: string;
+  contact_person: string;
+  contact: string;
   expiry_date: string;
   featured: boolean;
   payment_confirmed: boolean;
+  images: string[];
+  image: string;
+  owner_id: string;
 }
 
 interface Payment {
@@ -95,49 +102,34 @@ const AdminPage: React.FC = () => {
   const [adUploading, setAdUploading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  const loadAds = async () => {
+    const { data } = await supabase.from('service_ads').select('*').order('created_at', { ascending: false });
+    setAds(data || []);
+  };
+
+  const loadJobs = async () => {
+    const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    setJobs(data || []);
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
-
-      // Load users
-      const { data: usersData } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setUsers(usersData || []);
-
-      // Load jobs
-      const { data: jobsData } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setJobs(jobsData || []);
-
-      // Load ads
-      const { data: adsData } = await supabase
-        .from('service_ads')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setAds(adsData || []);
-
-      // Load payments
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setPayments(paymentsData || []);
-
-      // Load messages
-      const { data: messagesData } = await supabase
-        .from('messages')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setMessages(messagesData || []);
+      // Load everything initially
+      await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
+        loadJobs(),
+        loadAds(),
+        supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
+        supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || []))
+      ]);
 
       // Use individual category lists for modals
       const jobCats = JOB_CATEGORIES.filter(c => c !== 'All Categories');
@@ -248,6 +240,52 @@ const AdminPage: React.FC = () => {
       toast({ title: 'Success', description: `Password reset email pushed to ${email}` });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to send reset email', variant: 'destructive' });
+    }
+  };
+
+  const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setCreatingUser(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    const fullName = formData.get('full_name') as string;
+    const phone = formData.get('phone') as string;
+    const role = formData.get('role') as string;
+    const location = formData.get('location') as string;
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email, password, full_name: fullName, phone, role, location }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Failed to create user');
+      }
+
+      toast({
+        title: 'Success',
+        description: `User ${fullName} created successfully!`,
+      });
+
+      setIsCreateUserModalOpen(false);
+      await loadData();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to create user',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -391,7 +429,7 @@ const AdminPage: React.FC = () => {
       }
       setIsJobModalOpen(false);
       setJobImages([]);
-      loadData();
+      await loadJobs(); // Only reload jobs!
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to save job', variant: 'destructive' });
     } finally {
@@ -417,16 +455,18 @@ const AdminPage: React.FC = () => {
     
     const formData = new FormData(e.currentTarget);
     const adData: any = {
-      title: formData.get('title') || formData.get('business_name'),
-      business_name: formData.get('business_name'),
-      description: formData.get('description') || '',
-      category: formData.get('category'),
-      location: formData.get('location'),
-      contact: formData.get('contact'),
-      owner_id: formData.get('owner_id') || null,
-      plan: formData.get('plan') || '30-day',
+      title: formData.get('title') || formData.get('business_name') || editingAd?.title,
+      business_name: formData.get('business_name') || editingAd?.business_name,
+      description: formData.get('description') || editingAd?.description || '',
+      category: formData.get('category') || editingAd?.category,
+      location: formData.get('location') || editingAd?.location,
+      contact_person: formData.get('contact_person') || editingAd?.contact_person || '',
+      contact: formData.get('contact') || editingAd?.contact,
+      owner_id: formData.get('owner_id') || editingAd?.owner_id || null,
+      plan: formData.get('plan') || editingAd?.plan || '30-day',
       featured: formData.get('featured') === 'true',
       payment_confirmed: formData.get('payment_confirmed') === 'true',
+      expiry_date: formData.get('expiry_date') || editingAd?.expiry_date,
     };
 
     try {
@@ -449,11 +489,14 @@ const AdminPage: React.FC = () => {
       }
 
       adData.images = currentImages;
-      if (currentImages.length > 0 && !adData.image) {
+      if (currentImages.length > 0) {
         adData.image = currentImages[0];
+      } else if (editingAd?.image) {
+        adData.image = editingAd.image;
       }
 
       if (editingAd?.id) {
+        console.log('📝 Updating existing ad:', editingAd.id, adData);
         const { error } = await supabase.from('service_ads').update(adData).eq('id', editingAd.id);
         if (error) throw error;
         toast({ title: 'Success', description: 'Ad updated successfully' });
@@ -471,7 +514,7 @@ const AdminPage: React.FC = () => {
 
       setIsAdModalOpen(false);
       setAdFiles([]);
-      loadData();
+      await loadAds(); // Only reload ads!
     } catch (error: any) {
       console.error('Error saving ad:', error);
       toast({ title: 'Error', description: error.message || 'Failed to save ad', variant: 'destructive' });
@@ -634,8 +677,11 @@ const AdminPage: React.FC = () => {
 
           <TabsContent value="users">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>User Management</CardTitle>
+                <Button onClick={() => setIsCreateUserModalOpen(true)}>
+                  + Add New User
+                </Button>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -810,30 +856,33 @@ const AdminPage: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Title</TableHead>
+                      <TableHead>Image</TableHead>
                       <TableHead>Business</TableHead>
                       <TableHead>Category</TableHead>
+                      <TableHead>Contact Person</TableHead>
+                      <TableHead>Phone</TableHead>
                       <TableHead>Expiry</TableHead>
                       <TableHead>Featured</TableHead>
-                      <TableHead>Payment</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ads.map((ad) => (
                       <TableRow key={ad.id}>
-                        <TableCell>{ad.title}</TableCell>
-                        <TableCell>{ad.business_name}</TableCell>
+                        <TableCell>
+                          <img src={ad.image || (ad.images?.[0]) || '/images/services.png'} alt="" className="w-12 h-12 object-cover rounded" />
+                        </TableCell>
+                        <TableCell>
+                          <div>{ad.business_name}</div>
+                          <div className="text-xs text-gray-500">{ad.title}</div>
+                        </TableCell>
                         <TableCell>{ad.category}</TableCell>
+                        <TableCell>{ad.contact_person || '-'}</TableCell>
+                        <TableCell>{ad.contact || '-'}</TableCell>
                         <TableCell>{ad.expiry_date}</TableCell>
                         <TableCell>
                           <Badge variant={ad.featured ? 'default' : 'secondary'}>
                             {ad.featured ? 'Featured' : 'Regular'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={ad.payment_confirmed ? 'default' : 'destructive'}>
-                            {ad.payment_confirmed ? 'Confirmed' : 'Pending'}
                           </Badge>
                         </TableCell>
                         <TableCell className="flex gap-2 flex-wrap">
@@ -1201,9 +1250,15 @@ const AdminPage: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Contact</Label>
-                <Input name="contact" defaultValue={editingAd?.contact} required />
+                <Label>Contact Person</Label>
+                <Input name="contact_person" defaultValue={editingAd?.contact_person} placeholder="e.g. John Kamau" />
               </div>
+              <div>
+                <Label>Phone Number</Label>
+                <Input name="contact" defaultValue={editingAd?.contact} placeholder="+254 7XX XXX XXX" required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Plan</Label>
                 <Select 
@@ -1371,6 +1426,59 @@ const AdminPage: React.FC = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Modal */}
+      <Dialog open={isCreateUserModalOpen} onOpenChange={setIsCreateUserModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={createUser} className="space-y-4">
+            <div>
+              <Label>Full Name</Label>
+              <Input name="full_name" required placeholder="John Kamau" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input name="email" type="email" required placeholder="john@example.com" />
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input name="phone" type="tel" required placeholder="+254 7XX XXX XXX" />
+            </div>
+            <div>
+              <Label>Location</Label>
+              <Input name="location" placeholder="Kenyatta Road, Itukarua" />
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input name="password" type="password" required placeholder="Min 6 characters" minLength={6} />
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Select name="role" defaultValue="employer">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="jobseeker">Jobseeker</SelectItem>
+                  <SelectItem value="employer">Employer</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsCreateUserModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingUser}>
+                {creatingUser ? 'Creating...' : 'Create User'}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
