@@ -287,7 +287,7 @@ const AdminPage: React.FC = () => {
           try {
             for (const file of certFiles) {
               const fileExt = file.name.split('.').pop();
-              const fileName = `${authData.user.id}/certs/${Math.random()}.${fileExt}`;
+              const fileName = `${authData.user.id}/certs/img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
               const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
               if (!certError) {
                 certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
@@ -445,7 +445,7 @@ const AdminPage: React.FC = () => {
         const imageUrls: string[] = [];
         for (const file of jobImages) {
           const fileExt = file.name.split('.').pop();
-          const fileName = `${Math.random()}.${fileExt}`;
+          const fileName = `img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
           const filePath = `${jobData.posted_by || 'admin'}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
@@ -533,7 +533,7 @@ const AdminPage: React.FC = () => {
           if (newImages.length >= 3) break;
           console.log('Uploading file:', file.name);
           const fileExt = file.name.split('.').pop();
-          const fileName = `${Math.random()}.${fileExt}`;
+          const fileName = `img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
           
           const uploadPromise = supabase.storage
             .from('adverts')
@@ -1613,5 +1613,8 @@ const AdminPage: React.FC = () => {
 };
 
 export default AdminPage;
+
+
+
 
 
