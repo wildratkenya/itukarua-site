@@ -1,4 +1,4 @@
-// Image URLs
+﻿// Image URLs
 export const IMAGES = {
   hero: 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055506194_45521c8f.jpg',
   workers: [
@@ -75,7 +75,7 @@ export const LOCATIONS = [
 export const PRICING_PLANS = {
   jobseeker: {
     name: 'Jobseeker Registration',
-    price: 200,
+    price: 100,
     period: 'one-time',
     features: [
       'Create professional profile',
@@ -132,7 +132,7 @@ export const PRICING_PLANS = {
   ],
   employerAccess: {
     name: 'Contact Access Fee',
-    price: 200,
+    price: 100,
     period: 'per contact',
     description: 'Pay to unlock jobseeker contact details after selecting the best bidder.',
   },
@@ -143,3 +143,4 @@ export const PRICING_PLANS = {
     description: 'Boost your advert to the top of search results and homepage carousel.',
   },
 };
+

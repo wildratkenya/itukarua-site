@@ -289,38 +289,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         </div>
       </section>
 
-      {/* Why Choose Us */}
-      <section className="py-16 lg:py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Choose Itukarua?</h2>
-              <p className="text-gray-500 mb-8">We're building the largest community marketplace in Central Kenya, connecting talent with opportunity.</p>
-              <div className="space-y-4">
-                {[
-                  { icon: Shield, title: 'Verified Workers', desc: 'All workers are vetted and verified before they can bid on jobs.' },
-                  { icon: CreditCard, title: 'Secure M-Pesa Payments', desc: 'All transactions go through M-Pesa for maximum security and convenience.' },
-                  { icon: Clock, title: 'Fast Matching', desc: 'Post a job and receive bids within hours from local skilled workers.' },
-                  { icon: Zap, title: 'Community Driven', desc: 'Built by and for the local community, supporting economic growth.' },
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <item.icon className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">{item.title}</h4>
-                      <p className="text-sm text-gray-500">{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="relative">
-              <img src={IMAGES.community[0]} alt="Community" className="rounded-2xl shadow-xl w-full" />
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* CTA */}
       <section className="py-16 lg:py-20 bg-gradient-to-br from-green-700 via-green-800 to-green-900">

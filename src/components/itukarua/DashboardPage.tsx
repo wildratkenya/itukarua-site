@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2 } from 'lucide-react';
 import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
@@ -309,7 +309,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               <div className="space-y-4">
                 {[
                   { label: 'Jobseeker Registration', desc: 'One-time fee', val: 500 },
-                  { label: 'Contact Access Fee', desc: 'Per contact unlock', val: 200 },
+                  { label: 'Contact Access Fee', desc: 'Per contact unlock', val: 100 },
                 ].map((fee, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div><p className="font-medium text-gray-900">{fee.label}</p><p className="text-xs text-gray-500">{fee.desc}</p></div>
@@ -330,3 +330,4 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
 };
 
 export default DashboardPage;
+

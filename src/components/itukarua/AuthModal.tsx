@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -352,7 +352,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
           {!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
-              Jobseeker registration requires a one-time M-Pesa payment of <span className="font-semibold text-green-700">KES 500</span> to activate your profile.
+              Jobseeker registration requires a one-time M-Pesa payment of <span className="font-semibold text-green-700">KES 100</span> to activate your profile.
             </p>
           )}
         </form>
@@ -362,3 +362,4 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
 export default AuthModal;
+

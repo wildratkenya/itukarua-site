@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, createPayment, updateJob, type DbJob, type DbBid } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, type DbJob, type DbBid, type DbRating } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -29,6 +29,14 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [contactUnlocked, setContactUnlocked] = useState(false);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [jobRatings, setJobRatings] = useState<DbRating[]>([]);
+  const [hasRated, setHasRated] = useState(false);
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [selectedBidderForRating, setSelectedBidderForRating] = useState<string | null>(null);
+  const [selectedBidderName, setSelectedBidderName] = useState('');
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null);
 
   useEffect(() => {
@@ -111,12 +119,77 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     }
   };
 
+
+  useEffect(() => {
+    const loadRatings = async () => {
+      if (job) {
+        const ratings = await getRatingsForJob(job.id);
+        setJobRatings(ratings);
+        if (user) {
+          const rated = await checkIfRated(job.id, user.id);
+          setHasRated(rated);
+        }
+      }
+    };
+    loadRatings();
+  }, [job, user]);
+
+  const handleRateWorker = async () => {
+    if (!user || !selectedBidderForRating || ratingValue === 0) {
+      alert('Please select a rating');
+      return;
+    }
+    setRatingSubmitting(true);
+    try {
+      await createRating({
+        job_id: job.id,
+        bidder_id: selectedBidderForRating,
+        poster_id: user.id,
+        rating: ratingValue,
+        comment: ratingComment,
+      });
+      setShowRatingModal(false);
+      setRatingValue(0);
+      setRatingComment('');
+      const updatedRatings = await getRatingsForJob(job.id);
+      setJobRatings(updatedRatings);
+      setHasRated(true);
+      alert('Rating submitted successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit rating');
+    } finally {
+      setRatingSubmitting(false);
+    }
+  };
+
+  const openRatingModal = (bidderId: string, bidderName: string) => {
+  const handleCompleteJob = async () => {
+    if (!user) return;
+    if (user.id !== job.posted_by) {
+      alert('Only the job poster can complete the job');
+      return;
+    }
+    try {
+      await updateJob(job.id, { status: 'completed' });
+      setJob({ ...job, status: 'completed' });
+      alert('Job marked as completed! You can now rate the worker.');
+      const updatedRatings = await getRatingsForJob(job.id);
+      setJobRatings(updatedRatings);
+    } catch (err) {
+      console.error('Error completing job:', err);
+      alert('Failed to complete job. Please try again.');
+    }
+  };
+    setSelectedBidderForRating(bidderId);
+    setSelectedBidderName(bidderName);
+    setShowRatingModal(true);
+  };
   const handleUnlockContact = async () => {
     if (!user) return;
     try {
-      await createPayment({ user_id: user.id, payment_type: 'contact_access', amount: 200, description: `Contact access for job ${job.title}`, related_job_id: job.id });
+      await createPayment({ user_id: user.id, payment_type: 'contact_access', amount: 100, description: `Contact access for job ${job.title}`, related_job_id: job.id });
     } catch (err) { console.error(err); }
-    onOpenMpesa(200, 'Contact Access Fee', `JOB-${job.id.slice(0, 8)}`);
+    onOpenMpesa(100, 'Contact Access Fee', `JOB-${job.id.slice(0, 8)}`);
     setTimeout(() => setContactUnlocked(true), 500);
   };
 
@@ -186,6 +259,39 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
               {sortedBids.length > 0 ? (
                 <div className="space-y-4">
+              {job.status === 'completed' && !hasRated && user && user.id === job.posted_by && (
+                <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <h3 className="font-semibold text-amber-800 mb-2">Job Completed! Rate the Worker</h3>
+                  <p className="text-sm text-amber-700 mb-3">Your feedback helps other employers find quality workers.</p>
+                  <button
+                    onClick={() => openRatingModal(winnerId || '', bids.find(b => b.id === winnerId)?.bidder_name || 'Worker')}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Rate Worker
+                  </button>
+                </div>
+              )}
+
+              {jobRatings.length > 0 && (
+                <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <h3 className="font-semibold text-gray-800 mb-3">Ratings ({jobRatings.length})</h3>
+                  <div className="space-y-3">
+                    {jobRatings.map((r, idx) => (
+                      <div key={idx} className="bg-white p-3 rounded-lg border border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <div className="flex">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star key={star} className={`w-4 h-4 ${star <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} />
+                            ))}
+                          </div>
+                          <span className="text-sm text-gray-500">{new Date(r.created_at).toLocaleDateString()}</span>
+                        </div>
+                        {r.comment && <p className="text-sm text-gray-600 mt-2">{r.comment}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
                   {sortedBids.map((bid, idx) => (
                     <div key={bid.id} className={`border rounded-xl p-4 transition-all ${selectedBid === bid.id ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}>
                       <div className="flex items-start gap-4">
@@ -229,7 +335,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                               </div>
                             ) : (
                               <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 mt-2">
-                                <Phone className="w-4 h-4" /> Unlock Contact (KES 200)
+                                <Phone className="w-4 h-4" /> Unlock Contact (KES 100)
                               </button>
                             )
                           )}
@@ -290,6 +396,55 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           </div>
         </div>
       </div>
+      {showRatingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Rate {selectedBidderName}</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onClick={() => setRatingValue(star)}
+                    className="focus:outline-none"
+                  >
+                    <Star className={`w-8 h-8 ${star <= ratingValue ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Comment (optional)</label>
+              <textarea
+                value={ratingComment}
+                onChange={e => setRatingComment(e.target.value)}
+                placeholder="Share your experience working with this worker..."
+                rows={3}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none"
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={handleRateWorker}
+                disabled={ratingSubmitting || ratingValue === 0}
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {ratingSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit Rating'}
+              </button>
+              <button
+                onClick={() => setShowRatingModal(false)}
+                className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {viewingImage && (
         <ImageViewerModal
           images={viewingImage.images}
@@ -302,3 +457,5 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 };
 
 export default JobDetailPage;
+
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getProfile } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
@@ -520,6 +520,12 @@ const AdminPage: React.FC = () => {
 
       // Handle multiple image uploads
       if (adFiles.length > 0) {
+        const oversized = adFiles.filter(f => f.size > 1024 * 1024);
+        if (oversized.length > 0) {
+          toast({ title: 'File Too Large', description: `${oversized[0].name} exceeds 1MB limit. Please compress and try again.`, variant: 'destructive' });
+          setAdUploading(false);
+          return;
+        }
         console.log('Uploading images:', adFiles.length);
         const newImages: string[] = [];
         
@@ -534,7 +540,7 @@ const AdminPage: React.FC = () => {
             .upload(`admin/${fileName}`, file);
           
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Upload timeout after 30s')), 30000)
+            setTimeout(() => reject(new Error('Upload timeout after 60s')), 60000)
           );
           
           const { data, error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as any;
@@ -561,7 +567,7 @@ const AdminPage: React.FC = () => {
       }
 
       if (editingAd?.id) {
-        console.log('📝 Updating existing ad:', editingAd.id, adData);
+        console.log('ðŸ“ Updating existing ad:', editingAd.id, adData);
         const { error } = await supabase.from('service_ads').update(adData).eq('id', editingAd.id);
         if (error) throw error;
         toast({ title: 'Success', description: 'Ad updated successfully' });
@@ -1413,9 +1419,15 @@ const AdminPage: React.FC = () => {
                 onChange={(e) => {
                   const files = e.target.files;
                   if (files) {
-                    // Count total - existing + new + upload
+                    const validFiles = Array.from(files).filter(f => {
+                      if (f.size > 1024 * 1024) {
+                        alert(`${f.name} exceeds 1MB limit. Please compress or choose a smaller image.`);
+                        return false;
+                      }
+                      return true;
+                    });
                     const currentTotal = (editingAd?.images?.length || 0) + adFiles.length;
-                    const newFiles = Array.from(files).slice(0, 3 - currentTotal);
+                    const newFiles = validFiles.slice(0, 3 - currentTotal);
                     const combined = [...adFiles, ...newFiles];
                     setAdFiles(combined);
                   }
@@ -1601,3 +1613,5 @@ const AdminPage: React.FC = () => {
 };
 
 export default AdminPage;
+
+
