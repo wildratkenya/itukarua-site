@@ -21,3 +21,15 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     },
   },
 });
+// ─── Image Optimization ─────────────────────────────────────────────────────
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+
+export function optimizeImageUrl(url: string, width: number = 400, height: number = 400): string {
+  if (!url || !url.startsWith(supabaseUrl)) {
+    return url;
+  }
+  
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}width=${width}&height=${height}&resize=cover&quality=80`;
+}

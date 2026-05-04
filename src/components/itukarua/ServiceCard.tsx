@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { MapPin, Star, Sparkles, Phone, Camera } from 'lucide-react';
+import { optimizeImageUrl } from '@/lib/supabase';
 
 interface ServiceAd {
   id: string; 
@@ -54,7 +55,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
         {allImages.length > 0 ? (
           <>
             <img
-              src={allImages[currentImageIndex]}
+              src={optimizeImageUrl(allImages[currentImageIndex], 400, 400)}
               alt={`${service.businessName} - Image ${currentImageIndex + 1}`}
               loading="lazy"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -72,7 +73,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   }}
                   className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  ‹
+                  â€¹
                 </button>
                 <button
                   onClick={(e) => {
@@ -81,7 +82,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   }}
                   className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  ›
+                  â€º
                 </button>
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                   {allImages.map((_, i) => (
@@ -138,7 +139,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
               onClick={(e) => e.stopPropagation()}
               className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
             >
-              <img src={allImages[0]} alt="" className="w-full h-full object-cover" />
+              <img src={optimizeImageUrl(allImages[0], 100, 100)} alt="" className="w-full h-full object-cover" />
             </button>
           ) : (
             allImages.map((img, i) => (
@@ -152,7 +153,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
                 }`}
               >
-                <img src={img} alt="" className="w-full h-full object-cover" />
+                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
               </button>
             ))
           )}
@@ -193,3 +194,4 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
 };
 
 export default ServiceCard;
+

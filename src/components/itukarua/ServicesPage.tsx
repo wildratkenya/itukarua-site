@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { Search, SlidersHorizontal, X, Plus } from 'lucide-react';
 import ServiceCard from './ServiceCard';
+import { optimizeImageUrl } from '@/lib/supabase';
 import { SERVICE_CATEGORIES, LOCATIONS, IMAGES } from '@/data/siteData';
 import { useServiceAds } from '@/hooks/useQueries';
 import type { Page } from './Header';
@@ -74,7 +75,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Main Image */}
             <div className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images || [selectedService.image]); }}>
-              <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.business_name} className="w-full h-56 object-cover rounded-t-2xl cursor-pointer" loading="lazy" />
+              <img src={optimizeImageUrl(selectedService.image || IMAGES.services[0], 500, 224)} alt={selectedService.business_name} className="w-full h-56 object-cover rounded-t-2xl cursor-pointer" loading="lazy" />
               <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors rounded-t-2xl flex items-center justify-center">
                 <span className="text-white opacity-0 hover:opacity-100 font-medium">Click to enlarge</span>
               </div>
@@ -89,7 +90,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                     onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images); }}
                     className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-transparent hover:border-green-500 transition-colors"
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={optimizeImageUrl(img, 128, 128)} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -205,3 +206,4 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 };
 
 export default ServicesPage;
+

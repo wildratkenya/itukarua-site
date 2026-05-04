@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap } from 'lucide-react';
 import HeroSection from './HeroSection';
 import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
+import { optimizeImageUrl } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
 import { getPlatformStats, type PlatformStats } from '@/lib/database';
@@ -112,7 +113,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Main Image */}
             <div className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images || [selectedService.image]); }}>
-              <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.businessName} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
+              <img src={optimizeImageUrl(selectedService.image || IMAGES.services[0], 500, 224)} alt={selectedService.businessName} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
               <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors rounded-t-2xl flex items-center justify-center">
                 <span className="text-white opacity-0 hover:opacity-100 font-medium">Click to enlarge</span>
               </div>
@@ -306,3 +307,4 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
 };
 
 export default HomePage;
+
