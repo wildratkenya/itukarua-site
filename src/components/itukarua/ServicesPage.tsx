@@ -4,6 +4,7 @@ import ServiceCard from './ServiceCard';
 import { SERVICE_CATEGORIES, LOCATIONS, IMAGES } from '@/data/siteData';
 import { useServiceAds } from '@/hooks/useQueries';
 import type { Page } from './Header';
+import ImageViewerModal from './ImageViewerModal';
 
 interface ServicesPageProps {
   onNavigate: (page: Page) => void;
@@ -15,6 +16,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const [location, setLocation] = useState('All Locations');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedService, setSelectedService] = useState<any | null>(null);
+  const [viewingImage, setViewingImage] = useState<string[] | null>(null);
 
   const filters = useMemo(() => ({
     category: category !== 'All Services' ? category : undefined,
@@ -36,12 +38,19 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
   const services = servicesData.map((s: any) => {
     try {
+      const serviceImages = Array.isArray(s.images) && s.images.length > 0 
+        ? s.images 
+        : s.image 
+          ? [s.image] 
+          : [IMAGES.services[0]];
+      
       return {
         id: s.id,
         businessName: s.business_name,
         description: s.description,
         category: s.category,
         image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
+        images: serviceImages,
         location: s.location,
         contact: s.contact,
         expiryDate: s.expiry_date,
@@ -63,7 +72,29 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.business_name} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
+            {/* Main Image */}
+            <div className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images || [selectedService.image]); }}>
+              <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.business_name} className="w-full h-56 object-cover rounded-t-2xl cursor-pointer" loading="lazy" />
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors rounded-t-2xl flex items-center justify-center">
+                <span className="text-white opacity-0 hover:opacity-100 font-medium">Click to enlarge</span>
+              </div>
+            </div>
+            
+            {/* Thumbnail Scroller */}
+            {selectedService.images && selectedService.images.length > 1 && (
+              <div className="flex gap-2 p-3 bg-gray-50 overflow-x-auto border-b border-gray-100">
+                {selectedService.images.map((img: string, i: number) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images); }}
+                    className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-transparent hover:border-green-500 transition-colors"
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+            
             <div className="p-6">
               <div className="flex items-center gap-2 mb-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{selectedService.category}</span>
@@ -81,6 +112,12 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+      )}
+      {viewingImage && (
+        <ImageViewerModal
+          images={viewingImage}
+          onClose={() => setViewingImage(null)}
+        />
       )}
 
       <div className="relative py-10 lg:py-14 bg-cover bg-center" style={{ backgroundImage: 'url(/images/services.png)' }}>
@@ -140,7 +177,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <p className="text-sm text-gray-500 mb-6">Showing <span className="font-semibold text-gray-900">{services.length}</span> businesses & services</p>
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {[1,2,3,4].map(i => (
               <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
                 <div className="h-48 bg-gray-200" />
@@ -149,7 +186,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
             ))}
           </div>
         ) : services.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {services.map(service => (
               <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} />
             ))}

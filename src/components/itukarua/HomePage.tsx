@@ -7,6 +7,7 @@ import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
 import { getPlatformStats, type PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
+import ImageViewerModal from './ImageViewerModal';
 
 interface HomePageProps {
   onNavigate: (page: Page) => void;
@@ -17,6 +18,7 @@ interface HomePageProps {
 const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) => {
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
   const [selectedService, setSelectedService] = useState<any | null>(null);
+  const [viewingImage, setViewingImage] = useState<string[] | null>(null);
 
   // Load homepage data with retry logic
   const { data: jobsData = [], isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useJobs({ limit: 6 });
@@ -74,12 +76,19 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
   // Simple mapping for services
   const services = servicesData.map((s: any) => {
     try {
+      const serviceImages = Array.isArray(s.images) && s.images.length > 0 
+        ? s.images 
+        : s.image 
+          ? [s.image] 
+          : [IMAGES.services[0]];
+      
       return {
         id: s.id,
         businessName: s.business_name,
         description: s.description,
         category: s.category,
         image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
+        images: serviceImages,
         location: s.location,
         contact: s.contact,
         expiryDate: s.expiry_date,
@@ -101,7 +110,29 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.businessName} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
+            {/* Main Image */}
+            <div className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images || [selectedService.image]); }}>
+              <img src={selectedService.image || IMAGES.services[0]} alt={selectedService.businessName} className="w-full h-56 object-cover rounded-t-2xl" loading="lazy" />
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors rounded-t-2xl flex items-center justify-center">
+                <span className="text-white opacity-0 hover:opacity-100 font-medium">Click to enlarge</span>
+              </div>
+            </div>
+            
+            {/* Thumbnail Scroller */}
+            {selectedService.images && selectedService.images.length > 1 && (
+              <div className="flex gap-2 p-3 bg-gray-50 overflow-x-auto border-b border-gray-100">
+                {selectedService.images.map((img: string, i: number) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images); }}
+                    className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-transparent hover:border-green-500 transition-colors"
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+            
             <div className="p-6">
               <div className="flex items-center gap-2 mb-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{selectedService.category}</span>
@@ -119,30 +150,36 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
           </div>
         </div>
       )}
+      {viewingImage && (
+        <ImageViewerModal
+          images={viewingImage}
+          onClose={() => setViewingImage(null)}
+        />
+      )}
 
       {/* How It Works */}
-      <section className="py-16 lg:py-20 bg-white">
+      <section className="py-8 lg:py-10 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">How Itukarua Works</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">Simple steps to connect with local talent and opportunities</p>
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">How Itukarua Works</h2>
+            <p className="text-gray-500 text-sm max-w-xl mx-auto">Simple steps to connect with local talent and opportunities</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { icon: Briefcase, title: 'Post a Job', desc: 'Describe your job, set a budget, and publish it for local workers to see.', color: 'bg-green-100 text-green-600' },
-              { icon: UserCheck, title: 'Receive Bids', desc: 'Qualified workers bid on your job with proposals, pricing, and ratings.', color: 'bg-blue-100 text-blue-600' },
-              { icon: Star, title: 'Choose the Best', desc: 'Compare bidders by rating, price, and qualifications. Pick the best fit.', color: 'bg-amber-100 text-amber-600' },
-              { icon: CreditCard, title: 'Pay via M-Pesa', desc: 'Securely pay through M-Pesa. Workers get paid after job completion.', color: 'bg-purple-100 text-purple-600' },
+              { icon: Briefcase, title: 'Post a Job', desc: 'Describe your job, set a budget, and publish it.', color: 'bg-green-100 text-green-600' },
+              { icon: UserCheck, title: 'Receive Bids', desc: 'Workers bid with proposals and pricing.', color: 'bg-blue-100 text-blue-600' },
+              { icon: Star, title: 'Choose Best', desc: 'Compare by rating and price.', color: 'bg-amber-100 text-amber-600' },
+              { icon: CreditCard, title: 'Pay via M-Pesa', desc: 'Secure payment after completion.', color: 'bg-purple-100 text-purple-600' },
             ].map((step, i) => (
               <div key={i} className="text-center group">
-                <div className="relative inline-block mb-4">
-                  <div className={`w-16 h-16 ${step.color} rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform`}>
-                    <step.icon className="w-7 h-7" />
+                <div className="relative inline-block mb-3">
+                  <div className={`w-12 h-12 ${step.color} rounded-xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform`}>
+                    <step.icon className="w-5 h-5" />
                   </div>
-                  <div className="absolute -top-2 -right-2 w-7 h-7 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</div>
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{i + 1}</div>
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-2">{step.title}</h3>
-                <p className="text-sm text-gray-500">{step.desc}</p>
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">{step.title}</h3>
+                <p className="text-xs text-gray-500">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -150,21 +187,22 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
       </section>
 
       {/* Featured Jobs */}
-      <section className="py-16 lg:py-20 bg-gray-50">
+      <section className="py-8 lg:py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">Latest Jobs</h2>
-              <p className="text-gray-500 mt-1">Find local work opportunities near you</p>
+              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Latest Jobs</h2>
+              <p className="text-gray-500 text-sm mt-1">Find local work opportunities near you</p>
             </div>
             <button onClick={() => onNavigate('jobs')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
               View All Jobs <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[1,2,3].map(i => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[1,2,3,4].map(i => (
                 <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
+                  <div className="aspect-square bg-gray-200 rounded-lg mb-3" />
                   <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
                   <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
                   <div className="h-4 bg-gray-200 rounded w-1/2" />
@@ -172,8 +210,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {jobs.map(job => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {jobs.slice(0, 4).map(job => (
                 <JobCard key={job.id} job={job} onViewJob={onViewJob} />
               ))}
             </div>
@@ -182,12 +220,12 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
       </section>
 
       {/* Featured Services */}
-      <section className="py-16 lg:py-20 bg-white">
+      <section className="py-8 lg:py-10 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">Featured Services</h2>
-              <p className="text-gray-500 mt-1">Local businesses and service providers</p>
+              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Featured Services</h2>
+              <p className="text-gray-500 text-sm mt-1">Local businesses and service providers</p>
             </div>
             <button onClick={() => onNavigate('services')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 border border-gray-300 hover:border-green-600 hover:text-green-700 text-sm font-semibold rounded-lg transition-colors">
               View All Services <ArrowRight className="w-4 h-4" />
@@ -197,14 +235,14 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {[1,2,3,4].map(i => (
                 <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
-                  <div className="h-48 bg-gray-200" />
+                  <div className="aspect-square bg-gray-200" />
                   <div className="p-4"><div className="h-4 bg-gray-200 rounded w-1/3 mb-2" /><div className="h-5 bg-gray-200 rounded w-3/4 mb-2" /></div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {services.map(service => (
+              {services.slice(0, 4).map(service => (
                 <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} />
               ))}
             </div>

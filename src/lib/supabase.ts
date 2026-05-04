@@ -11,9 +11,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: false, // Disable to prevent navigator lock issues
+    persistSession: typeof navigator !== 'undefined' && navigator.locks?.query ? false : true,
     autoRefreshToken: true,
-    detectSessionInUrl: false, // Disable to prevent issues
+    detectSessionInUrl: true,
   },
   global: {
     headers: {

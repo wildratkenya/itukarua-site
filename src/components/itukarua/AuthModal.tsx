@@ -69,6 +69,27 @@ const handleSubmit = async (e: React.FormEvent) => {
         if (error) throw error;
 
         if (data.user) {
+          // Upload certificates if jobseeker
+          if (certFiles && certFiles.length > 0 && role === 'jobseeker') {
+            const certUrls: string[] = [];
+            const filesToUpload = Array.from(certFiles).slice(0, 3);
+            for (const file of filesToUpload) {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${data.user.id}/certs/${Math.random()}.${fileExt}`;
+              const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
+              if (!certError) {
+                const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
+                certUrls.push(publicUrl);
+              }
+            }
+            // Update user metadata with cert URLs
+            if (certUrls.length > 0) {
+              await supabase.auth.updateUser({
+                data: { certificates: certUrls }
+              });
+            }
+          }
+          
           setEmailSent(true);
           setServerError('');
           onAuth();

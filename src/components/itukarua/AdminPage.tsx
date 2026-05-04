@@ -104,6 +104,7 @@ const AdminPage: React.FC = () => {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [certFiles, setCertFiles] = useState<File[]>([]);
 
   useEffect(() => {
     loadData();
@@ -245,7 +246,6 @@ const AdminPage: React.FC = () => {
 
   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setCreatingUser(true);
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
@@ -255,35 +255,80 @@ const AdminPage: React.FC = () => {
     const location = formData.get('location') as string;
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ email, password, full_name: fullName, phone, role, location }),
+      // Skip Edge Function for now - not deployed
+      console.log('Creating user via signup:', email);
+      
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: { full_name: fullName, role, phone, location }
+        }
       });
+      console.log('Signup result:', { authData, authError });
 
-      const result = await response.json();
-
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to create user');
+      if (authError) {
+        if (authError.message.includes('rate limit') || authError.message.includes('Too Many Requests')) {
+          toast({ title: 'Rate Limited', description: 'Too many attempts. Wait 5 minutes and try again, or deploy Edge Function.', variant: 'destructive' });
+          return;
+        }
+        if (authError.message.includes('already been registered')) {
+          toast({ title: 'Error', description: 'Email already exists', variant: 'destructive' });
+          return;
+        }
+        throw authError;
       }
 
-      toast({
-        title: 'Success',
-        description: `User ${fullName} created successfully!`,
-      });
+      if (authData?.user) {
+        // Upload certificates if jobseeker
+        let certUrls: string[] = [];
+        if (certFiles.length > 0 && role === 'jobseeker') {
+          try {
+            for (const file of certFiles) {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${authData.user.id}/certs/${Math.random()}.${fileExt}`;
+              const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
+              if (!certError) {
+                certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+              }
+            }
+          } catch (certErr) {
+            console.error('Cert upload failed:', certErr);
+          }
+        }
 
-      setIsCreateUserModalOpen(false);
-      await loadData();
+        // Create profile
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: authData.user.id,
+          full_name: fullName,
+          email,
+          phone,
+          role,
+          location,
+          skills: role === 'jobseeker' ? formData.get('skills') as string : null,
+          resume: role === 'jobseeker' ? formData.get('resume') as string : null,
+          certificates: certUrls.length > 0 ? certUrls : null,
+          verified: true,
+          registration_paid: true,
+        });
+
+        if (profileError) {
+          console.error('Profile error:', profileError);
+          toast({ title: 'Partial success', description: 'User created but profile failed to save', variant: 'destructive' });
+        } else {
+          toast({ title: 'Success', description: `User ${fullName} created! Confirm email to login.` });
+        }
+
+        await loadData();
+        setIsCreateUserModalOpen(false);
+        setCertFiles([]);
+      } else {
+        toast({ title: 'Check email', description: 'Confirmation sent. Verify to login.' });
+      }
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create user',
-        variant: 'destructive',
-      });
+      console.error('Create user error:', error);
+      toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
     } finally {
       setCreatingUser(false);
     }
@@ -452,6 +497,7 @@ const AdminPage: React.FC = () => {
   const handleSaveAd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setAdUploading(true);
+    console.log('Starting ad save...');
     
     const formData = new FormData(e.currentTarget);
     const adData: any = {
@@ -474,18 +520,37 @@ const AdminPage: React.FC = () => {
 
       // Handle multiple image uploads
       if (adFiles.length > 0) {
+        console.log('Uploading images:', adFiles.length);
+        const newImages: string[] = [];
+        
         for (const file of adFiles) {
-          if (currentImages.length >= 3) break;
+          if (newImages.length >= 3) break;
+          console.log('Uploading file:', file.name);
           const fileExt = file.name.split('.').pop();
           const fileName = `${Math.random()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage
+          
+          const uploadPromise = supabase.storage
             .from('adverts')
             .upload(`admin/${fileName}`, file);
           
-          if (uploadError) throw uploadError;
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Upload timeout after 30s')), 30000)
+          );
+          
+          const { data, error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as any;
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw uploadError;
+          }
+          
           const publicUrl = supabase.storage.from('adverts').getPublicUrl(`admin/${fileName}`).data.publicUrl;
-          currentImages.push(publicUrl);
+          newImages.push(publicUrl);
+          console.log('Uploaded:', publicUrl);
         }
+        
+        currentImages = [...currentImages, ...newImages];
+        console.log('All images uploaded:', currentImages);
       }
 
       adData.images = currentImages;
@@ -679,7 +744,7 @@ const AdminPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>User Management</CardTitle>
-                <Button onClick={() => setIsCreateUserModalOpen(true)}>
+                <Button onClick={() => { setCertFiles([]); setIsCreateUserModalOpen(true); }}>
                   + Add New User
                 </Button>
               </CardHeader>
@@ -850,7 +915,7 @@ const AdminPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisement Management</CardTitle>
-                <Button onClick={() => { setEditingAd(null); setIsAdModalOpen(true); }}>Add Ad</Button>
+                <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -1088,7 +1153,7 @@ const AdminPage: React.FC = () => {
                 <Label>Category</Label>
                 <Select 
                   name="category_select" 
-                  defaultValue={editingJob?.category || JOB_CATEGORIES[1]}
+                  defaultValue={editingJob?.category || (categories.length > 0 ? categories[0] : JOB_CATEGORIES[1])}
                   onValueChange={(val) => {
                     const el = document.getElementById('job_category_hidden') as HTMLInputElement;
                     if (el) el.value = val;
@@ -1096,10 +1161,10 @@ const AdminPage: React.FC = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
-                    {JOB_CATEGORIES.filter(c => c !== 'All Categories').map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {categories.length > 0 ? categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>) : JOB_CATEGORIES.filter(c => c !== 'All Categories').map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <input type="hidden" id="job_category_hidden" name="category" defaultValue={editingJob?.category || JOB_CATEGORIES[1]} />
+                <input type="hidden" id="job_category_hidden" name="category" defaultValue={editingJob?.category || (categories.length > 0 ? categories[0] : JOB_CATEGORIES[1])} />
               </div>
               <div>
                 <Label>Location</Label>
@@ -1226,7 +1291,7 @@ const AdminPage: React.FC = () => {
                 <Label>Category</Label>
                 <Select 
                   name="ad_category_select" 
-                  defaultValue={editingAd?.category || SERVICE_CATEGORIES[1]}
+                  defaultValue={editingAd?.category || (categories.length > 0 ? categories[0] : SERVICE_CATEGORIES[1])}
                   onValueChange={(val) => {
                     const el = document.getElementById('ad_category_hidden') as HTMLInputElement;
                     if (el) el.value = val;
@@ -1234,10 +1299,10 @@ const AdminPage: React.FC = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
-                    {SERVICE_CATEGORIES.filter(c => c !== 'All Services').map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {categories.length > 0 ? categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>) : SERVICE_CATEGORIES.filter(c => c !== 'All Services').map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <input type="hidden" id="ad_category_hidden" name="category" defaultValue={editingAd?.category || SERVICE_CATEGORIES[1]} />
+                <input type="hidden" id="ad_category_hidden" name="category" defaultValue={editingAd?.category || (categories.length > 0 ? categories[0] : SERVICE_CATEGORIES[1])} />
               </div>
               <div>
                 <Label>Location</Label>
@@ -1305,32 +1370,38 @@ const AdminPage: React.FC = () => {
             {/* Image Upload for Ads */}
             <div>
               <Label>Business Images (Max 3, Max 5MB each)</Label>
-              {editingAd?.images && editingAd.images.length > 0 && (
-                <div className="flex gap-2 mb-2">
-                  {editingAd.images.map((img: string, i: number) => (
-                    <div key={i} className="relative w-20 h-20 rounded border border-gray-200 overflow-hidden group">
+              
+              {/* Combined thumbnail scroller - existing images + new uploads */}
+              {(editingAd?.images?.length > 0 || adFiles.length > 0) && (
+                <div className="flex gap-2 mb-3 overflow-x-auto py-1">
+                  {/* Existing images */}
+                  {editingAd?.images?.map((img: string, i: number) => (
+                    <div key={`existing-${i}`} className="relative flex-shrink-0 w-20 h-20 rounded-lg border-2 border-green-500 overflow-hidden group">
                       <img src={img} alt="" className="w-full h-full object-cover" />
                       <button 
                         type="button"
                         onClick={() => {
-                          const newImages = editingAd.images?.filter((_, idx) => idx !== i);
+                          const newImages = editingAd.images?.filter((_: any, idx: number) => idx !== i);
                           setEditingAd({...editingAd, images: newImages});
                         }}
-                        className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-[10px]"
                       >
                         X
                       </button>
                     </div>
                   ))}
-                </div>
-              )}
-              {/* Local Preview for New Uploads */}
-              {adFiles.length > 0 && (
-                <div className="flex gap-2 mb-2 mt-2">
+                  {/* New uploads */}
                   {adFiles.map((file, i) => (
-                    <div key={i} className="relative w-20 h-20 rounded border border-green-200 overflow-hidden">
+                    <div key={`new-${i}`} className="relative flex-shrink-0 w-20 h-20 rounded-lg border-2 border-blue-500 overflow-hidden">
                       <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute top-0 right-0 bg-green-500 text-white text-[8px] px-1">New</div>
+                      <button 
+                        type="button"
+                        onClick={() => setAdFiles(adFiles.filter((_, idx) => idx !== i))}
+                        className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-[10px]"
+                      >
+                        X
+                      </button>
+                      <div className="absolute bottom-0 left-0 bg-blue-500 text-white text-[8px] px-1">New</div>
                     </div>
                   ))}
                 </div>
@@ -1341,10 +1412,18 @@ const AdminPage: React.FC = () => {
                 accept="image/png, image/jpeg" 
                 onChange={(e) => {
                   const files = e.target.files;
-                  if (files) setAdFiles(Array.from(files));
+                  if (files) {
+                    // Count total - existing + new + upload
+                    const currentTotal = (editingAd?.images?.length || 0) + adFiles.length;
+                    const newFiles = Array.from(files).slice(0, 3 - currentTotal);
+                    const combined = [...adFiles, ...newFiles];
+                    setAdFiles(combined);
+                  }
                 }} 
               />
-              <p className="text-xs text-gray-500 mt-1">Upload up to 3 images for this advertisement.</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Upload up to 3 images. Currently: {(editingAd?.images?.length || 0) + adFiles.length}/3
+              </p>
             </div>
             <div className="flex gap-4">
               <div className="flex items-center gap-2">
@@ -1431,11 +1510,11 @@ const AdminPage: React.FC = () => {
 
       {/* Create User Modal */}
       <Dialog open={isCreateUserModalOpen} onOpenChange={setIsCreateUserModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
           </DialogHeader>
-          <form onSubmit={createUser} className="space-y-4">
+          <form onSubmit={createUser} className="grid grid-cols-2 gap-4 overflow-y-auto max-h-[calc(90vh-100px)]">
             <div>
               <Label>Full Name</Label>
               <Input name="full_name" required placeholder="John Kamau" />
@@ -1443,6 +1522,10 @@ const AdminPage: React.FC = () => {
             <div>
               <Label>Email</Label>
               <Input name="email" type="email" required placeholder="john@example.com" />
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input name="password" type="password" required placeholder="Min 6 characters" minLength={6} />
             </div>
             <div>
               <Label>Phone</Label>
@@ -1453,12 +1536,13 @@ const AdminPage: React.FC = () => {
               <Input name="location" placeholder="Kenyatta Road, Itukarua" />
             </div>
             <div>
-              <Label>Password</Label>
-              <Input name="password" type="password" required placeholder="Min 6 characters" minLength={6} />
-            </div>
-            <div>
               <Label>Role</Label>
-              <Select name="role" defaultValue="employer">
+              <Select name="role" defaultValue="employer" onValueChange={(val) => {
+                setTimeout(() => {
+                  const fields = document.querySelectorAll('.jobseeker-fields');
+                  fields.forEach(f => (f as HTMLElement).style.display = val === 'jobseeker' ? 'block' : 'none');
+                }, 0);
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -1470,7 +1554,38 @@ const AdminPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="jobseeker-fields" style={{ display: 'none' }}>
+              <Label>Skills (comma separated)</Label>
+              <Input name="skills" placeholder="e.g. Painting, Plumbing, Carpentry" />
+            </div>
+            <div className="jobseeker-fields" style={{ display: 'none' }}>
+              <Label>Professional Resume (Max 500 words)</Label>
+              <Textarea name="resume" placeholder="Paste resume here..." rows={3} />
+            </div>
+            <div className="jobseeker-fields col-span-2" style={{ display: 'none' }}>
+              <Label>Certificates / Recommendation Letters (Max 3, Optional)</Label>
+              {certFiles.length > 0 && (
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {certFiles.map((file, i) => (
+                    <div key={i} className="relative flex-shrink-0 w-16 h-16 rounded border border-blue-500 overflow-hidden">
+                      <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => setCertFiles(certFiles.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center text-[10px]">X</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input 
+                type="file" 
+                multiple 
+                accept="image/png,image/jpeg,.pdf"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files) setCertFiles([...certFiles, ...Array.from(files)].slice(0, 3));
+                }} 
+              />
+            </div>
+            <div className="col-span-2 flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setIsCreateUserModalOpen(false)}>
                 Cancel
               </Button>

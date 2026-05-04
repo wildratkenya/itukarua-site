@@ -38,7 +38,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
       onClick={() => onViewJob(job.id)}
       className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group overflow-hidden flex flex-col"
     >
-      <div className="w-full h-40 bg-gray-100 relative overflow-hidden">
+      <div className="w-full aspect-square bg-gray-100 relative overflow-hidden rounded-xl">
         {images.length > 0 ? (
           <>
             <img
@@ -48,6 +48,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800';
               }}
+              draggable={false}
             />
             {hasMultipleImages && (
               <>
@@ -86,6 +87,20 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
                   {images.length}
                 </div>
               </>
+)}
+            {hasMultipleImages && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                {images.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(i);
+                    }}
+                    className={`w-2 h-2 rounded-full transition-colors ${i === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
+                  />
+                ))}
+              </div>
             )}
           </>
         ) : (
@@ -96,6 +111,33 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
           />
         )}
       </div>
+      {images.length > 0 && (
+        <div className="flex gap-1 p-2 bg-gray-50 overflow-x-auto min-h-[52px] items-center">
+          {images.length === 1 ? (
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
+            >
+              <img src={images[0]} alt="" className="w-full h-full object-cover" />
+            </button>
+          ) : (
+            images.map((img, i) => (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(i);
+                }}
+                className={`flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 transition-colors ${
+                  i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
+                }`}
+              >
+                <img src={img} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))
+          )}
+        </div>
+      )}
       <div className="p-5 flex-1 flex flex-col justify-between">
         <div>
           <div className="flex items-start justify-between gap-3 mb-3">

@@ -48,9 +48,9 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group overflow-hidden"
+      className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group"
     >
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative aspect-square overflow-hidden rounded-xl">
         {allImages.length > 0 ? (
           <>
             <img
@@ -61,6 +61,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg';
               }}
+              draggable={false}
             />
             {hasMultipleImages && (
               <>
@@ -99,6 +100,20 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   {allImages.length}
                 </div>
               </>
+)}
+            {hasMultipleImages && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                {allImages.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(i);
+                    }}
+                    className={`w-2 h-2 rounded-full transition-colors ${i === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
+                  />
+                ))}
+              </div>
             )}
           </>
         ) : (
@@ -116,6 +131,33 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
           </div>
         )}
       </div>
+      {allImages.length > 0 && (
+        <div className="flex gap-1 p-2 bg-gray-50 overflow-x-auto min-h-[52px] items-center">
+          {allImages.length === 1 ? (
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
+            >
+              <img src={allImages[0]} alt="" className="w-full h-full object-cover" />
+            </button>
+          ) : (
+            allImages.map((img, i) => (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(i);
+                }}
+                className={`flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 transition-colors ${
+                  i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
+                }`}
+              >
+                <img src={img} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))
+          )}
+        </div>
+      )}
 
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2">

@@ -4,6 +4,7 @@ import { getJobById, getBidsForJob, createBid, createPayment, updateJob, type Db
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
+import ImageViewerModal from './ImageViewerModal';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -28,6 +29,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [contactUnlocked, setContactUnlocked] = useState(false);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -155,7 +157,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                           src={img} 
                           alt={`Job image ${i + 1}`} 
                           className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
-                          onClick={() => window.open(img, '_blank')}
+                          onClick={() => setViewingImage({ images: job.images, index: i })}
+                          draggable={false}
                         />
                       </div>
                     ))}
@@ -287,6 +290,13 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           </div>
         </div>
       </div>
+      {viewingImage && (
+        <ImageViewerModal
+          images={viewingImage.images}
+          initialIndex={viewingImage.index}
+          onClose={() => setViewingImage(null)}
+        />
+      )}
     </div>
   );
 };
