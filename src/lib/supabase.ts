@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -21,9 +21,8 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     },
   },
 });
-// ─── Image Optimization ─────────────────────────────────────────────────────
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+// ─── Image Optimization ─────────────────────────────────────────────────────
 
 export function optimizeImageUrl(url: string, width: number = 400, height: number = 400): string {
   if (!url || !url.startsWith(supabaseUrl)) {
