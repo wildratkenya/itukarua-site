@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Menu, X, User, LogOut, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, User, LogOut, ChevronDown } from 'lucide-react';
 
 export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'post-job' | 'post-advert' | 'admin';
 
@@ -35,9 +35,12 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
         <div className="flex items-center justify-between h-16 lg:h-18">
           {/* Logo */}
           <button onClick={() => handleNav('home')} className="flex items-center gap-2 group">
-            <div className="w-9 h-9 bg-gradient-to-br from-green-600 to-green-700 rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-              <MapPin className="w-5 h-5 text-white" />
-            </div>
+            <img
+              src="/images/logo.png"
+              alt="Itukarua Solutions"
+              className="h-9 w-auto object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
             <div className="hidden sm:block">
               <span className="text-lg font-bold text-gray-900 tracking-tight">ITUKARUA</span>
               <span className="text-[10px] block -mt-1 text-green-600 font-medium tracking-wider">SOLUTIONS</span>
