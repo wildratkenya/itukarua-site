@@ -37,8 +37,8 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
           <button onClick={() => handleNav('home')} className="flex items-center gap-2 group">
             <img
               src="/images/logo.png"
-              alt="Itukarua Solutions"
-              className="h-9 w-auto object-contain"
+                alt="Itukarua Solutions"
+                className="h-12 w-auto object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
             <div className="hidden sm:block">
