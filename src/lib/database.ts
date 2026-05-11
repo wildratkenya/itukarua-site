@@ -399,6 +399,7 @@ export async function createServiceAd(ad: {
   description: string;
   category: string;
   image?: string;
+  images?: string[];
   location: string;
   contact: string;
   plan: '10-day' | '20-day' | '30-day';

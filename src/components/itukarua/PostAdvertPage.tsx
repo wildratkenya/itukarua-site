@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, CheckCircle, Upload, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Upload, Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { SERVICE_CATEGORIES, LOCATIONS, PRICING_PLANS } from '@/data/siteData';
 import { createServiceAd, createPayment } from '@/lib/database';
@@ -13,11 +13,13 @@ interface PostAdvertPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string) => void;
 }
 
+const MAX_IMAGES = 3;
+
 const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
   const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', contact: '', plan: '' });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,16 +40,27 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = Array.from(e.target.files || []);
+    const remaining = MAX_IMAGES - imageFiles.length;
+    const toAdd = files.slice(0, remaining);
+    
+    for (const file of toAdd) {
       if (file.size > 5 * 1024 * 1024) {
-        setServerError('Image size must be less than 5MB');
+        setServerError(`${file.name} exceeds 5MB limit`);
         return;
       }
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-      setServerError('');
     }
+
+    setImageFiles(prev => [...prev, ...toAdd]);
+    setImagePreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))]);
+    setServerError('');
+    e.target.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,24 +70,27 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     setLoading(true);
     setServerError('');
     try {
-      let imageUrl = '';
-      if (imageFile) {
-        setUploadingImage(true);
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError, data } = await supabase.storage
-          .from('adverts')
-          .upload(fileName, imageFile);
+      const imageUrls: string[] = [];
+
+      if (imageFiles.length > 0) {
+        setUploadingImages(true);
+        for (const file of imageFiles) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
           
-        if (uploadError) throw uploadError;
-        
-        const { data: publicUrlData } = supabase.storage
-          .from('adverts')
-          .getPublicUrl(fileName);
+          const { error: uploadError } = await supabase.storage
+            .from('adverts')
+            .upload(fileName, file);
+            
+          if (uploadError) throw uploadError;
           
-        imageUrl = publicUrlData.publicUrl;
-        setUploadingImage(false);
+          const { data: publicUrlData } = supabase.storage
+            .from('adverts')
+            .getPublicUrl(fileName);
+            
+          imageUrls.push(publicUrlData.publicUrl);
+        }
+        setUploadingImages(false);
       }
 
       const planKey = formData.plan.includes('10') ? '10-day' : formData.plan.includes('20') ? '20-day' : '30-day';
@@ -82,7 +98,8 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
         business_name: formData.businessName,
         description: formData.description,
         category: formData.category,
-        image: imageUrl || undefined,
+        image: imageUrls[0] || undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined,
         location: formData.location,
         contact: formData.contact,
         plan: planKey as '10-day' | '20-day' | '30-day',
@@ -101,7 +118,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       setSubmitted(true);
     } catch (err: any) {
       setServerError(err.message || 'Failed to post advert. Please try again.');
-      setUploadingImage(false);
+      setUploadingImages(false);
     } finally { setLoading(false); }
   };
 
@@ -166,29 +183,27 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               {errors.contact && <p className="text-red-500 text-xs mt-1">{errors.contact}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Images</label>
-              <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-green-400 transition-colors cursor-pointer overflow-hidden">
-                <input 
-                  type="file" 
-                  accept="image/png, image/jpeg" 
-                  onChange={handleImageChange} 
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                />
-                {imagePreview ? (
-                  <div className="relative w-full h-40">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                      <p className="text-white font-medium">Click to change</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Business Images (max {MAX_IMAGES})</label>
+              <div className="grid grid-cols-3 gap-3">
+                {imagePreviews.map((preview, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
+                    <img src={preview} alt="" className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => removeImage(i)} className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {imagePreviews.length < MAX_IMAGES && (
+                  <div className="relative border-2 border-dashed border-gray-300 rounded-lg aspect-square hover:border-green-400 transition-colors cursor-pointer overflow-hidden">
+                    <input type="file" accept="image/png, image/jpeg" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    <div className="flex flex-col items-center justify-center h-full p-2">
+                      <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                      <p className="text-[10px] text-gray-500 text-center leading-tight">Add Photo</p>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Click to upload images</p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each</p>
-                  </>
                 )}
               </div>
+              <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">Select Advertising Plan *</label>
@@ -206,7 +221,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
             <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
               <div>{selectedPlan && <p className="text-sm text-gray-500">Total: <span className="font-bold text-green-700 text-lg">KES {selectedPlan.price}</span></p>}</div>
               <button type="submit" disabled={loading} className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit & Pay via M-Pesa'}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : uploadingImages ? 'Uploading Images...' : 'Submit & Pay via M-Pesa'}
               </button>
             </div>
           </form>
