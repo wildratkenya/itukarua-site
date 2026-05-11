@@ -132,7 +132,7 @@ const Footer: React.FC<FooterProps> = ({
       {/* Bottom Bar */}
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-gray-500" data-mixed-content="true" data-mixed-content="true">
+          <p className="text-xs text-gray-500" data-mixed-content="true">
             &copy; {new Date().getFullYear()} ITUKARUA Solutions. All rights reserved. | www.itukarua.co.ke
           </p>
           <div className="flex gap-4">
