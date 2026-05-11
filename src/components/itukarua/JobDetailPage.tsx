@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
 import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, type DbJob, type DbBid, type DbRating } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
@@ -51,6 +51,21 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     };
     load();
   }, [jobId]);
+
+
+  useEffect(() => {
+    const loadRatings = async () => {
+      if (job) {
+        const ratings = await getRatingsForJob(job.id);
+        setJobRatings(ratings);
+        if (user) {
+          const rated = await checkIfRated(job.id, user.id);
+          setHasRated(rated);
+        }
+      }
+    };
+    loadRatings();
+  }, [job, user]);
 
   if (loading) {
     return (
@@ -120,19 +135,6 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   };
 
 
-  useEffect(() => {
-    const loadRatings = async () => {
-      if (job) {
-        const ratings = await getRatingsForJob(job.id);
-        setJobRatings(ratings);
-        if (user) {
-          const rated = await checkIfRated(job.id, user.id);
-          setHasRated(rated);
-        }
-      }
-    };
-    loadRatings();
-  }, [job, user]);
 
   const handleRateWorker = async () => {
     if (!user || !selectedBidderForRating || ratingValue === 0) {
@@ -163,6 +165,11 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   };
 
   const openRatingModal = (bidderId: string, bidderName: string) => {
+    setSelectedBidderForRating(bidderId);
+    setSelectedBidderName(bidderName);
+    setShowRatingModal(true);
+  };
+
   const handleCompleteJob = async () => {
     if (!user) return;
     if (user.id !== job.posted_by) {
@@ -179,10 +186,6 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       console.error('Error completing job:', err);
       alert('Failed to complete job. Please try again.');
     }
-  };
-    setSelectedBidderForRating(bidderId);
-    setSelectedBidderName(bidderName);
-    setShowRatingModal(true);
   };
   const handleUnlockContact = async () => {
     if (!user) return;
