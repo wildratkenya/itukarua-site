@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap } from 'lucide-react';
 import HeroSection from './HeroSection';
 import JobCard from './JobCard';
@@ -158,34 +158,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         />
       )}
 
-      {/* How It Works */}
-      <section className="py-8 lg:py-10 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">How Itukarua Works</h2>
-            <p className="text-gray-500 text-sm max-w-xl mx-auto">Simple steps to connect with local talent and opportunities</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { icon: Briefcase, title: 'Post a Job', desc: 'Describe your job, set a budget, and publish it.', color: 'bg-green-100 text-green-600' },
-              { icon: UserCheck, title: 'Receive Bids', desc: 'Workers bid with proposals and pricing.', color: 'bg-blue-100 text-blue-600' },
-              { icon: Star, title: 'Choose Best', desc: 'Compare by rating and price.', color: 'bg-amber-100 text-amber-600' },
-              { icon: CreditCard, title: 'Pay via M-Pesa', desc: 'Secure payment after completion.', color: 'bg-purple-100 text-purple-600' },
-            ].map((step, i) => (
-              <div key={i} className="text-center group">
-                <div className="relative inline-block mb-3">
-                  <div className={`w-12 h-12 ${step.color} rounded-xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform`}>
-                    <step.icon className="w-5 h-5" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{i + 1}</div>
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">{step.title}</h3>
-                <p className="text-xs text-gray-500">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Featured Jobs */}
       <section className="py-8 lg:py-10 bg-gray-50">
@@ -252,26 +224,26 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
       </section>
 
       {/* Top Workers */}
-      <section className="py-16 lg:py-20 bg-gray-50">
+      <section className="py-8 lg:py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">Top Rated Workers</h2>
+          <div className="text-center mb-6">
+            <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Top Rated Workers</h2>
             <p className="text-gray-500 mt-1">Verified and trusted professionals in your area</p>
           </div>
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[1,2,3,4,5,6].map(i => (
                 <div key={i} className="bg-white rounded-xl p-4 animate-pulse">
-                  <div className="w-16 h-16 bg-gray-200 rounded-full mx-auto mb-3" />
+                  <div className="w-12 h-12 bg-gray-200 rounded-full mx-auto mb-3" />
                   <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto" />
                 </div>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {workersData.map((worker, idx) => (
                 <div key={worker.id} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group">
-                  <img src={worker.profile_image || IMAGES.workers[idx % IMAGES.workers.length]} alt={worker.full_name} className="w-16 h-16 rounded-full mx-auto mb-3 object-cover ring-2 ring-gray-100 group-hover:ring-green-200 transition-all" />
+                  <img src={worker.profile_image || IMAGES.workers[idx % IMAGES.workers.length]} alt={worker.full_name} className="w-12 h-12 rounded-full mx-auto mb-3 object-cover ring-2 ring-gray-100 group-hover:ring-green-200 transition-all" />
                   <h4 className="font-semibold text-gray-900 text-sm mb-0.5 line-clamp-1">{worker.full_name}</h4>
                   <p className="text-xs text-gray-500 mb-2">{worker.skills?.[0] || 'Worker'}</p>
                   <div className="flex items-center justify-center gap-1">

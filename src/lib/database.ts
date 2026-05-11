@@ -523,6 +523,29 @@ export async function getMessages(filters?: {
   return data || [];
 }
 
+export async function createMessage(msg: {
+  sender_name: string;
+  sender_email: string;
+  subject: string;
+  message: string;
+  type?: string;
+}): Promise<DbMessage> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      sender_name: msg.sender_name,
+      sender_email: msg.sender_email,
+      subject: msg.subject,
+      message: msg.message,
+      type: msg.type || 'support',
+      status: 'unread',
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbMessage;
+}
+
 export async function updateMessageStatus(messageId: string, status: DbMessage['status'], adminResponse?: string, respondedBy?: string) {
   const updates: any = { status, updated_at: new Date().toISOString() };
   if (adminResponse) updates.admin_response = adminResponse;

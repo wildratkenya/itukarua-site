@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle } from 'lucide-react';
+import { createMessage } from '@/lib/database';
 
 const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+
+  const formStartTime = useRef(Date.now());
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    formStartTime.current = Date.now();
+  }, []);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -17,20 +26,50 @@ const ContactPage: React.FC = () => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const isBot = () => {
+    if (honeypot) return true;
+    const elapsed = Date.now() - formStartTime.current;
+    if (elapsed < 3000) return true;
+    const lastSubmit = localStorage.getItem('contact_last_submit');
+    if (lastSubmit) {
+      const diff = Date.now() - parseInt(lastSubmit);
+      if (diff < 60000) return true;
+    }
+    return false;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    const bot = isBot();
+    if (bot) {
       setSubmitted(true);
       setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-    }, 1500);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createMessage({
+        sender_name: formData.name,
+        sender_email: formData.email,
+        subject: formData.subject || 'General Inquiry',
+        message: `Phone: ${formData.phone || 'N/A'}\n\n${formData.message}`,
+        type: 'support',
+      });
+      localStorage.setItem('contact_last_submit', String(Date.now()));
+      setSubmitted(true);
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+    } catch (err: any) {
+      alert(err.message || 'Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="relative py-14 lg:py-20 bg-cover bg-center" style={{ backgroundImage: 'url(/images/contact.png)' }}>
         <div className="absolute inset-0 bg-black/40"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -41,7 +80,6 @@ const ContactPage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Contact Info */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <h3 className="font-semibold text-gray-900 mb-4">Get In Touch</h3>
@@ -65,19 +103,17 @@ const ContactPage: React.FC = () => {
               </div>
             </div>
 
-            {/* M-Pesa Support */}
             <div className="bg-green-50 rounded-xl p-6 border border-green-100">
               <h4 className="font-semibold text-green-800 mb-2">Payment Support</h4>
               <p className="text-sm text-green-700 mb-3">Having issues with M-Pesa payments? Contact our support team for immediate assistance.</p>
               <div className="bg-white rounded-lg p-3 text-sm space-y-1">
                 <p className="text-gray-600"><span className="font-semibold">PayBill:</span> 247247</p>
-                 <p className="text-gray-600"><span className="font-semibold">Business Number:</span> 123456</p>
+                <p className="text-gray-600"><span className="font-semibold">Business Number:</span> 123456</p>
                 <p className="text-gray-600"><span className="font-semibold">Support:</span> +254 721 219 359</p>
               </div>
             </div>
           </div>
 
-          {/* Contact Form */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl p-6 lg:p-8 border border-gray-100">
               {submitted ? (
@@ -97,7 +133,17 @@ const ContactPage: React.FC = () => {
               ) : (
                 <>
                   <h3 className="text-lg font-semibold text-gray-900 mb-6">Send Us a Message</h3>
-                  <form onSubmit={handleSubmit} className="space-y-5">
+                  <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
+                    <div style={{ position: 'absolute', left: '-9999px' }} aria-hidden="true">
+                      <input
+                        type="text"
+                        name="website"
+                        tabIndex={-1}
+                        autoComplete="off"
+                        value={honeypot}
+                        onChange={e => setHoneypot(e.target.value)}
+                      />
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
@@ -187,3 +233,4 @@ const ContactPage: React.FC = () => {
 };
 
 export default ContactPage;
+

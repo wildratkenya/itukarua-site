@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, MapPin, Briefcase, Building2, Users, ArrowRight } from 'lucide-react';
+﻿import React, { useState } from 'react';
+import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard } from 'lucide-react';
 import { IMAGES } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
 import type { PlatformStats } from '@/lib/database';
@@ -11,8 +11,16 @@ interface HeroSectionProps {
   stats?: PlatformStats;
 }
 
+const steps = [
+  { icon: Briefcase, title: 'Post a Job', desc: 'Describe your job, set a budget, and publish it to local workers.', color: 'bg-green-100 text-green-600' },
+  { icon: UserCheck, title: 'Receive Bids', desc: 'Workers review and submit bids with their best proposals and pricing.', color: 'bg-blue-100 text-blue-600' },
+  { icon: Star, title: 'Choose Best', desc: 'Compare bids by rating, experience, and price — pick the right fit.', color: 'bg-amber-100 text-amber-600' },
+  { icon: CreditCard, title: 'Pay via M-Pesa', desc: 'Complete payment through M-Pesa after job completion. Secure and fast.', color: 'bg-purple-100 text-purple-600' },
+];
+
 const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeStep, setActiveStep] = useState<number | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,62 +37,102 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full mb-4">
-            <MapPin className="w-3 h-3 text-green-400" />
-            <span className="text-xs text-green-300 font-medium">Itukarua County & Surrounding Areas</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight mb-3">
-            Karibu<span className="text-green-400"> Itukarua</span>
-          </h1>
-          <p className="text-base text-gray-300 mb-6 max-w-xl">
-            Connecting local communities across Kenya. Find jobs, hire skilled workers, advertise services, and transact securely with M-Pesa.
-          </p>
-
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 mb-8">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search jobs, services, or businesses..."
-                className="w-full pl-10 pr-3 py-3 rounded-lg bg-white/95 backdrop-blur-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-green-500 outline-none text-sm shadow-lg"
-              />
+        <div className="grid lg:grid-cols-5 gap-8 items-start">
+          {/* Left Column: Hero Content */}
+          <div className="lg:col-span-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full mb-4">
+              <MapPin className="w-3 h-3 text-green-400" />
+              <span className="text-xs text-green-300 font-medium">Itukarua County & Surrounding Areas</span>
             </div>
-            <button type="submit" className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2">
-              Search <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-0">
-            <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-              <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
-              <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
-            </button>
-            <button onClick={() => onNavigate('services')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-              <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-orange-400" /></div>
-              <div className="text-left"><p className="text-white font-semibold text-xs">Services</p><p className="text-gray-400 text-[10px]">Local businesses</p></div>
-            </button>
-            <button onClick={() => onNavigate('post-job')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-              <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-400" /></div>
-              <div className="text-left"><p className="text-white font-semibold text-xs">Post a Job</p><p className="text-gray-400 text-[10px]">Hire local talent</p></div>
-            </button>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight mb-3">
+              Karibu<span className="text-green-400"> Itukarua</span>
+            </h1>
+            <p className="text-base text-gray-300 mb-6 max-w-xl">
+              Connecting local communities across Kenya. Find jobs, hire skilled workers, advertise services, and transact securely with M-Pesa.
+            </p>
+
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search jobs, services, or businesses..."
+                  className="w-full pl-10 pr-3 py-3 rounded-lg bg-white/95 backdrop-blur-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-green-500 outline-none text-sm shadow-lg"
+                />
+              </div>
+              <button type="submit" className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2">
+                Search <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
+              <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
+                <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
+              </button>
+              <button onClick={() => onNavigate('services')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-orange-400" /></div>
+                <div className="text-left"><p className="text-white font-semibold text-xs">Services</p><p className="text-gray-400 text-[10px]">Local businesses</p></div>
+              </button>
+              <button onClick={() => onNavigate('post-job')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-400" /></div>
+                <div className="text-left"><p className="text-white font-semibold text-xs">Post a Job</p><p className="text-gray-400 text-[10px]">Hire local talent</p></div>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-4 lg:gap-6">
+              {[
+                { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
+                { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
+                { label: 'Businesses', value: `${stats?.active_businesses || 0}+` },
+                { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
+              ].map(stat => (
+                <div key={stat.label}>
+                  <p className="text-lg lg:text-xl font-bold text-white">{stat.value}</p>
+                  <p className="text-[10px] text-gray-400">{stat.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-4 lg:gap-6">
-            {[
-              { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
-              { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
-              { label: 'Businesses', value: `${stats?.active_businesses || 0}+` },
-              { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
-            ].map(stat => (
-              <div key={stat.label}>
-                <p className="text-lg lg:text-xl font-bold text-white">{stat.value}</p>
-                <p className="text-[10px] text-gray-400">{stat.label}</p>
-              </div>
-            ))}
+          {/* Right Column: How It Works Tabs */}
+          <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
+            <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-5 bg-green-400 rounded-full" />
+              How Itukarua Works
+            </h3>
+            <div className="space-y-2">
+              {steps.map((step, i) => (
+                <div key={i}>
+                  <button
+                    onClick={() => setActiveStep(activeStep === i ? null : i)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${
+                      activeStep === i
+                        ? 'bg-white/20'
+                        : 'bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 ${step.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <step.icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-white">{step.title}</span>
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                          activeStep === i ? 'bg-green-500 text-white' : 'bg-white/20 text-white/60'
+                        }`}>{i + 1}</span>
+                      </div>
+                      {activeStep === i && (
+                        <p className="text-xs text-gray-300 mt-1.5 leading-relaxed">{step.desc}</p>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
