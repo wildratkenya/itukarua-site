@@ -1,0 +1,60 @@
+﻿// ========================================================
+// ─── Ratings ────────────────────────────────────────────
+// ========================================================
+
+export interface DbRating {
+  id: string;
+  job_id: string;
+  bidder_id: string;
+  poster_id: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+}
+
+export async function createRating(rating: {
+  job_id: string;
+  bidder_id: string;
+  poster_id: string;
+  rating: number;
+  comment: string;
+}): Promise<DbRating> {
+  const { data, error } = await supabase
+    .from('ratings')
+    .insert(rating)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbRating;
+}
+
+export async function getRatingsForBidder(bidderId: string): Promise<DbRating[]> {
+  const { data, error } = await supabase
+    .from('ratings')
+    .select('*')
+    .eq('bidder_id', bidderId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getRatingsForBidder error:', error); return []; }
+  return data || [];
+}
+
+export async function getRatingsForJob(jobId: string): Promise<DbRating[]> {
+  const { data, error } = await supabase
+    .from('ratings')
+    .select('*')
+    .eq('job_id', jobId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getRatingsForJob error:', error); return []; }
+  return data || [];
+}
+
+export async function checkIfRated(jobId: string, bidderId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('ratings')
+    .select('id')
+    .eq('job_id', jobId)
+    .eq('bidder_id', bidderId)
+    .single();
+  if (error) return false;
+  return !!data;
+}

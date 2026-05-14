@@ -19,7 +19,7 @@ interface MpesaModalProps {
 const MpesaModal: React.FC<MpesaModalProps> = ({
   isOpen, onClose, amount, description, accountRef,
   user, onPaymentComplete, paymentType = 'registration',
-  relatedJobId, relatedAdId,
+  relatedJobId, relatedAdId, relatedProfileId,
 }) => {
   const [step, setStep] = useState<'instructions' | 'stk' | 'processing' | 'success' | 'error'>('instructions');
   const [phone, setPhone] = useState('');
@@ -108,7 +108,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           payment_type: paymentType,
           related_job_id: relatedJobId || null,
           related_ad_id: relatedAdId || null,
-          related_profile_id: props.relatedProfileId || null,
+          related_profile_id: relatedProfileId || null,
         }),
       });
 

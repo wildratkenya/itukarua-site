@@ -1,6 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2 } from 'lucide-react';
-import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats } from '@/lib/database';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera } from 'lucide-react';
+import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
+import { supabase } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -21,8 +22,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [profiles, setProfiles] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '' });
+  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '' });
   const [saving, setSaving] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
+  const [notifications, setNotifications] = useState<DbNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user.role === 'admin';
   const isJobseeker = user.role === 'jobseeker';
@@ -33,6 +40,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       try {
         const promises: Promise<any>[] = [
           getPayments(isAdmin ? undefined : user.id),
+          getNotifications(user.id),
         ];
         if (isAdmin) {
           promises.push(getJobs({}), getServiceAds({}), getAllProfiles(), getPlatformStats());
@@ -44,17 +52,20 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
 
         const results = await Promise.all(promises);
         setPayments(results[0] || []);
+        setNotifications(results[1] || []);
+        setUnreadCount(results[1]?.filter((n: DbNotification) => !n.is_read).length || 0);
 
+        const offset = 2;
         if (isAdmin) {
-          setJobs(results[1] || []);
-          setAds(results[2] || []);
-          setProfiles(results[3] || []);
-          setStats(results[4] || null);
+          setJobs(results[offset] || []);
+          setAds(results[offset + 1] || []);
+          setProfiles(results[offset + 2] || []);
+          setStats(results[offset + 3] || null);
         } else if (isJobseeker) {
-          setBids(results[1] || []);
+          setBids(results[offset] || []);
         } else {
-          setJobs(results[1] || []);
-          setAds(results[2] || []);
+          setJobs(results[offset] || []);
+          setAds(results[offset + 1] || []);
         }
 
         if (user.profile) {
@@ -63,7 +74,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             email: user.profile.email || user.email,
             phone: user.profile.phone || '',
             location: user.profile.location || '',
+            skills: Array.isArray(user.profile.skills) ? user.profile.skills.join(', ') : (user.profile.skills || ''),
+            resume: user.profile.resume || '',
+            qualifications: user.profile.qualifications || '',
+            experience: user.profile.experience || '',
+            profile_image: user.profile.profile_image || '',
           });
+          setRatingsEnabled(user.profile.ratings_enabled || false);
         }
       } catch (err) { console.error('Dashboard load error:', err); }
       finally { setLoading(false); }
@@ -74,7 +91,26 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await updateProfile(user.id, { full_name: profileForm.full_name, phone: profileForm.phone, location: profileForm.location });
+      let profileImageUrl = profileForm.profile_image;
+      if (profilePhotoFile) {
+        const fileExt = profilePhotoFile.name.split('.').pop();
+        const fileName = `${user.id}/avatar.${fileExt}`;
+        const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, profilePhotoFile, { upsert: true });
+        if (!photoError) {
+          profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
+        }
+      }
+      await updateProfile(user.id, {
+        full_name: profileForm.full_name,
+        phone: profileForm.phone,
+        location: profileForm.location,
+        skills: profileForm.skills,
+        resume: profileForm.resume,
+        qualifications: profileForm.qualifications,
+        experience: profileForm.experience,
+        profile_image: profileImageUrl,
+        ratings_enabled: ratingsEnabled,
+      });
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
   };
@@ -84,6 +120,23 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     : isJobseeker
     ? [{ id: 'overview', label: 'Overview', icon: TrendingUp }, { id: 'bids', label: 'My Bids', icon: FileText }, { id: 'payments', label: 'Payments', icon: CreditCard }, { id: 'profile', label: 'Profile', icon: User }]
     : [{ id: 'overview', label: 'Overview', icon: TrendingUp }, { id: 'jobs', label: 'My Jobs', icon: Briefcase }, { id: 'adverts', label: 'My Adverts', icon: Building2 }, { id: 'payments', label: 'Payments', icon: CreditCard }, { id: 'profile', label: 'Profile', icon: User }];
+
+  // Close notification dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    if (showNotifications) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showNotifications]);
+
+  const handleMarkRead = async (id: string) => {
+    await markNotificationRead(id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
 
   if (loading) {
     return (
@@ -105,9 +158,41 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <p className="text-green-200 text-sm capitalize">{user.role} Account</p>
               </div>
             </div>
-            <button className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors relative">
-              <Bell className="w-5 h-5 text-white" />
-            </button>
+            <div className="relative" ref={notifRef}>
+              <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors relative">
+                <Bell className="w-5 h-5 text-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 max-h-96 overflow-y-auto">
+                  <div className="p-3 border-b border-gray-100">
+                    <h4 className="font-semibold text-gray-900 text-sm">Notifications</h4>
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No notifications yet</p>
+                  ) : (
+                    notifications.slice(0, 20).map(n => (
+                      <div key={n.id} className={`p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-green-50/50' : ''}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm ${n.is_read ? 'text-gray-700' : 'font-semibold text-gray-900'}`}>{n.title}</p>
+                            {n.body && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>}
+                            <p className="text-[10px] text-gray-400 mt-1">{new Date(n.created_at).toLocaleDateString()}</p>
+                          </div>
+                          {!n.is_read && (
+                            <button onClick={() => handleMarkRead(n.id)} className="text-[10px] text-green-600 hover:text-green-700 whitespace-nowrap">Mark read</button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -279,6 +364,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               <h3 className="font-semibold text-gray-900 mb-6">Profile Settings</h3>
               <div className="space-y-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo</label>
+                  <div className="flex items-center gap-3">
+                    {profilePhotoFile ? (
+                      <img src={URL.createObjectURL(profilePhotoFile)} alt="Preview" className="w-16 h-16 rounded-full object-cover border-2 border-green-200" />
+                    ) : profileForm.profile_image ? (
+                      <img src={profileForm.profile_image} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-green-200" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                        <Camera className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
+                    <input type="file" accept="image/*" onChange={e => { if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]); }} className="flex-1 text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                   <input type="text" value={profileForm.full_name} onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
@@ -293,6 +393,26 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                   <input type="text" value={profileForm.location} onChange={e => setProfileForm({ ...profileForm, location: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
+                  <input type="text" value={profileForm.skills} onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Painting, Plumbing, Carpentry" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Qualifications</label>
+                  <input type="text" value={profileForm.qualifications} onChange={e => setProfileForm({ ...profileForm, qualifications: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Diploma in Electrical Engineering" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                  <input type="text" value={profileForm.experience} onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. 5 years in construction" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Professional Resume</label>
+                  <textarea value={profileForm.resume} onChange={e => setProfileForm({ ...profileForm, resume: e.target.value })} rows={4} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none resize-none text-sm" placeholder="Paste your resume here..." />
+                </div>
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                  <label htmlFor="ratings_enabled" className="text-sm text-gray-700">Enable ratings & reviews on my profile</label>
                 </div>
                 <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}

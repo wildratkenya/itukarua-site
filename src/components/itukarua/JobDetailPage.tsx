@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, type DbJob, type DbBid, type DbRating } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, type DbJob, type DbBid, type DbRating } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -187,6 +187,17 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       alert('Failed to complete job. Please try again.');
     }
   };
+  const handleMessageBidder = async (bidderId: string) => {
+    if (!user) { onOpenAuth('login'); return; }
+    try {
+      await findOrCreateConversation(user.id, bidderId, job.id);
+      onNavigate('inbox');
+    } catch (err) {
+      console.error('Error starting conversation:', err);
+      alert('Could not start conversation. Please try again.');
+    }
+  };
+
   const handleUnlockContact = async () => {
     if (!user) return;
     try {
@@ -322,13 +333,16 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                                 <Shield className="w-4 h-4" /> Selected
                               </span>
                             ) : (
-                              <>
-                                {user && user.id === job.posted_by && (
-                                  <button onClick={() => handleAcceptBid(bid)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
-                                    Accept Bid
-                                  </button>
-                                )}
-                              </>
+                              user && user.id === job.posted_by && (
+                                <button onClick={() => handleAcceptBid(bid)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                  Accept Bid
+                                </button>
+                              )
+                            )}
+                            {user && user.id !== bid.bidder_id && (
+                              <button onClick={() => handleMessageBidder(bid.bidder_id)} className="px-4 py-2 border border-green-600 text-green-700 text-sm font-medium rounded-lg hover:bg-green-50 transition-colors">
+                                Message
+                              </button>
                             )}
                           </div>
                           {winnerId === bid.id && user && user.id === job.posted_by && (
