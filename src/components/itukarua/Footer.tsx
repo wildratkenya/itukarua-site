@@ -4,9 +4,11 @@ import type { Page } from './Header';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 interface FooterProps {
   onNavigate: (page: Page) => void;
+  onOpenAuth: (tab: 'login' | 'signup') => void;
 }
 const Footer: React.FC<FooterProps> = ({
-  onNavigate
+  onNavigate,
+  onOpenAuth
 }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -121,10 +123,10 @@ const Footer: React.FC<FooterProps> = ({
           <div>
             <h4 className="text-white font-semibold mb-4">For Users</h4>
             <ul className="space-y-2">
-              <li><button onClick={() => onNavigate('jobs')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Post a Job</button></li>
-              <li><button onClick={() => onNavigate('pricing')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Register as Jobseeker</button></li>
-              <li><button onClick={() => onNavigate('services')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Advertise Business</button></li>
-              <li><button onClick={() => {}} className="text-sm text-gray-400 hover:text-green-400 transition-colors">M-Pesa Payments</button></li>
+              <li><button onClick={() => onNavigate('post-job')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Post a Job</button></li>
+              <li><button onClick={() => onOpenAuth('signup')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Register as Jobseeker</button></li>
+              <li><button onClick={() => onNavigate('post-advert')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Advertise Business</button></li>
+              <li><button onClick={() => onNavigate('pricing')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">M-Pesa Payments</button></li>
               <li><button onClick={() => setShowTerms(true)} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Terms of Service</button></li>
               <li><button onClick={() => setShowPrivacy(true)} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Privacy Policy</button></li>
             </ul>

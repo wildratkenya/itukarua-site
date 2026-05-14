@@ -285,7 +285,7 @@ const AppLayout: React.FC = () => {
         )}
       </main>
 
-      <Footer onNavigate={handleNavigate} />
+      <Footer onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} />
 
       <AuthModal
         isOpen={authModalOpen}
