@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield } from 'lucide-react';
+import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface AuthModalProps {
@@ -23,6 +23,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     resume: '',
   });
   const [certFiles, setCertFiles] = useState<FileList | null>(null);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -69,6 +70,17 @@ const handleSubmit = async (e: React.FormEvent) => {
         if (error) throw error;
 
         if (data.user) {
+          // Upload profile photo
+          let profileImageUrl = '';
+          if (profilePhotoFile) {
+            const fileExt = profilePhotoFile.name.split('.').pop();
+            const fileName = `${data.user.id}/avatar.${fileExt}`;
+            const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, profilePhotoFile, { upsert: true });
+            if (!photoError) {
+              profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
+            }
+          }
+
           // Upload certificates if jobseeker
           if (certFiles && certFiles.length > 0 && role === 'jobseeker') {
             const certUrls: string[] = [];
@@ -83,9 +95,12 @@ const handleSubmit = async (e: React.FormEvent) => {
               }
             }
             // Update user metadata with cert URLs
-            if (certUrls.length > 0) {
+            if (certUrls.length > 0 || profileImageUrl) {
               await supabase.auth.updateUser({
-                data: { certificates: certUrls }
+                data: { 
+                  ...(certUrls.length > 0 ? { certificates: certUrls } : {}),
+                  ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
+                }
               });
             }
           }
@@ -316,6 +331,26 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo</label>
+                <div className="flex items-center gap-3">
+                  {profilePhotoFile ? (
+                    <img src={URL.createObjectURL(profilePhotoFile)} alt="Preview" className="w-14 h-14 rounded-full object-cover border-2 border-green-200" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                      <Camera className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => {
+                      if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]);
+                    }}
+                    className="flex-1 text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Certificates (Max 3, PDF or Image)

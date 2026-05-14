@@ -13,6 +13,7 @@ import ContactPage from './itukarua/ContactPage';
 import PostJobPage from './itukarua/PostJobPage';
 import PostAdvertPage from './itukarua/PostAdvertPage';
 import DashboardPage from './itukarua/DashboardPage';
+import InboxPage from './itukarua/InboxPage';
 import AuthModal from './itukarua/AuthModal';
 import MpesaModal from './itukarua/MpesaModal';
 import AdminPage from './itukarua/AdminPage';
@@ -232,6 +233,11 @@ const AppLayout: React.FC = () => {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
           }
           return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} />;
+        case 'inbox':
+          if (!user) {
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
+          }
+          return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;

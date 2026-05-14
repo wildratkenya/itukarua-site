@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Menu, X, User, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, X, User, LogOut, ChevronDown, Send } from 'lucide-react';
 
-export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'post-job' | 'post-advert' | 'admin';
+export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox';
 
 interface HeaderProps {
   currentPage: Page;
@@ -90,6 +90,12 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                     >
                       <User className="w-4 h-4" /> Dashboard
+                    </button>
+                    <button
+                      onClick={() => { handleNav('inbox'); setUserMenuOpen(false); }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Send className="w-4 h-4" /> Messages
                     </button>
                     {user.role === 'super_admin' && (
                       <button

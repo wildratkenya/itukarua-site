@@ -740,3 +740,215 @@ export async function checkTermsAccepted(userId: string): Promise<boolean> {
     .maybeSingle();
   return !!data?.terms_accepted;
 }
+
+// ─── Conversations & Direct Messages ────────────────────────────────────────
+
+export interface DbConversation {
+  id: string;
+  job_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbDirectMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  sender_name?: string;
+  sender_image?: string;
+}
+
+export interface DbConversationWithParticipant {
+  id: string;
+  job_id: string | null;
+  created_at: string;
+  updated_at: string;
+  other_user_id: string;
+  other_user_name: string;
+  other_user_image: string;
+  last_message: string;
+  last_message_at: string;
+  last_sender_id: string;
+  unread_count: number;
+}
+
+export async function findOrCreateConversation(userId1: string, userId2: string, jobId?: string): Promise<string> {
+  const { data: existing } = await supabase
+    .from('conversation_participants')
+    .select('conversation_id')
+    .eq('user_id', userId1);
+
+  if (existing && existing.length > 0) {
+    const convIds = existing.map(c => c.conversation_id);
+    const { data: match } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', userId2)
+      .in('conversation_id', convIds)
+      .maybeSingle();
+    if (match) return match.conversation_id;
+  }
+
+  const { data: conv, error: convError } = await supabase
+    .from('conversations')
+    .insert({ job_id: jobId || null })
+    .select()
+    .single();
+  if (convError) throw convError;
+
+  const { error: partError } = await supabase
+    .from('conversation_participants')
+    .insert([
+      { conversation_id: conv.id, user_id: userId1 },
+      { conversation_id: conv.id, user_id: userId2 },
+    ]);
+  if (partError) throw partError;
+
+  return conv.id;
+}
+
+export async function getConversations(userId: string): Promise<DbConversationWithParticipant[]> {
+  const { data: participations } = await supabase
+    .from('conversation_participants')
+    .select('conversation_id, last_read_at')
+    .eq('user_id', userId)
+    .order('conversation_id', { ascending: false });
+
+  if (!participations || participations.length === 0) return [];
+
+  const convIds = participations.map(p => p.conversation_id);
+
+  const { data: conversations } = await supabase
+    .from('conversations')
+    .select('*')
+    .in('id', convIds)
+    .order('updated_at', { ascending: false });
+
+  if (!conversations) return [];
+
+  const results: DbConversationWithParticipant[] = [];
+
+  for (const conv of conversations) {
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conv.id);
+
+    const otherUserId = participants?.find(p => p.user_id !== userId)?.user_id;
+    if (!otherUserId) continue;
+
+    const { data: otherProfile } = await supabase
+      .from('profiles')
+      .select('full_name, profile_image')
+      .eq('id', otherUserId)
+      .maybeSingle();
+
+    const { data: lastMsg } = await supabase
+      .from('direct_messages')
+      .select('*')
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const participation = participations.find(p => p.conversation_id === conv.id);
+    const { count } = await supabase
+      .from('direct_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conv.id)
+      .gt('created_at', participation?.last_read_at || '1970-01-01');
+
+    results.push({
+      id: conv.id,
+      job_id: conv.job_id,
+      created_at: conv.created_at,
+      updated_at: conv.updated_at,
+      other_user_id: otherUserId,
+      other_user_name: otherProfile?.full_name || 'Unknown',
+      other_user_image: otherProfile?.profile_image || '',
+      last_message: lastMsg?.content || '',
+      last_message_at: lastMsg?.created_at || conv.created_at,
+      last_sender_id: lastMsg?.sender_id || '',
+      unread_count: count || 0,
+    });
+  }
+
+  return results.sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
+}
+
+export async function getConversationMessages(conversationId: string): Promise<DbDirectMessage[]> {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*, sender:sender_id(full_name, profile_image)')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+  if (error) { console.error('getConversationMessages error:', error); return []; }
+  return (data || []).map((m: any) => ({
+    ...m,
+    sender_name: m.sender?.full_name,
+    sender_image: m.sender?.profile_image,
+  }));
+}
+
+export async function sendMessage(conversationId: string, senderId: string, content: string): Promise<void> {
+  const { error } = await supabase
+    .from('direct_messages')
+    .insert({ conversation_id: conversationId, sender_id: senderId, content });
+  if (error) throw error;
+
+  await supabase
+    .from('conversations')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', conversationId);
+}
+
+export async function markConversationRead(conversationId: string, userId: string): Promise<void> {
+  await supabase
+    .from('conversation_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId);
+}
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+export interface DbNotification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  related_link: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export async function getNotifications(userId: string, limit = 20): Promise<DbNotification[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) { console.error('getNotifications error:', error); return []; }
+  return data || [];
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_read', false);
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('id', notificationId);
+}
