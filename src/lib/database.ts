@@ -23,6 +23,7 @@ export interface DbProfile {
   updated_at: string;
   resume?: string;
   certificates?: string[];
+  ratings_enabled?: boolean;
 }
 
 export interface DbJob {
@@ -179,6 +180,7 @@ export async function getProfiles(filters?: {
   location?: string;
   search?: string;
   limit?: number;
+  ratings_enabled?: boolean;
 }): Promise<DbProfile[]> {
   let query = supabase.from('profiles').select('*');
 
@@ -191,8 +193,11 @@ export async function getProfiles(filters?: {
   if (filters?.search) {
     query = query.or(`full_name.ilike.%${filters.search}%,skills.ilike.%${filters.search}%`);
   }
-
-  query = query.order('created_at', { ascending: false });
+  if (filters?.ratings_enabled) {
+    query = query.eq('ratings_enabled', true).order('rating', { ascending: false }).order('reviews_count', { ascending: false });
+  } else {
+    query = query.order('created_at', { ascending: false });
+  }
 
   if (filters?.limit) {
     query = query.limit(filters.limit);
@@ -635,7 +640,103 @@ export async function checkIfRated(jobId: string, bidderId: string): Promise<boo
     .select('id')
     .eq('job_id', jobId)
     .eq('bidder_id', bidderId)
-    .single();
-  if (error) return false;
+    .maybeSingle();
+  if (error || !data) return false;
+  return true;
+}
+
+// ─── Service Ratings ────────────────────────────────────────────────────────
+
+export async function createServiceRating(serviceId: string, userId: string, rating: number): Promise<void> {
+  const { error } = await supabase
+    .from('service_ratings')
+    .upsert({ service_id: serviceId, user_id: userId, rating }, { onConflict: 'service_id,user_id' });
+  if (error) throw error;
+}
+
+export async function checkServiceRating(serviceId: string, userId: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('service_ratings')
+    .select('rating')
+    .eq('service_id', serviceId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.rating;
+}
+
+// ─── Profile Reviews ────────────────────────────────────────────────────────
+
+export async function createProfileReview(
+  reviewerId: string,
+  profileId: string,
+  rating: number,
+  comment?: string,
+  jobId?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('profile_reviews')
+    .upsert(
+      { reviewer_id: reviewerId, profile_id: profileId, rating, comment: comment || '', job_id: jobId || null },
+      { onConflict: 'reviewer_id,profile_id' }
+    );
+  if (error) throw error;
+}
+
+export async function getProfileReviews(profileId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('profile_reviews')
+    .select('*, reviewer:reviewer_id(full_name, profile_image)')
+    .eq('profile_id', profileId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getProfileReviews error:', error); return []; }
+  return data || [];
+}
+
+export async function checkProfileReview(profileId: string, userId: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('profile_reviews')
+    .select('rating, comment')
+    .eq('profile_id', profileId)
+    .eq('reviewer_id', userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.rating;
+}
+
+// ─── Contact Access ─────────────────────────────────────────────────────────
+
+export async function checkContactAccess(userId: string, profileId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('payment_type', 'contact_access')
+    .eq('related_profile_id', profileId)
+    .eq('status', 'completed')
+    .maybeSingle();
   return !!data;
+}
+
+// ─── Terms & Conditions ─────────────────────────────────────────────────────
+
+export async function acceptTerms(userId: string, dataSharingConsent: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      terms_accepted: true,
+      data_sharing_consent: dataSharingConsent,
+      accepted_terms_at: new Date().toISOString()
+    })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+export async function checkTermsAccepted(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('terms_accepted')
+    .eq('id', userId)
+    .maybeSingle();
+  return !!data?.terms_accepted;
 }

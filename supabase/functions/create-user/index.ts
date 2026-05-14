@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const { email, password, full_name, phone, role, location, skills, resume } = await req.json()
+    const { email, password, full_name, phone, role, location, skills, resume, profile_image, ratings_enabled, terms_accepted, data_sharing_consent } = await req.json()
 
     if (!email || !password) {
       return new Response(
@@ -31,53 +31,64 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create user with admin API (bypasses rate limit)
+    let userId: string
+
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name, phone, role, location }
     })
 
     if (authError) {
-      // If user already exists, try to update them
       if (authError.message.includes('already been registered')) {
-        return new Response(
-          JSON.stringify({ error: 'Email already exists' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        const { data: userList } = await supabase.auth.admin.listUsers()
+        const existing = userList?.users?.find(u => u.email === email)
+        if (!existing) {
+          return new Response(
+            JSON.stringify({ error: 'Email already exists but user lookup failed' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        userId = existing.id
+      } else {
+        throw authError
       }
-      throw authError
+    } else if (authData?.user) {
+      userId = authData.user.id
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'Failed to create user' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    if (authData?.user) {
-      // Create profile
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authData.user.id,
-        full_name,
-        email,
-        phone,
-        role: role || 'employer',
-        location,
-        skills: role === 'jobseeker' ? skills : null,
-        resume: role === 'jobseeker' ? resume : null,
-        verified: true,
-        registration_paid: true,
-      })
+    // Create/update profile via SECURITY DEFINER function (bypasses RLS)
+    const { error: rpcError } = await supabase.rpc('create_user_profile', {
+      p_id: userId,
+      p_full_name: full_name || '',
+      p_email: email,
+      p_phone: phone || '',
+      p_role: role || 'employer',
+      p_location: location || '',
+      p_skills: role === 'jobseeker' ? (skills || '') : '',
+      p_resume: role === 'jobseeker' ? (resume || '') : '',
+      p_profile_image: profile_image || null,
+      p_ratings_enabled: ratings_enabled || null,
+      p_terms_accepted: terms_accepted === true,
+      p_data_sharing_consent: data_sharing_consent === true,
+    })
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError)
-      }
-
+    if (rpcError) {
+      console.error('Profile RPC error:', rpcError)
       return new Response(
-        JSON.stringify({ success: true, user_id: authData.user.id }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Profile creation failed: ' + rpcError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     return new Response(
-      JSON.stringify({ error: 'Failed to create user' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, user_id: userId }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     return new Response(

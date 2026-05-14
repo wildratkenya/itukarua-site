@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { getProfile } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES } from '@/data/siteData';
@@ -14,16 +14,24 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
+import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 
 interface Profile {
   id: string;
   full_name: string;
   email?: string;
+  phone?: string;
+  location?: string;
+  skills?: string[];
+  profile_image?: string;
   role: string;
   verified: boolean;
   registration_paid: boolean;
   suspended?: boolean;
+  ratings_enabled?: boolean;
   created_at: string;
   resume?: string;
   certificates?: string[];
@@ -105,6 +113,15 @@ const AdminPage: React.FC = () => {
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [certFiles, setCertFiles] = useState<File[]>([]);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [ratingsEnabled, setRatingsEnabled] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [dataSharingConsent, setDataSharingConsent] = useState(false);
+  const [editingUser, setEditingUser] = useState<Profile | null>(null);
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+  const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
+  const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -177,21 +194,22 @@ const AdminPage: React.FC = () => {
   };
 
   const toggleUserVerification = async (userId: string, currentVerified: boolean) => {
+    const newVerified = !currentVerified;
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ verified: !currentVerified })
+        .update({ verified: newVerified, suspended: !newVerified })
         .eq('id', userId);
 
       if (error) throw error;
 
       setUsers(users.map(user =>
-        user.id === userId ? { ...user, verified: !currentVerified } : user
+        user.id === userId ? { ...user, verified: newVerified, suspended: !newVerified } : user
       ));
 
       toast({
         title: 'Success',
-        description: 'User verification status updated',
+        description: `User ${newVerified ? 'verified' : 'unverified'}. ${newVerified ? 'They can now log in.' : 'Login access revoked.'}`,
       });
     } catch (error) {
       console.error('Error updating verification:', error);
@@ -246,6 +264,7 @@ const AdminPage: React.FC = () => {
 
   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('[createUser] form submitted');
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
@@ -253,84 +272,164 @@ const AdminPage: React.FC = () => {
     const phone = formData.get('phone') as string;
     const role = formData.get('role') as string;
     const location = formData.get('location') as string;
+    const skills = formData.get('skills') as string;
+    const resume = formData.get('resume') as string;
+
+    setCreatingUser(true);
+
+    const functionUrl = `${supabaseUrl}/functions/v1/create-user`;
+    console.log('[createUser] functionUrl:', functionUrl);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
 
     try {
-      // Skip Edge Function for now - not deployed
-      console.log('Creating user via signup:', email);
-      
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: { full_name: fullName, role, phone, location }
-        }
+      console.log('[createUser] calling fetch...');
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+        },
+        body: JSON.stringify({
+          email, password, full_name: fullName, phone, role, location, skills, resume,
+          ratings_enabled: ratingsEnabled,
+          terms_accepted: termsAccepted,
+          data_sharing_consent: dataSharingConsent,
+        })
       });
-      console.log('Signup result:', { authData, authError });
+      console.log('[createUser] got response:', response.status);
 
-      if (authError) {
-        if (authError.message.includes('rate limit') || authError.message.includes('Too Many Requests')) {
-          toast({ title: 'Rate Limited', description: 'Too many attempts. Wait 5 minutes and try again, or deploy Edge Function.', variant: 'destructive' });
-          return;
-        }
-        if (authError.message.includes('already been registered')) {
-          toast({ title: 'Error', description: 'Email already exists', variant: 'destructive' });
-          return;
-        }
-        throw authError;
+      const responseText = await response.text();
+      clearTimeout(timeout);
+      const result = JSON.parse(responseText);
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create user');
       }
 
-      if (authData?.user) {
-        // Upload certificates if jobseeker
-        let certUrls: string[] = [];
-        if (certFiles.length > 0 && role === 'jobseeker') {
-          try {
-            for (const file of certFiles) {
-              const fileExt = file.name.split('.').pop();
-              const fileName = `${authData.user.id}/certs/img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
-              const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
-              if (!certError) {
-                certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
-              }
-            }
-          } catch (certErr) {
-            console.error('Cert upload failed:', certErr);
-          }
-        }
-
-        // Create profile
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: authData.user.id,
-          full_name: fullName,
-          email,
-          phone,
-          role,
-          location,
-          skills: role === 'jobseeker' ? formData.get('skills') as string : null,
-          resume: role === 'jobseeker' ? formData.get('resume') as string : null,
-          certificates: certUrls.length > 0 ? certUrls : null,
-          verified: true,
-          registration_paid: true,
-        });
-
-        if (profileError) {
-          console.error('Profile error:', profileError);
-          toast({ title: 'Partial success', description: 'User created but profile failed to save', variant: 'destructive' });
+      // Upload profile photo
+      let profileImageUrl = '';
+      if (profileImageFile) {
+        const ext = profileImageFile.name.split('.').pop();
+        const fileName = `${result.user_id}/avatar.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, profileImageFile, { upsert: true });
+        if (!uploadError) {
+          profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
         } else {
-          toast({ title: 'Success', description: `User ${fullName} created! Confirm email to login.` });
+          console.error('[createUser] photo upload error:', uploadError);
         }
-
-        await loadData();
-        setIsCreateUserModalOpen(false);
-        setCertFiles([]);
-      } else {
-        toast({ title: 'Check email', description: 'Confirmation sent. Verify to login.' });
       }
-    } catch (error: any) {
-      console.error('Create user error:', error);
-      toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
-    } finally {
+
+      // Update profile with photo URL
+      if (profileImageUrl) {
+        await supabase.from('profiles').update({ profile_image: profileImageUrl }).eq('id', result.user_id);
+      }
+
+      // Upload certificates if jobseeker
+      let certUrls: string[] = [];
+      if (certFiles.length > 0 && role === 'jobseeker') {
+        try {
+          for (const file of certFiles) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${result.user_id}/certs/img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
+            const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
+            if (!certError) {
+              certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+            }
+          }
+        } catch (certErr) {
+          console.error('Cert upload failed:', certErr);
+        }
+      }
+
+      // Update profile with certificates if uploaded
+      if (certUrls.length > 0) {
+        await supabase.from('profiles').update({ certificates: certUrls }).eq('id', result.user_id);
+      }
+
+      toast({ title: 'Success', description: `User ${fullName} created successfully!` });
       setCreatingUser(false);
+      await loadData();
+      setIsCreateUserModalOpen(false);
+      setCertFiles([]);
+    } catch (error: any) {
+      console.error('[createUser] error caught:', error);
+      if (error.name === 'AbortError') {
+        toast({ title: 'Error', description: 'Request timed out after 15s', variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
+      }
+      setCreatingUser(false);
+    }
+  };
+
+  const deleteUser = async () => {
+    if (!deletingUser) return;
+    try {
+      const functionUrl = `${supabaseUrl}/functions/v1/delete-user`;
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        body: JSON.stringify({ user_id: deletingUser.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to delete user');
+      toast({ title: 'Success', description: `User deleted successfully` });
+      setIsDeleteDialogOpen(false);
+      setDeletingUser(null);
+      await loadData();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
+    }
+  };
+
+  const editProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    const formData = new FormData(e.currentTarget);
+    const fullName = formData.get('full_name') as string;
+    const email = formData.get('email') as string;
+    const phone = formData.get('phone') as string;
+    const location = formData.get('location') as string;
+    const role = formData.get('role') as string;
+    const skills = formData.get('skills') as string;
+    const resume = formData.get('resume') as string;
+
+    try {
+      // Upload new photo if selected
+      let profileImageUrl: string | null = null;
+      if (editProfileImageFile) {
+        const ext = editProfileImageFile.name.split('.').pop();
+        const fileName = `${editingUser.id}/avatar.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, editProfileImageFile, { upsert: true });
+        if (!uploadError) {
+          profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
+        }
+      }
+
+      const { error: rpcError } = await supabase.rpc('create_user_profile', {
+        p_id: editingUser.id,
+        p_full_name: fullName,
+        p_email: email,
+        p_phone: phone || '',
+        p_role: role,
+        p_location: location || '',
+        p_skills: role === 'jobseeker' ? (skills || '') : '',
+        p_resume: role === 'jobseeker' ? (resume || '') : '',
+        p_profile_image: profileImageUrl,
+        p_ratings_enabled: ratingsEnabled || null,
+      });
+      if (rpcError) throw rpcError;
+
+      toast({ title: 'Success', description: `User ${fullName} updated` });
+      setIsEditUserModalOpen(false);
+      setEditingUser(null);
+      setEditProfileImageFile(null);
+      await loadData();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
     }
   };
 
@@ -520,9 +619,9 @@ const AdminPage: React.FC = () => {
 
       // Handle multiple image uploads
       if (adFiles.length > 0) {
-        const oversized = adFiles.filter(f => f.size > 1024 * 1024);
+        const oversized = adFiles.filter(f => f.size > 5 * 1024 * 1024);
         if (oversized.length > 0) {
-          toast({ title: 'File Too Large', description: `${oversized[0].name} exceeds 1MB limit. Please compress and try again.`, variant: 'destructive' });
+          toast({ title: 'File Too Large', description: `${oversized[0].name} exceeds 5MB limit. Please compress and try again.`, variant: 'destructive' });
           setAdUploading(false);
           return;
         }
@@ -750,7 +849,7 @@ const AdminPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>User Management</CardTitle>
-                <Button onClick={() => { setCertFiles([]); setIsCreateUserModalOpen(true); }}>
+                <Button onClick={() => { setCertFiles([]); setTermsAccepted(false); setDataSharingConsent(false); setIsCreateUserModalOpen(true); }}>
                   + Add New User
                 </Button>
               </CardHeader>
@@ -761,7 +860,6 @@ const AdminPage: React.FC = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Verified</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Registration</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -794,11 +892,6 @@ const AdminPage: React.FC = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.suspended ? 'destructive' : 'default'}>
-                            {user.suspended ? 'Suspended' : 'Active'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
                           <Badge variant={user.registration_paid ? 'default' : 'destructive'}>
                             {user.registration_paid ? 'Paid' : 'Unpaid'}
                           </Badge>
@@ -812,13 +905,6 @@ const AdminPage: React.FC = () => {
                             {user.verified ? 'Unverify' : 'Verify'}
                           </Button>
                           <Button
-                            variant={user.suspended ? 'default' : 'destructive'}
-                            size="sm"
-                            onClick={() => toggleUserSuspension(user.id, !!user.suspended)}
-                          >
-                            {user.suspended ? 'Unsuspend' : 'Suspend'}
-                          </Button>
-                          <Button
                             variant="secondary"
                             size="sm"
                             onClick={() => triggerPasswordReset(user.email)}
@@ -829,13 +915,23 @@ const AdminPage: React.FC = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                             onClick={() => {
-                              setSelectedUser(user);
-                              setIsUserModalOpen(true);
+                              setEditingUser(user);
+                              setRatingsEnabled(!!user.ratings_enabled);
+                              setIsEditUserModalOpen(true);
                             }}
                           >
-                            View Bio
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              setDeletingUser(user);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                          >
+                            Delete
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -1415,13 +1511,13 @@ const AdminPage: React.FC = () => {
               <Input 
                 type="file" 
                 multiple
-                accept="image/png, image/jpeg" 
+                accept="image/png, image/jpeg, image/webp" 
                 onChange={(e) => {
                   const files = e.target.files;
                   if (files) {
                     const validFiles = Array.from(files).filter(f => {
-                      if (f.size > 1024 * 1024) {
-                        alert(`${f.name} exceeds 1MB limit. Please compress or choose a smaller image.`);
+                      if (f.size > 5 * 1024 * 1024) {
+                        alert(`${f.name} exceeds 5MB limit. Please compress or choose a smaller image.`);
                         return false;
                       }
                       return true;
@@ -1526,7 +1622,17 @@ const AdminPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
           </DialogHeader>
-          <form onSubmit={createUser} className="grid grid-cols-2 gap-4 overflow-y-auto max-h-[calc(90vh-100px)]">
+          {creatingUser && (
+            <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-lg">
+              <div className="w-64 space-y-4">
+                <div className="h-2 bg-green-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-600 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                </div>
+                <p className="text-sm text-gray-600 text-center font-medium">Creating user account...</p>
+              </div>
+            </div>
+          )}
+          <form onSubmit={createUser} className="grid grid-cols-2 gap-4 relative">
             <div>
               <Label>Full Name</Label>
               <Input name="full_name" required placeholder="John Kamau" />
@@ -1566,6 +1672,22 @@ const AdminPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Profile Photo</Label>
+              {profileImageFile && (
+                <div className="relative w-16 h-16 mb-2 rounded-full overflow-hidden border-2 border-green-200">
+                  <img src={URL.createObjectURL(profileImageFile)} alt="" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => setProfileImageFile(null)} className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center text-[10px] rounded-full">X</button>
+                </div>
+              )}
+              <input type="file" accept="image/png,image/jpeg,image/webp"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                onChange={(e) => setProfileImageFile(e.target.files?.[0] || null)} />
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <Switch id="ratings_enabled" checked={ratingsEnabled} onCheckedChange={setRatingsEnabled} />
+              <Label htmlFor="ratings_enabled">Enable ratings for this user</Label>
+            </div>
             <div className="jobseeker-fields" style={{ display: 'none' }}>
               <Label>Skills (comma separated)</Label>
               <Input name="skills" placeholder="e.g. Painting, Plumbing, Carpentry" />
@@ -1597,17 +1719,127 @@ const AdminPage: React.FC = () => {
                 }} 
               />
             </div>
+            <div className="col-span-2 border-t pt-4 mt-2 space-y-3">
+              <p className="text-xs font-semibold text-gray-700">Terms & Conditions</p>
+              <div className="max-h-32 overflow-y-auto bg-gray-50 rounded-lg p-3 text-[11px] text-gray-600 leading-relaxed border">
+                {TERMS_AND_CONDITIONS}
+              </div>
+              <div className="flex items-start gap-2">
+                <Checkbox id="terms" checked={termsAccepted} onCheckedChange={(c) => setTermsAccepted(c === true)} />
+                <Label htmlFor="terms" className="text-xs leading-relaxed text-gray-700">
+                  I accept the <strong>Terms & Conditions</strong>, <strong>Privacy Policy</strong>, <strong>GDPR rules</strong>, and <strong>Indemnity clause</strong>
+                </Label>
+              </div>
+              <div className="flex items-start gap-2">
+                <Checkbox id="data_sharing" checked={dataSharingConsent} onCheckedChange={(c) => setDataSharingConsent(c === true)} />
+                <Label htmlFor="data_sharing" className="text-xs leading-relaxed text-gray-700">
+                  I consent to my information being shared with paid users on the platform
+                </Label>
+              </div>
+            </div>
             <div className="col-span-2 flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setIsCreateUserModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={creatingUser}>
+              <Button type="submit" disabled={creatingUser || !termsAccepted || !dataSharingConsent}>
                 {creatingUser ? 'Creating...' : 'Create User'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={isEditUserModalOpen} onOpenChange={(open) => { if (!open) { setEditingUser(null); setIsEditUserModalOpen(false); } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          {editingUser && (
+            <form onSubmit={editProfile} className="grid grid-cols-2 gap-4 overflow-y-auto max-h-[calc(90vh-100px)]">
+              <div>
+                <Label>Full Name</Label>
+                <Input name="full_name" defaultValue={editingUser.full_name} required />
+              </div>
+              <div>
+                <Label>Email</Label>
+                <Input name="email" type="email" defaultValue={editingUser.email || ''} required />
+              </div>
+              <div>
+                <Label>Phone</Label>
+                <Input name="phone" type="tel" defaultValue={editingUser.phone || ''} />
+              </div>
+              <div>
+                <Label>Location</Label>
+                <Input name="location" defaultValue={editingUser.location || ''} />
+              </div>
+              <div>
+                <Label>Role</Label>
+                <Select name="role" defaultValue={editingUser.role} onValueChange={(val) => {
+                  setTimeout(() => {
+                    const fields = document.querySelectorAll('.edit-jobseeker-fields');
+                    fields.forEach(f => (f as HTMLElement).style.display = val === 'jobseeker' ? 'block' : 'none');
+                  }, 0);
+                }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="jobseeker">Jobseeker</SelectItem>
+                    <SelectItem value="employer">Employer</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="edit-jobseeker-fields" style={{ display: editingUser.role === 'jobseeker' ? 'block' : 'none' }}>
+                <Label>Skills (comma separated)</Label>
+                <Input name="skills" defaultValue={typeof editingUser.skills === 'string' ? editingUser.skills : (editingUser.skills || []).join(', ')} />
+              </div>
+              <div className="edit-jobseeker-fields" style={{ display: editingUser.role === 'jobseeker' ? 'block' : 'none' }}>
+                <Label>Professional Resume</Label>
+                <Textarea name="resume" defaultValue={editingUser.resume || ''} rows={3} />
+              </div>
+              <div>
+                <Label>Profile Photo</Label>
+                {(editProfileImageFile || editingUser.profile_image) && (
+                  <div className="relative w-16 h-16 mb-2 rounded-full overflow-hidden border-2 border-green-200">
+                    <img src={editProfileImageFile ? URL.createObjectURL(editProfileImageFile) : editingUser.profile_image} alt="" className="w-full h-full object-cover" />
+                    {editProfileImageFile && (
+                      <button type="button" onClick={() => setEditProfileImageFile(null)} className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center text-[10px] rounded-full">X</button>
+                    )}
+                  </div>
+                )}
+                <input type="file" accept="image/png,image/jpeg,image/webp"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  onChange={(e) => setEditProfileImageFile(e.target.files?.[0] || null)} />
+              </div>
+              <div className="flex items-center gap-2 pt-6">
+                <Switch id="edit_ratings_enabled" checked={ratingsEnabled} onCheckedChange={setRatingsEnabled} />
+                <Label htmlFor="edit_ratings_enabled">Enable ratings</Label>
+              </div>
+              <div className="col-span-2 flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => { setEditingUser(null); setIsEditUserModalOpen(false); setEditProfileImageFile(null); }}>Cancel</Button>
+                <Button type="submit">Update User</Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if (!open) { setDeletingUser(null); setIsDeleteDialogOpen(false); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deletingUser?.full_name}</strong>? This will permanently remove their account and all profile data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeletingUser(null); setIsDeleteDialogOpen(false); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteUser} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

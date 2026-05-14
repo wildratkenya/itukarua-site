@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 
 interface ImageViewerModalProps {
   images: string[];
@@ -38,11 +39,12 @@ const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ images, initialInde
       )}
       
       <img 
-        src={images[currentIndex]} 
+        src={optimizeImageUrl(images[currentIndex], 1200, 1200)} 
         alt="" 
         className="max-w-[90vw] max-h-[90vh] object-contain"
         onClick={e => e.stopPropagation()}
         draggable={false}
+        onError={handleImageError}
       />
       
       {images.length > 1 && (

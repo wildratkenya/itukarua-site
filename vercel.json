@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/supabase-storage/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:match*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
