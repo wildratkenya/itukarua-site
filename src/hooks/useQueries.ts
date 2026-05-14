@@ -80,6 +80,7 @@ export function useProfiles(filters?: {
   location?: string;
   search?: string;
   limit?: number;
+  ratings_enabled?: boolean;
 }) {
   return useQuery({
     queryKey: ['profiles', filters],

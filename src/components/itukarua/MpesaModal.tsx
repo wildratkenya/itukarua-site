@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, Phone, CheckCircle, Clock, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle } from 'lucide-react';
+import { supabaseUrl } from '@/lib/supabase';
 
 interface MpesaModalProps {
   isOpen: boolean;
@@ -7,16 +8,42 @@ interface MpesaModalProps {
   amount: number;
   description: string;
   accountRef: string;
+  user?: { id: string; name: string; email: string; role: string } | null;
   onPaymentComplete?: () => void;
+  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost';
+  relatedJobId?: string;
+  relatedAdId?: string;
+  relatedProfileId?: string;
 }
 
-const MpesaModal: React.FC<MpesaModalProps> = ({ isOpen, onClose, amount, description, accountRef, onPaymentComplete }) => {
-  const [step, setStep] = useState<'instructions' | 'stk' | 'processing' | 'success'>('instructions');
+const MpesaModal: React.FC<MpesaModalProps> = ({
+  isOpen, onClose, amount, description, accountRef,
+  user, onPaymentComplete, paymentType = 'registration',
+  relatedJobId, relatedAdId,
+}) => {
+  const [step, setStep] = useState<'instructions' | 'stk' | 'processing' | 'success' | 'error'>('instructions');
   const [phone, setPhone] = useState('');
   const [copied, setCopied] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [transactionId, setTransactionId] = useState('');
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) {
+      setStep('instructions');
+      setPhone('');
+      setPhoneError('');
+      setErrorMessage('');
+      setTransactionId('');
+      setCheckoutId(null);
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [isOpen]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -24,24 +51,93 @@ const MpesaModal: React.FC<MpesaModalProps> = ({ isOpen, onClose, amount, descri
     setTimeout(() => setCopied(''), 2000);
   };
 
-  const handleSTKPush = () => {
+  const startPolling = (checkoutRequestId: string) => {
+    let attempts = 0;
+    const maxAttempts = 15;
+
+    pollingRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > maxAttempts) {
+        if (pollingRef.current) clearInterval(pollingRef.current);
+        setErrorMessage('Payment confirmation timed out. Check your M-Pesa messages for the transaction.');
+        setStep('error');
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/mpesa-stk-push/status?CheckoutRequestID=${checkoutRequestId}`
+        );
+        const data = await res.json();
+
+        if (data.status === 'completed') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setTransactionId(data.payment?.mpesa_ref || `MPE${Date.now().toString().slice(-8)}`);
+          setStep('success');
+          onPaymentComplete?.();
+        } else if (data.status === 'failed') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setErrorMessage('Payment failed. Please try again.');
+          setStep('error');
+        }
+      } catch (err) {
+        // Silently retry
+      }
+    }, 3000);
+  };
+
+  const handleSTKPush = async () => {
     if (!phone.trim() || phone.length < 10) {
       setPhoneError('Enter a valid phone number');
       return;
     }
     setPhoneError('');
     setStep('processing');
-    setTimeout(() => {
-      setStep('success');
-      onPaymentComplete?.();
-    }, 3000);
+    setErrorMessage('');
+
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/mpesa-stk-push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          amount,
+          accountRef: accountRef || 'ITUKARUA',
+          description,
+          user_id: user?.id || 'anonymous',
+          payment_type: paymentType,
+          related_job_id: relatedJobId || null,
+          related_ad_id: relatedAdId || null,
+          related_profile_id: props.relatedProfileId || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'STK push failed');
+      }
+
+      if (data.success && data.CheckoutRequestID) {
+        setCheckoutId(data.CheckoutRequestID);
+        startPolling(data.CheckoutRequestID);
+      } else {
+        throw new Error('Unexpected response from server');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to initiate payment. Please try again.');
+      setStep('error');
+    }
   };
 
   const resetAndClose = () => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
     setStep('instructions');
     setPhone('');
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={resetAndClose}>
@@ -130,7 +226,6 @@ const MpesaModal: React.FC<MpesaModalProps> = ({ isOpen, onClose, amount, descri
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              {/* STK Push */}
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
@@ -176,6 +271,13 @@ const MpesaModal: React.FC<MpesaModalProps> = ({ isOpen, onClose, amount, descri
                 <Clock className="w-4 h-4" />
                 <span>Waiting for confirmation...</span>
               </div>
+              <p className="text-xs text-gray-300 mt-2">This should take less than a minute</p>
+              <button
+                onClick={resetAndClose}
+                className="mt-6 text-sm text-gray-400 hover:text-gray-600 underline"
+              >
+                Cancel
+              </button>
             </div>
           )}
 
@@ -186,13 +288,37 @@ const MpesaModal: React.FC<MpesaModalProps> = ({ isOpen, onClose, amount, descri
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
               <p className="text-sm text-gray-500 mb-1">KES {amount.toLocaleString()} has been received.</p>
-              <p className="text-xs text-gray-400 mb-6">Transaction ID: MPE{Date.now().toString().slice(-8)}</p>
+              <p className="text-xs text-gray-400 mb-6">Transaction ID: {transactionId}</p>
               <button
                 onClick={resetAndClose}
                 className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
               >
                 Continue
               </button>
+            </div>
+          )}
+
+          {step === 'error' && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-10 h-10 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Failed</h3>
+              <p className="text-sm text-gray-500 mb-6">{errorMessage}</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setStep('instructions')}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={resetAndClose}
+                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           )}
         </div>

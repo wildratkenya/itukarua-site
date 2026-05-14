@@ -300,6 +300,13 @@ const AppLayout: React.FC = () => {
         amount={mpesaModal.amount}
         description={mpesaModal.description}
         accountRef={mpesaModal.accountRef}
+        user={user}
+        onPaymentComplete={() => {
+          handleCloseMpesa();
+          if (user) getProfile(user.id).then(p => {
+            if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
+          });
+        }}
       />
     </div>
   );

@@ -1,12 +1,53 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Zap, Shield, Phone } from 'lucide-react';
 import { PRICING_PLANS } from '@/data/siteData';
+import { supabase } from '@/lib/supabase';
+import { acceptTerms, checkTermsAccepted } from '@/lib/database';
+import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 
 interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string) => void;
 }
 
 const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
+  const [user, setUser] = useState<any>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [dataSharingConsent, setDataSharingConsent] = useState(false);
+  const [alreadyAccepted, setAlreadyAccepted] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      if (data.user) {
+        checkTermsAccepted(data.user.id).then(accepted => {
+          setAlreadyAccepted(accepted);
+          if (accepted) {
+            setTermsAccepted(true);
+            setDataSharingConsent(true);
+          }
+        });
+      }
+    });
+  }, []);
+
+  const handleAccept = async () => {
+    if (!user || alreadyAccepted) return;
+    setSaving(true);
+    try {
+      await acceptTerms(user.id, dataSharingConsent);
+      setAlreadyAccepted(true);
+    } catch (e) {
+      console.error('Failed to save terms acceptance:', e);
+    }
+    setSaving(false);
+  };
+
+  const handlePay = (amount: number, description: string, accountRef: string) => {
+    if (!alreadyAccepted) { handleAccept(); return; }
+    onOpenMpesa(amount, description, accountRef);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -18,7 +59,48 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* T&C Acceptance */}
+      {user && !alreadyAccepted && (
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 mb-8">
+          <div className="bg-white rounded-xl border-2 border-amber-200 p-4 shadow-sm">
+            <p className="text-sm font-semibold text-gray-900 mb-2">Accept Terms to Continue</p>
+            <div className="max-h-24 overflow-y-auto bg-gray-50 rounded-lg p-2.5 text-[11px] text-gray-600 leading-relaxed border mb-3">
+              {TERMS_AND_CONDITIONS}
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} className="mt-0.5" />
+                <span className="text-xs text-gray-700">
+                  I accept the <strong>Terms & Conditions</strong>, <strong>Privacy Policy</strong>, <strong>GDPR rules</strong>, and <strong>Indemnity clause</strong>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={dataSharingConsent} onChange={e => setDataSharingConsent(e.target.checked)} className="mt-0.5" />
+                <span className="text-xs text-gray-700">
+                  I consent to my information being shared with paid users on the platform
+                </span>
+              </label>
+            </div>
+            <button
+              onClick={handleAccept}
+              disabled={!termsAccepted || saving}
+              className="mt-3 w-full py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              {saving ? 'Saving...' : 'Accept & Continue'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {user && alreadyAccepted && (
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 mb-8">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+            <p className="text-sm text-green-700 font-medium">✓ Terms & Conditions accepted</p>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Jobseeker Registration */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">For Jobseekers</h2>
@@ -40,12 +122,14 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
                 ))}
               </ul>
               <button
-                onClick={() => onOpenMpesa(PRICING_PLANS.jobseeker.price, 'Jobseeker Registration', 'REG-NEW')}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                onClick={() => handlePay(PRICING_PLANS.jobseeker.price, 'Jobseeker Registration', 'REG-NEW')}
+                disabled={!alreadyAccepted}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 <Phone className="w-4 h-4" />
                 Pay with M-Pesa
               </button>
+              {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
             </div>
           </div>
         </div>
@@ -84,16 +168,20 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
                     ))}
                   </ul>
                   <button
-                    onClick={() => onOpenMpesa(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`)}
+                    onClick={() => handlePay(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`)}
+                    disabled={!alreadyAccepted}
                     className={`w-full py-3 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                      plan.popular
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                      !alreadyAccepted
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : plan.popular
+                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
                     }`}
                   >
                     <Phone className="w-4 h-4" />
                     Pay with M-Pesa
                   </button>
+                  {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
                 </div>
               </div>
             ))}

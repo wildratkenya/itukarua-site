@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { MapPin, Phone, Mail, Facebook, Twitter, Send } from 'lucide-react';
+import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
+import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 interface FooterProps {
   onNavigate: (page: Page) => void;
 }
@@ -9,6 +10,8 @@ const Footer: React.FC<FooterProps> = ({
 }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     if (email.trim() && /\S+@\S+\.\S+/.test(email)) {
@@ -36,6 +39,32 @@ const Footer: React.FC<FooterProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Terms Modal */}
+      {showTerms && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowTerms(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-lg font-bold text-gray-900">Terms of Service</h2>
+              <button onClick={() => setShowTerms(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{TERMS_AND_CONDITIONS}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Modal */}
+      {showPrivacy && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowPrivacy(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-lg font-bold text-gray-900">Privacy Policy</h2>
+              <button onClick={() => setShowPrivacy(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{TERMS_AND_CONDITIONS}</div>
+          </div>
+        </div>
+      )}
 
       {/* Main Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -92,11 +121,12 @@ const Footer: React.FC<FooterProps> = ({
           <div>
             <h4 className="text-white font-semibold mb-4">For Users</h4>
             <ul className="space-y-2">
-              {['Post a Job', 'Register as Jobseeker', 'Advertise Business', 'M-Pesa Payments', 'Terms of Service', 'Privacy Policy'].map(item => <li key={item}>
-                  <button onClick={() => {}} className="text-sm text-gray-400 hover:text-green-400 transition-colors">
-                    {item}
-                  </button>
-                </li>)}
+              <li><button onClick={() => onNavigate('jobs')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Post a Job</button></li>
+              <li><button onClick={() => onNavigate('pricing')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Register as Jobseeker</button></li>
+              <li><button onClick={() => onNavigate('services')} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Advertise Business</button></li>
+              <li><button onClick={() => {}} className="text-sm text-gray-400 hover:text-green-400 transition-colors">M-Pesa Payments</button></li>
+              <li><button onClick={() => setShowTerms(true)} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Terms of Service</button></li>
+              <li><button onClick={() => setShowPrivacy(true)} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Privacy Policy</button></li>
             </ul>
           </div>
 
@@ -136,8 +166,8 @@ const Footer: React.FC<FooterProps> = ({
             &copy; {new Date().getFullYear()} ITUKARUA Solutions. All rights reserved. | www.itukarua.co.ke
           </p>
           <div className="flex gap-4">
-            <button onClick={() => {}} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms</button>
-            <button onClick={() => {}} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Privacy</button>
+            <button onClick={() => setShowTerms(true)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms</button>
+            <button onClick={() => setShowPrivacy(true)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Privacy</button>
             <button onClick={() => {}} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Cookies</button>
           </div>
         </div>

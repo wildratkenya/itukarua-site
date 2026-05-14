@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { MapPin, Star, Sparkles, Phone, Camera } from 'lucide-react';
-import { optimizeImageUrl } from '@/lib/supabase';
+import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 
 interface ServiceAd {
   id: string; 
@@ -51,7 +51,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
       onClick={onClick}
       className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group"
     >
-      <div className="relative aspect-square overflow-hidden rounded-xl">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-sm">
         {allImages.length > 0 ? (
           <>
             <img
@@ -59,9 +59,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
               alt={`${service.businessName} - Image ${currentImageIndex + 1}`}
               loading="lazy"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg';
-              }}
+              onError={handleImageError}
               draggable={false}
             />
             {hasMultipleImages && (
@@ -139,7 +137,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
               onClick={(e) => e.stopPropagation()}
               className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
             >
-              <img src={optimizeImageUrl(allImages[0], 100, 100)} alt="" className="w-full h-full object-cover" />
+              <img src={optimizeImageUrl(allImages[0], 100, 100)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
             </button>
           ) : (
             allImages.map((img, i) => (
@@ -153,7 +151,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
                 }`}
               >
-                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
+                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
               </button>
             ))
           )}
