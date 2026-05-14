@@ -264,6 +264,7 @@ const AdminPage: React.FC = () => {
 
   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!termsAccepted || !dataSharingConsent) return;
     console.log('[createUser] form submitted');
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
