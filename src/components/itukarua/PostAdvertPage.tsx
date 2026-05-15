@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, Upload, Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { SERVICE_CATEGORIES, LOCATIONS, PRICING_PLANS } from '@/data/siteData';
+import { SERVICE_CATEGORIES, LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
+import { compressImage } from '@/lib/imageUtils';
 import { createServiceAd, createPayment } from '@/lib/database';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -16,7 +17,7 @@ interface PostAdvertPageProps {
 const MAX_IMAGES = 3;
 
 const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
-  const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', contact: '', plan: '' });
+  const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', plan: '' });
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -75,12 +76,12 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       if (imageFiles.length > 0) {
         setUploadingImages(true);
         for (const file of imageFiles) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+          const compressed = await compressImage(file);
+          const fileName = `img_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
           
           const { error: uploadError } = await supabase.storage
             .from('adverts')
-            .upload(fileName, file);
+            .upload(fileName, compressed);
             
           if (uploadError) throw uploadError;
           
@@ -101,6 +102,8 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
         image: imageUrls[0] || undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
         location: formData.location,
+        county: formData.county || undefined,
+        subcounty: formData.subcounty || undefined,
         contact: formData.contact,
         plan: planKey as '10-day' | '20-day' | '30-day',
         owner_id: user.id,
@@ -131,7 +134,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
           <p className="text-gray-500 mb-6">Your business advert will be live once payment is confirmed.</p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => onNavigate('services')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">View Services</button>
-            <button onClick={() => { setSubmitted(false); setFormData({ businessName: '', category: '', description: '', location: '', contact: '', plan: '' }); }} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
+            <button onClick={() => { setSubmitted(false); setFormData({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', plan: '' }); }} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
           </div>
         </div>
       </div>
@@ -170,6 +173,19 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
                 <input type="text" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.location ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} placeholder="e.g. Near Catholic Church or LandMark" />
                 {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                <select value={formData.county} onChange={e => setFormData({ ...formData, county: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                  <option value="">Select county</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
+                <input type="text" value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" placeholder="e.g. Kikuyu" />
               </div>
             </div>
             <div>

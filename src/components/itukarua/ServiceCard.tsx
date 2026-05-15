@@ -10,6 +10,8 @@ interface ServiceAd {
   image: string; 
   images?: string[];
   location: string;
+  county?: string;
+  subcounty?: string;
   contact: string; 
   expiryDate: string; 
   featured: boolean; 
@@ -174,7 +176,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
         <div className="flex items-center justify-between pt-3 border-t border-gray-50">
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <MapPin className="w-3.5 h-3.5 text-green-600" />
-            {service.location}
+            {service.county ? `${service.county}${service.subcounty ? `, ${service.subcounty}` : ''}${service.location ? ` - ${service.location}` : ''}` : service.location}
           </span>
           <button
             onClick={(e) => {

@@ -104,12 +104,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
         {/* Jobseeker Registration */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">For Jobseekers</h2>
-          <p className="text-gray-500 text-center mb-8">Register once and start bidding on unlimited jobs</p>
+          <p className="text-gray-500 text-center mb-8">Monthly subscription — bid on unlimited jobs, message employers, and more</p>
           <div className="max-w-md mx-auto bg-white rounded-2xl border-2 border-green-500 shadow-xl overflow-hidden">
             <div className="bg-green-600 px-6 py-4 text-center">
-              <p className="text-green-100 text-sm font-medium">One-Time Registration</p>
+              <p className="text-green-100 text-sm font-medium">30-Day Subscription</p>
               <div className="flex items-baseline justify-center gap-1 mt-1">
-                <span className="text-4xl font-bold text-white">KES {PRICING_PLANS.jobseeker.price}</span>
+                <span className="text-4xl font-bold text-white">KES {PRICING_PLANS.jobseeker.price}<span className="text-lg text-green-200 font-normal">/mo</span></span>
               </div>
             </div>
             <div className="p-6">
@@ -130,6 +130,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
                 Pay with M-Pesa
               </button>
               {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
+              <p className="text-[10px] text-gray-400 text-center mt-2">30-day subscription • renews monthly</p>
             </div>
           </div>
         </div>
