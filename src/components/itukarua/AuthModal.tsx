@@ -3,6 +3,7 @@ import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield, Camera } from 'lucide-
 import { supabase } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
+import { subscribeNewsletter } from '@/lib/database';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   });
   const [certFiles, setCertFiles] = useState<FileList | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -112,6 +114,9 @@ data: {
             }
           }
           
+          if (subscribeToNewsletter) {
+            await subscribeNewsletter(formData.email);
+          }
           setEmailSent(true);
           setServerError('');
           onAuth();
@@ -206,7 +211,7 @@ data: {
               <button
                 type="button"
                 onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
-county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); }}
+county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); setSubscribeToNewsletter(false); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
                 Back to Sign In
@@ -390,6 +395,12 @@ county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); }}
             </>
           )}
 
+          {tab === 'signup' && !emailSent && (
+            <div className="flex items-start gap-2">
+              <input type="checkbox" id="newsletter" checked={subscribeToNewsletter} onChange={e => setSubscribeToNewsletter(e.target.checked)} className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+              <label htmlFor="newsletter" className="text-xs text-gray-600">Subscribe to our newsletter for the latest jobs, services, and community updates</label>
+            </div>
+          )}
           {!emailSent && (
             <button
               type="submit"
