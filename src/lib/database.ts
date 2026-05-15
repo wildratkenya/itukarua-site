@@ -1075,3 +1075,27 @@ export async function deleteNewsletterSubscriber(email: string): Promise<{ error
   if (error) return { error: 'Failed to delete subscriber.' };
   return {};
 }
+
+// ─── Custom Categories ──────────────────────────────────────────────────────
+
+export async function getCustomCategories(type?: 'job' | 'service'): Promise<string[]> {
+  let query = supabase.from('custom_categories').select('name, type').order('name');
+  if (type) query = query.eq('type', type);
+  const { data } = await query;
+  return (data || []).map(c => c.name);
+}
+
+export async function addCustomCategory(name: string, type: 'job' | 'service'): Promise<{ error?: string }> {
+  const { error } = await supabase.from('custom_categories').insert({ name, type });
+  if (error) {
+    if (error.code === '23505') return { error: 'Category already exists.' };
+    return { error: error.message };
+  }
+  return {};
+}
+
+export async function deleteCustomCategory(name: string, type: 'job' | 'service'): Promise<{ error?: string }> {
+  const { error } = await supabase.from('custom_categories').delete().eq('name', name).eq('type', type);
+  if (error) return { error: error.message };
+  return {};
+}

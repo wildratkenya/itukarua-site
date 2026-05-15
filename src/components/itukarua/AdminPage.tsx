@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -95,7 +95,10 @@ const AdminPage: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [customJobCats, setCustomJobCats] = useState<string[]>([]);
+  const [customServiceCats, setCustomServiceCats] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState<'job' | 'service'>('job');
   const [loading, setLoading] = useState(true);
 
   // Modal states for Jobs
@@ -153,6 +156,8 @@ const AdminPage: React.FC = () => {
         supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
         supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || [])),
         getNewsletterSubscribers().then(setSubscribers),
+        getCustomCategories('job').then(setCustomJobCats),
+        getCustomCategories('service').then(setCustomServiceCats),
       ]);
 
       // Use individual category lists for modals
@@ -503,22 +508,23 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const addCategory = () => {
+  const addCategory = async () => {
     if (!newCategory.trim()) return;
-    if (categories.includes(newCategory.trim())) {
-      toast({
-        title: 'Error',
-        description: 'Category already exists',
-        variant: 'destructive',
-      });
+    const result = await addCustomCategory(newCategory.trim(), newCategoryType);
+    if (result.error) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
       return;
     }
-    setCategories([...categories, newCategory.trim()]);
     setNewCategory('');
-    toast({
-      title: 'Success',
-      description: 'Category added locally. Add it to a job or service to persist.',
-    });
+    const updated = await getCustomCategories(newCategoryType);
+    if (newCategoryType === 'job') {
+      setCustomJobCats(updated);
+      setCategories([...new Set([...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...updated, ...customServiceCats])]);
+    } else {
+      setCustomServiceCats(updated);
+      setCategories([...new Set([...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customJobCats, ...updated])]);
+    }
+    toast({ title: 'Success', description: 'Category added.' });
   };
 
   const deleteJob = async (jobId: string) => {
@@ -1237,21 +1243,66 @@ const AdminPage: React.FC = () => {
                 <CardTitle>Category Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="New category name"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                    />
-                    <Button onClick={addCategory}>Add Category</Button>
+                <div className="space-y-6">
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Category Name</label>
+                      <Input
+                        placeholder="New category name"
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                      <select value={newCategoryType} onChange={e => setNewCategoryType(e.target.value as 'job' | 'service')} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="job">Job</option>
+                        <option value="service">Service</option>
+                      </select>
+                    </div>
+                    <Button onClick={addCategory} className="mb-0.5">Add</Button>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {categories.map((category) => (
-                      <Badge key={category} variant="outline" className="justify-center">
-                        {category}
-                      </Badge>
-                    ))}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Job Categories</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...customJobCats].map((category) => {
+                        const isCustom = customJobCats.includes(category);
+                        return (
+                          <div key={'job-'+category} className="flex items-center gap-1">
+                            <Badge variant={isCustom ? 'default' : 'outline'} className="flex-1 justify-center">{category}</Badge>
+                            {isCustom && (
+                              <button onClick={async () => {
+                                await deleteCustomCategory(category, 'job');
+                                const updated = await getCustomCategories('job');
+                                setCustomJobCats(updated);
+                                setCategories([...new Set([...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...updated, ...customServiceCats])]);
+                              }} className="text-red-500 hover:text-red-700 text-xs font-bold px-1">&times;</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Service Categories</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customServiceCats].map((category) => {
+                        const isCustom = customServiceCats.includes(category);
+                        return (
+                          <div key={'svc-'+category} className="flex items-center gap-1">
+                            <Badge variant={isCustom ? 'default' : 'outline'} className="flex-1 justify-center">{category}</Badge>
+                            {isCustom && (
+                              <button onClick={async () => {
+                                await deleteCustomCategory(category, 'service');
+                                const updated = await getCustomCategories('service');
+                                setCustomServiceCats(updated);
+                                setCategories([...new Set([...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customJobCats, ...updated])]);
+                              }} className="text-red-500 hover:text-red-700 text-xs font-bold px-1">&times;</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1332,7 +1383,7 @@ const AdminPage: React.FC = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
-                    {categories.length > 0 ? categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>) : JOB_CATEGORIES.filter(c => c !== 'All Categories').map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...customJobCats].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <input type="hidden" id="job_category_hidden" name="category" defaultValue={editingJob?.category || (categories.length > 0 ? categories[0] : JOB_CATEGORIES[1])} />
@@ -1481,7 +1532,7 @@ const AdminPage: React.FC = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
-                    {categories.length > 0 ? categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>) : SERVICE_CATEGORIES.filter(c => c !== 'All Services').map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customServiceCats].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <input type="hidden" id="ad_category_hidden" name="category" defaultValue={editingAd?.category || (categories.length > 0 ? categories[0] : SERVICE_CATEGORIES[1])} />

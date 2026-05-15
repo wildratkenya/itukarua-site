@@ -1,7 +1,8 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal } from 'lucide-react';
 import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
+import { getCustomCategories } from '@/lib/database';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 
@@ -24,6 +25,9 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
   const [filterCategory, setFilterCategory] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
   const [activeStep, setActiveStep] = useState<number | null>(null);
+  const [extraCats, setExtraCats] = useState<string[]>([]);
+
+  useEffect(() => { getCustomCategories('job').then(setExtraCats); }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +89,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
               <div className="flex flex-col sm:flex-row gap-2 mb-4">
                 <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Categories</option>
-                  {JOB_CATEGORIES.filter(c => c !== 'All Categories').map(c => <option key={c} value={c}>{c}</option>)}
+                  {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Locations</option>

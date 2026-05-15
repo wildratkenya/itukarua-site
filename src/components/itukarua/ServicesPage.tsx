@@ -4,7 +4,7 @@ import ServiceCard from './ServiceCard';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { SERVICE_CATEGORIES, LOCATIONS, IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { useServiceAds } from '@/hooks/useQueries';
-import { createServiceRating, checkServiceRating } from '@/lib/database';
+import { createServiceRating, checkServiceRating, getCustomCategories } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 import ImageViewerModal from './ImageViewerModal';
@@ -24,10 +24,13 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const [userRating, setUserRating] = useState<number>(0);
   const [user, setUser] = useState<any>(null);
   const [ratingMsg, setRatingMsg] = useState('');
+  const [extraCats, setExtraCats] = useState<string[]>([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
   }, []);
+
+  useEffect(() => { getCustomCategories('service').then(setExtraCats); }, []);
 
   useEffect(() => {
     if (selectedService && user) {
@@ -220,7 +223,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
                 <select value={category} onChange={e => setCategory(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  {SERVICE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {[...SERVICE_CATEGORIES, ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -248,7 +251,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {SERVICE_CATEGORIES.map(c => (
+          {[...SERVICE_CATEGORIES, ...extraCats].map(c => (
             <button key={c} onClick={() => setCategory(c)} className={`px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === c ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>{c}</button>
           ))}
         </div>
