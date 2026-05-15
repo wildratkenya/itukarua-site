@@ -1,6 +1,6 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle, Bell } from 'lucide-react';
-import { createMessage, subscribeNewsletter } from '@/lib/database';
+import { createMessage } from '@/lib/database';
 
 const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
@@ -8,9 +8,7 @@ const ContactPage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [honeypot, setHoneypot] = useState('');
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterMsg, setNewsletterMsg] = useState('');
-  const [newsletterLoading, setNewsletterLoading] = useState(false);
+
 
   const formStartTime = useRef(Date.now());
   const formRef = useRef<HTMLFormElement>(null);
@@ -231,25 +229,7 @@ const ContactPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="max-w-2xl mx-auto mt-12 bg-green-50 rounded-2xl p-8 border border-green-100 text-center">
-          <Bell className="w-10 h-10 text-green-600 mx-auto mb-3" />
-          <h3 className="text-xl font-bold text-gray-900 mb-1">Stay Updated with Itukarua</h3>
-          <p className="text-sm text-gray-600 mb-5">Get the latest jobs, services, and community updates delivered to your inbox.</p>
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            if (!newsletterEmail.trim() || !/\S+@\S+\.\S+/.test(newsletterEmail)) { setNewsletterMsg('Please enter a valid email.'); return; }
-            setNewsletterLoading(true);
-            const result = await subscribeNewsletter(newsletterEmail);
-            if (result.error) { setNewsletterMsg(result.error); } else { setNewsletterMsg('Thanks for subscribing!'); setNewsletterEmail(''); }
-            setNewsletterLoading(false);
-          }} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input type="email" value={newsletterEmail} onChange={e => setNewsletterEmail(e.target.value)} placeholder="Enter your email" className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm" />
-            <button type="submit" disabled={newsletterLoading} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 text-sm">
-              {newsletterLoading ? 'Subscribing...' : 'Subscribe'}
-            </button>
-          </form>
-          {newsletterMsg && <p className={`text-sm mt-3 ${newsletterMsg.includes('valid') || newsletterMsg.includes('already') ? 'text-amber-600' : 'text-green-600'}`}>{newsletterMsg}</p>}
-        </div>
+
       </div>
     </div>
   );

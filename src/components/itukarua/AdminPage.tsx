@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
-import { getProfile } from '@/lib/database';
+import { getProfile, subscribeNewsletter } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -118,6 +118,7 @@ const AdminPage: React.FC = () => {
   const [ratingsEnabled, setRatingsEnabled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [dataSharingConsent, setDataSharingConsent] = useState(false);
+  const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
   const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
@@ -353,6 +354,9 @@ const AdminPage: React.FC = () => {
         await supabase.from('profiles').update({ certificates: certUrls }).eq('id', result.user_id);
       }
 
+      if (subscribeToNewsletter) {
+        await subscribeNewsletter(email);
+      }
       toast({ title: 'Success', description: `User ${fullName} created successfully!` });
       setCreatingUser(false);
       await loadData();
@@ -1779,6 +1783,12 @@ const AdminPage: React.FC = () => {
                 <Checkbox id="data_sharing" checked={dataSharingConsent} onCheckedChange={(c) => setDataSharingConsent(c === true)} />
                 <Label htmlFor="data_sharing" className="text-xs leading-relaxed text-gray-700">
                   I consent to my information being shared with paid users on the platform
+                </Label>
+              </div>
+              <div className="flex items-start gap-2">
+                <Checkbox id="newsletter_admin" checked={subscribeToNewsletter} onCheckedChange={(c) => setSubscribeToNewsletter(c === true)} />
+                <Label htmlFor="newsletter_admin" className="text-xs leading-relaxed text-gray-700">
+                  Subscribe to newsletter for latest jobs, services, and community updates
                 </Label>
               </div>
             </div>
