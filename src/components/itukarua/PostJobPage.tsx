@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { JOB_CATEGORIES, LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
-import { createJob } from '@/lib/database';
+import { createJob, getCustomCategories } from '@/lib/database';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 
@@ -17,6 +17,9 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [extraCats, setExtraCats] = useState<string[]>([]);
+
+  useEffect(() => { getCustomCategories('job').then(setExtraCats); }, []);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -98,7 +101,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
                 <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.category ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
                   <option value="">Select category</option>
-                  {JOB_CATEGORIES.filter(c => c !== 'All Categories').map(c => <option key={c} value={c}>{c}</option>)}
+                  {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
               </div>
