@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
-import { JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
+import { JOB_CATEGORIES, LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
 import { createJob } from '@/lib/database';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -12,7 +12,7 @@ interface PostJobPageProps {
 }
 
 const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth }) => {
-  const [formData, setFormData] = useState({ title: '', category: '', description: '', location: '', budgetMin: '', budgetMax: '', deadline: '', urgent: false });
+  const [formData, setFormData] = useState({ title: '', category: '', description: '', location: '', county: '', subcounty: '', budgetMin: '', budgetMax: '', deadline: '', urgent: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,6 +42,8 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
         title: formData.title,
         description: formData.description,
         location: formData.location,
+        county: formData.county || undefined,
+        subcounty: formData.subcounty || undefined,
         budget_min: parseInt(formData.budgetMin),
         budget_max: parseInt(formData.budgetMax),
         deadline: formData.deadline,
@@ -65,7 +67,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
           <p className="text-gray-500 mb-6">Your job is now live and visible to workers. You'll start receiving bids soon.</p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => onNavigate('jobs')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">View Jobs</button>
-            <button onClick={() => { setSubmitted(false); setFormData({ title: '', category: '', description: '', location: '', budgetMin: '', budgetMax: '', deadline: '', urgent: false }); }} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
+            <button onClick={() => { setSubmitted(false); setFormData({ title: '', category: '', description: '', location: '', county: '', subcounty: '', budgetMin: '', budgetMax: '', deadline: '', urgent: false }); }} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
           </div>
         </div>
       </div>
@@ -104,6 +106,19 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
                 <input type="text" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.location ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} placeholder="e.g. Regen, Near PCEA Baraka Church" />
                 {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                <select value={formData.county} onChange={e => setFormData({ ...formData, county: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                  <option value="">Select county</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
+                <input type="text" value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" placeholder="e.g. Kikuyu" />
               </div>
             </div>
             <div>

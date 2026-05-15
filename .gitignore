@@ -1,3 +1,11 @@
+scratch/
+temp_disable_rls.sql
+check_rls.sql
+complete_setup.sql
+emergency_disable_rls.sql
+fix_rls_policies.sql
+src/lib/ratings_db.txt
+
 # Logs
 logs
 *.log

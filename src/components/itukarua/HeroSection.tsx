@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
-import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard } from 'lucide-react';
-import { IMAGES } from '@/data/siteData';
+import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal } from 'lucide-react';
+import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
@@ -20,6 +20,9 @@ const steps = [
 
 const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterLocation, setFilterLocation] = useState('');
   const [activeStep, setActiveStep] = useState<number | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -27,6 +30,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
     if (searchQuery.trim()) {
       onSearch(searchQuery);
     }
+  };
+
+  const handleFilteredSearch = () => {
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (filterCategory) params.set('category', filterCategory);
+    if (filterLocation) params.set('location', filterLocation);
+    onSearch(params.toString());
   };
 
   return (
@@ -66,7 +77,23 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
               <button type="submit" className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2">
                 Search <ArrowRight className="w-4 h-4" />
               </button>
+              <button type="button" onClick={() => setShowFilters(!showFilters)} className={`px-3 py-3 rounded-lg border transition-colors flex items-center gap-1.5 text-sm ${showFilters ? 'bg-green-700 border-green-500 text-white' : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20'}`}>
+                <SlidersHorizontal className="w-4 h-4" /> Filters
+              </button>
             </form>
+            {showFilters && (
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Categories</option>
+                  {JOB_CATEGORIES.filter(c => c !== 'All Categories').map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Locations</option>
+                  {LOCATIONS.filter(l => l !== 'All Locations').map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <button onClick={handleFilteredSearch} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Apply</button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
               <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">

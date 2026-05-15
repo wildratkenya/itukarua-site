@@ -9,6 +9,8 @@ export interface DbProfile {
   phone: string;
   role: 'super_admin' | 'admin' | 'jobseeker' | 'employer';
   location: string;
+  county?: string;
+  subcounty?: string;
   skills: string[];
   qualifications: string;
   experience: string;
@@ -24,6 +26,8 @@ export interface DbProfile {
   resume?: string;
   certificates?: string[];
   ratings_enabled?: boolean;
+  subscription_expires_at?: string;
+  profile_views?: number;
 }
 
 export interface DbJob {
@@ -31,6 +35,8 @@ export interface DbJob {
   title: string;
   description: string;
   location: string;
+  county?: string;
+  subcounty?: string;
   budget_min: number;
   budget_max: number;
   deadline: string;
@@ -67,6 +73,8 @@ export interface DbBid {
   bidder_skills?: string[];
   bidder_phone?: string;
   bidder_location?: string;
+  bidder_county?: string;
+  bidder_subcounty?: string;
 }
 
 export interface DbServiceAd {
@@ -77,6 +85,8 @@ export interface DbServiceAd {
   image: string;
   images: string[];
   location: string;
+  county?: string;
+  subcounty?: string;
   contact: string;
   plan: '10-day' | '20-day' | '30-day';
   expiry_date: string;
@@ -178,6 +188,7 @@ export async function getAllProfiles(): Promise<DbProfile[]> {
 export async function getProfiles(filters?: {
   role?: string;
   location?: string;
+  county?: string;
   search?: string;
   limit?: number;
   ratings_enabled?: boolean;
@@ -190,8 +201,17 @@ export async function getProfiles(filters?: {
   if (filters?.location) {
     query = query.eq('location', filters.location);
   }
+  if (filters?.county) {
+    query = query.eq('county', filters.county);
+  }
   if (filters?.search) {
-    query = query.or(`full_name.ilike.%${filters.search}%,skills.ilike.%${filters.search}%`);
+    const terms = filters.search.split(/\s+/).filter(Boolean);
+    if (terms.length > 1) {
+      const conditions = terms.map(t => `full_name.ilike.%${t}%,skills.ilike.%${t}%`).join(',');
+      query = query.or(conditions);
+    } else {
+      query = query.or(`full_name.ilike.%${filters.search}%,skills.ilike.%${filters.search}%`);
+    }
   }
   if (filters?.ratings_enabled) {
     query = query.eq('ratings_enabled', true).order('rating', { ascending: false }).order('reviews_count', { ascending: false });
@@ -217,6 +237,7 @@ export async function getProfiles(filters?: {
 export async function getJobs(filters?: {
   category?: string;
   location?: string;
+  county?: string;
   search?: string;
   status?: string;
   activeOnly?: boolean;
@@ -231,6 +252,9 @@ export async function getJobs(filters?: {
   if (filters?.location && filters.location !== 'All Locations') {
     query = query.eq('location', filters.location);
   }
+  if (filters?.county) {
+    query = query.eq('county', filters.county);
+  }
   if (filters?.status) {
     query = query.eq('status', filters.status);
   }
@@ -241,7 +265,13 @@ export async function getJobs(filters?: {
     query = query.eq('posted_by', filters.postedBy);
   }
   if (filters?.search) {
-    query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+    const terms = filters.search.split(/\s+/).filter(Boolean);
+    if (terms.length > 1) {
+      const conditions = terms.map(t => `title.ilike.%${t}%,description.ilike.%${t}%,category.ilike.%${t}%`).join(',');
+      query = query.or(conditions);
+    } else {
+      query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+    }
   }
 
   query = query.order('created_at', { ascending: false });
@@ -273,6 +303,8 @@ export async function createJob(job: {
   title: string;
   description: string;
   location: string;
+  county?: string;
+  subcounty?: string;
   budget_min: number;
   budget_max: number;
   deadline: string;
@@ -359,6 +391,7 @@ export async function updateBid(bidId: string, updates: Partial<DbBid>) {
 export async function getServiceAds(filters?: {
   category?: string;
   location?: string;
+  county?: string;
   search?: string;
   ownerId?: string;
   activeOnly?: boolean;
@@ -372,6 +405,9 @@ export async function getServiceAds(filters?: {
   if (filters?.location && filters.location !== 'All Locations') {
     query = query.eq('location', filters.location);
   }
+  if (filters?.county) {
+    query = query.eq('county', filters.county);
+  }
   if (filters?.ownerId) {
     query = query.eq('owner_id', filters.ownerId);
   }
@@ -379,7 +415,13 @@ export async function getServiceAds(filters?: {
     query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
   }
   if (filters?.search) {
-    query = query.or(`business_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+    const terms = filters.search.split(/\s+/).filter(Boolean);
+    if (terms.length > 1) {
+      const conditions = terms.map(t => `business_name.ilike.%${t}%,description.ilike.%${t}%,category.ilike.%${t}%`).join(',');
+      query = query.or(conditions);
+    } else {
+      query = query.or(`business_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+    }
   }
 
   query = query.order('featured', { ascending: false }).order('created_at', { ascending: false });
@@ -406,6 +448,8 @@ export async function createServiceAd(ad: {
   image?: string;
   images?: string[];
   location: string;
+  county?: string;
+  subcounty?: string;
   contact: string;
   plan: '10-day' | '20-day' | '30-day';
   owner_id: string;
@@ -951,4 +995,74 @@ export async function markNotificationRead(notificationId: string): Promise<void
     .from('notifications')
     .update({ is_read: true })
     .eq('id', notificationId);
+}
+
+// ─── Subscription ───────────────────────────────────────────────────────────
+
+export async function checkSubscriptionActive(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('subscription_expires_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!data?.subscription_expires_at) return false;
+  return new Date(data.subscription_expires_at).getTime() > Date.now();
+}
+
+export async function getSubscriptionDaysRemaining(userId: string): Promise<number> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('subscription_expires_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!data?.subscription_expires_at) return 0;
+  const diff = new Date(data.subscription_expires_at).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+// ─── Platform Settings ──────────────────────────────────────────────────────
+
+export async function getPlatformSettings(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('platform_settings')
+    .select('key, value');
+  if (error) { console.error('getPlatformSettings error:', error); return {}; }
+  const settings: Record<string, number> = {};
+  (data || []).forEach((s: any) => { settings[s.key] = s.value; });
+  return settings;
+}
+
+export async function updatePlatformSetting(key: string, value: number): Promise<void> {
+  const { error } = await supabase
+    .from('platform_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+// ─── Profile Views ─────────────────────────────────────────────────────────
+
+export async function incrementProfileViews(profileId: string): Promise<void> {
+  await supabase.rpc('increment_profile_views', { p_profile_id: profileId });
+}
+
+// ─── Newsletter ────────────────────────────────────────────────────────────
+
+export async function subscribeNewsletter(email: string): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('newsletter_subscribers')
+    .insert({ email });
+  if (error) {
+    if (error.code === '23505') return { error: 'This email is already subscribed.' };
+    return { error: 'Subscription failed. Please try again.' };
+  }
+  return {};
+}
+
+export async function getNewsletterSubscribers(): Promise<{ email: string; created_at: string }[]> {
+  const { data, error } = await supabase
+    .from('newsletter_subscribers')
+    .select('email, created_at')
+    .order('created_at', { ascending: false });
+  if (error) return [];
+  return data || [];
 }

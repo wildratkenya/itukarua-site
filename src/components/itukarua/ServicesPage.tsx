@@ -2,7 +2,7 @@
 import { Search, SlidersHorizontal, X, Plus } from 'lucide-react';
 import ServiceCard from './ServiceCard';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { SERVICE_CATEGORIES, LOCATIONS, IMAGES } from '@/data/siteData';
+import { SERVICE_CATEGORIES, LOCATIONS, IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { useServiceAds } from '@/hooks/useQueries';
 import { createServiceRating, checkServiceRating } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
@@ -17,7 +17,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All Services');
   const [location, setLocation] = useState('All Locations');
-  const [showFilters, setShowFilters] = useState(false);
+  const [county, setCounty] = useState('');
+  const [showFilters, setShowFilters] = useState(true);
   const [selectedService, setSelectedService] = useState<any | null>(null);
   const [viewingImage, setViewingImage] = useState<string[] | null>(null);
   const [userRating, setUserRating] = useState<number>(0);
@@ -37,9 +38,9 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const filters = useMemo(() => ({
     category: category !== 'All Services' ? category : undefined,
     location: location !== 'All Locations' ? location : undefined,
+    county: county || undefined,
     search: search.trim() || undefined,
-    // activeOnly: true,
-  }), [category, location, search]);
+  }), [category, location, county, search]);
 
   const { data: servicesData = [], isLoading, error, refetch } = useServiceAds(filters);
 
@@ -68,6 +69,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
         image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
         images: serviceImages,
         location: s.location,
+        county: s.county,
+        subcounty: s.subcounty,
         contact: s.contact,
         expiryDate: s.expiry_date,
         featured: s.featured,
@@ -80,8 +83,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
     }
   }).filter(Boolean);
 
-  const clearFilters = () => { setSearch(''); setCategory('All Services'); setLocation('All Locations'); };
-  const hasActiveFilters = search || category !== 'All Services' || location !== 'All Locations';
+  const clearFilters = () => { setSearch(''); setCategory('All Services'); setLocation('All Locations'); setCounty(''); };
+  const hasActiveFilters = search || category !== 'All Services' || location !== 'All Locations' || !!county;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -224,6 +227,13 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                 <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
                 <select value={location} onChange={e => setLocation(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">County</label>
+                <select value={county} onChange={e => setCounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Counties</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               {hasActiveFilters && (

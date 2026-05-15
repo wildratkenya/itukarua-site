@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Clock, Users, AlertTriangle, Camera } from 'lucide-react';
 
 interface Job {
-  id: string; title: string; description: string; location: string; budgetMin: number; budgetMax: number;
+  id: string; title: string; description: string; location: string; county?: string; subcounty?: string; budgetMin: number; budgetMax: number;
   deadline: string; category: string; postedBy: string; postedDate: string; bidsCount: number; urgent: boolean;
   status: 'open' | 'in-progress' | 'completed';
   images?: string[];
@@ -166,7 +166,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
           <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
             <span className="flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-green-600" />
-              {job.location}
+              {job.county ? `${job.county}${job.subcounty ? `, ${job.subcounty}` : ''}${job.location ? ` - ${job.location}` : ''}` : job.location}
             </span>
           </div>
 

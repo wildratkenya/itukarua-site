@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
-import { JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
+import { JOB_CATEGORIES, LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
 import { useJobs } from '@/hooks/useQueries';
 import type { Page } from './Header';
 
@@ -15,16 +15,18 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const [search, setSearch] = useState(initialSearch);
   const [category, setCategory] = useState('All Categories');
   const [location, setLocation] = useState('All Locations');
+  const [county, setCounty] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'budget-high' | 'budget-low' | 'urgent'>('newest');
 
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   const filters = useMemo(() => ({
     category: category !== 'All Categories' ? category : undefined,
     location: location !== 'All Locations' ? location : undefined,
+    county: county || undefined,
     search: search.trim() || undefined,
     activeOnly: true,
-  }), [category, location, search]);
+  }), [category, location, county, search]);
 
   const { data: jobsData = [], isLoading } = useJobs(filters);
 
@@ -45,6 +47,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     title: j.title,
     description: j.description,
     location: j.location,
+    county: j.county,
+    subcounty: j.subcounty,
     budgetMin: j.budget_min,
     budgetMax: j.budget_max,
     deadline: j.deadline,
@@ -61,6 +65,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     setSearch('');
     setCategory('All Categories');
     setLocation('All Locations');
+    setCounty('');
     setSortBy('newest');
   };
 
@@ -100,6 +105,13 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
                 <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
                 <select value={location} onChange={e => setLocation(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">County</label>
+                <select value={county} onChange={e => setCounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Counties</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>

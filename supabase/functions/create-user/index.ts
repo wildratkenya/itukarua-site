@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const { email, password, full_name, phone, role, location, skills, resume, profile_image, ratings_enabled, terms_accepted, data_sharing_consent } = await req.json()
+    const { email, password, full_name, phone, role, location, county, subcounty, skills, resume, profile_image, ratings_enabled, terms_accepted, data_sharing_consent } = await req.json()
 
     if (!email || !password) {
       return new Response(
@@ -70,6 +70,8 @@ Deno.serve(async (req) => {
       p_phone: phone || '',
       p_role: role || 'employer',
       p_location: location || '',
+      p_county: county || null,
+      p_subcounty: subcounty || null,
       p_skills: role === 'jobseeker' ? (skills || '') : '',
       p_resume: role === 'jobseeker' ? (resume || '') : '',
       p_profile_image: profile_image || null,

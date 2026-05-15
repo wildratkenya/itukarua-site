@@ -1,10 +1,12 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera } from 'lucide-react';
-import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw } from 'lucide-react';
+import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
-import { IMAGES } from '@/data/siteData';
+import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
+import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
+import MpesaModal from './MpesaModal';
 
 interface DashboardPageProps {
   user: UserState;
@@ -22,13 +24,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [profiles, setProfiles] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '' });
+  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '' });
   const [saving, setSaving] = useState(false);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [certFiles, setCertFiles] = useState<File[]>([]);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
   const [notifications, setNotifications] = useState<DbNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [subscriptionDays, setSubscriptionDays] = useState(0);
+  const [subscriptionActive, setSubscriptionActive] = useState(false);
+  const [platformFees, setPlatformFees] = useState<Record<string, number>>({});
+  const [feeInputs, setFeeInputs] = useState<Record<string, number>>({});
+  const [feeSaving, setFeeSaving] = useState(false);
+  const [feeMessage, setFeeMessage] = useState('');
+  const [newsletterSubs, setNewsletterSubs] = useState<{ email: string; created_at: string }[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user.role === 'admin';
@@ -43,9 +53,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           getNotifications(user.id),
         ];
         if (isAdmin) {
-          promises.push(getJobs({}), getServiceAds({}), getAllProfiles(), getPlatformStats());
+          promises.push(getJobs({}), getServiceAds({}), getAllProfiles(), getPlatformStats(), getPlatformSettings());
         } else if (isJobseeker) {
-          promises.push(getBidsByUser(user.id));
+          promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id));
         } else {
           promises.push(getJobs({ postedBy: user.id }), getServiceAds({ ownerId: user.id }));
         }
@@ -61,8 +71,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setAds(results[offset + 1] || []);
           setProfiles(results[offset + 2] || []);
           setStats(results[offset + 3] || null);
+          const fees = results[offset + 4] || {};
+          setPlatformFees(fees);
+          setFeeInputs({ jobseeker_registration_fee: fees.jobseeker_registration_fee || 100, contact_access_fee: fees.contact_access_fee || 100 });
+          const subs = await getNewsletterSubscribers();
+          setNewsletterSubs(subs);
         } else if (isJobseeker) {
           setBids(results[offset] || []);
+          setSubscriptionActive(results[offset + 1] || false);
+          setSubscriptionDays(results[offset + 2] || 0);
         } else {
           setJobs(results[offset] || []);
           setAds(results[offset + 1] || []);
@@ -74,6 +91,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             email: user.profile.email || user.email,
             phone: user.profile.phone || '',
             location: user.profile.location || '',
+            county: user.profile.county || '',
+            subcounty: user.profile.subcounty || '',
             skills: Array.isArray(user.profile.skills) ? user.profile.skills.join(', ') : (user.profile.skills || ''),
             resume: user.profile.resume || '',
             qualifications: user.profile.qualifications || '',
@@ -93,24 +112,41 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     try {
       let profileImageUrl = profileForm.profile_image;
       if (profilePhotoFile) {
-        const fileExt = profilePhotoFile.name.split('.').pop();
-        const fileName = `${user.id}/avatar.${fileExt}`;
-        const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, profilePhotoFile, { upsert: true });
+        const compressed = await compressImage(profilePhotoFile);
+        const fileName = `${user.id}/avatar.${compressed.name.split('.').pop() || 'jpg'}`;
+        const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, compressed, { upsert: true });
         if (!photoError) {
           profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
         }
       }
+      let certUrls: string[] = [];
+      if (certFiles.length > 0) {
+        for (const file of certFiles) {
+          const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
+          const ext = compressed.name.split('.').pop() || 'jpg';
+          const fileName = `${user.id}/certs/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('adverts').upload(fileName, compressed);
+          if (!upErr) {
+            certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+          }
+        }
+      }
+      const existingCerts = user.profile?.certificates || [];
       await updateProfile(user.id, {
         full_name: profileForm.full_name,
         phone: profileForm.phone,
         location: profileForm.location,
+        county: profileForm.county || null,
+        subcounty: profileForm.subcounty || null,
         skills: profileForm.skills,
         resume: profileForm.resume,
         qualifications: profileForm.qualifications,
         experience: profileForm.experience,
         profile_image: profileImageUrl,
         ratings_enabled: ratingsEnabled,
+        certificates: [...existingCerts, ...certUrls],
       });
+      setCertFiles([]);
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
   };
@@ -131,6 +167,23 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     if (showNotifications) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showNotifications]);
+
+  const handleSaveFees = async () => {
+    setFeeSaving(true);
+    setFeeMessage('');
+    try {
+      for (const [key, value] of Object.entries(feeInputs)) {
+        await updatePlatformSetting(key, value);
+      }
+      setPlatformFees(feeInputs);
+      setFeeMessage('Fees saved successfully.');
+    } catch (err) {
+      setFeeMessage('Error saving fees.');
+      console.error(err);
+    } finally {
+      setFeeSaving(false);
+    }
+  };
 
   const handleMarkRead = async (id: string) => {
     await markNotificationRead(id);
@@ -219,6 +272,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 { label: 'Total Bids', value: bids.length.toString(), icon: Briefcase, color: 'bg-green-100 text-green-600' },
                 { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-amber-100 text-amber-600' },
                 { label: 'Rating', value: user.profile?.rating?.toString() || '0', icon: Star, color: 'bg-purple-100 text-purple-600' },
+                { label: 'Profile Views', value: (user.profile?.profile_views || 0).toString(), icon: Users, color: 'bg-indigo-100 text-indigo-600' },
               ] : [
                 { label: 'Posted Jobs', value: jobs.length.toString(), icon: Briefcase, color: 'bg-blue-100 text-blue-600' },
                 { label: 'Total Bids', value: jobs.reduce((sum, j) => sum + j.bids_count, 0).toString(), icon: FileText, color: 'bg-green-100 text-green-600' },
@@ -232,6 +286,37 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 </div>
               ))}
             </div>
+
+            {isJobseeker && (
+              <div className={`rounded-xl p-5 border ${subscriptionActive && subscriptionDays <= 7 ? 'border-amber-200 bg-amber-50' : subscriptionActive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {subscriptionActive ? (
+                      subscriptionDays <= 7 ? <AlertCircle className="w-6 h-6 text-amber-600" /> : <RefreshCw className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {subscriptionActive
+                          ? `Subscription active — ${subscriptionDays} day${subscriptionDays === 1 ? '' : 's'} remaining`
+                          : 'Subscription expired'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {subscriptionActive
+                          ? subscriptionDays <= 7 ? 'Your subscription is expiring soon. Renew to continue bidding.' : 'Your 30-day subscription is active.'
+                          : 'Renew your subscription to start bidding on jobs.'}
+                      </p>
+                    </div>
+                  </div>
+                  {(!subscriptionActive || subscriptionDays <= 7) && (
+                    <button onClick={() => onOpenMpesa(100, 'Jobseeker subscription renewal', user.id)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
+                      Renew KES 100
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -395,6 +480,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                   <input type="text" value={profileForm.location} onChange={e => setProfileForm({ ...profileForm, location: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                  <select value={profileForm.county} onChange={e => setProfileForm({ ...profileForm, county: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="">Select county</option>
+                    {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
+                  <input type="text" value={profileForm.subcounty} onChange={e => setProfileForm({ ...profileForm, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Kikuyu" />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
                   <input type="text" value={profileForm.skills} onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Painting, Plumbing, Carpentry" />
                 </div>
@@ -409,6 +505,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Professional Resume</label>
                   <textarea value={profileForm.resume} onChange={e => setProfileForm({ ...profileForm, resume: e.target.value })} rows={4} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none resize-none text-sm" placeholder="Paste your resume here..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Certificates / Referral Letters</label>
+                  <input type="file" multiple accept=".pdf,image/png,image/jpeg" onChange={e => { if (e.target.files) setCertFiles(Array.from(e.target.files)); }} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                  {certFiles.length > 0 && <p className="text-xs text-green-600 mt-1">{certFiles.length} file(s) selected</p>}
+                  {(user.profile?.certificates?.length || 0) > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {user.profile?.certificates?.slice(0, 3).map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">Certificate {i + 1}</a>
+                      ))}
+                      {(user.profile?.certificates?.length || 0) > 3 && <span className="text-xs text-gray-400">+{(user.profile?.certificates?.length || 0) - 3} more</span>}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
@@ -428,19 +537,35 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               <h3 className="font-semibold text-gray-900 mb-4">Platform Fees</h3>
               <div className="space-y-4">
                 {[
-                  { label: 'Jobseeker Registration', desc: 'One-time fee', val: 500 },
-                  { label: 'Contact Access Fee', desc: 'Per contact unlock', val: 100 },
-                ].map((fee, i) => (
-                  <div key={i} className="flex items-center justify-between">
+                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Monthly subscription fee', val: 100 },
+                  { key: 'contact_access_fee', label: 'Contact Access Fee', desc: 'Per contact unlock', val: 100 },
+                ].map((fee) => (
+                  <div key={fee.key} className="flex items-center justify-between">
                     <div><p className="font-medium text-gray-900">{fee.label}</p><p className="text-xs text-gray-500">{fee.desc}</p></div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">KES</span>
-                      <input type="number" defaultValue={fee.val} className="w-24 px-3 py-2 rounded-lg border border-gray-300 text-right focus:ring-2 focus:ring-green-500 outline-none" />
+                      <input type="number" value={feeInputs[fee.key] ?? fee.val} onChange={e => setFeeInputs({ ...feeInputs, [fee.key]: Number(e.target.value) })} className="w-24 px-3 py-2 rounded-lg border border-gray-300 text-right focus:ring-2 focus:ring-green-500 outline-none" />
                     </div>
                   </div>
                 ))}
-                <button className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">Save Settings</button>
+                {feeMessage && <p className={`text-sm ${feeMessage.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>{feeMessage}</p>}
+                <button onClick={handleSaveFees} disabled={feeSaving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                  {feeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Settings'}
+                </button>
               </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 border border-gray-100">
+              <h3 className="font-semibold text-gray-900 mb-4">Newsletter Subscribers ({newsletterSubs.length})</h3>
+              {newsletterSubs.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {newsletterSubs.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                      <span className="text-sm text-gray-700">{s.email}</span>
+                      <span className="text-xs text-gray-400">{new Date(s.created_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400">No subscribers yet.</p>}
             </div>
           </div>
         )}

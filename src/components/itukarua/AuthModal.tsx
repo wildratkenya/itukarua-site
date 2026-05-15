@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
 import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { KENYA_COUNTIES } from '@/data/siteData';
+import { compressImage } from '@/lib/imageUtils';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -19,6 +21,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     phone: '',
     password: '',
     location: '',
+    county: '',
+    subcounty: '',
     skills: '',
     resume: '',
   });
@@ -55,13 +59,15 @@ const handleSubmit = async (e: React.FormEvent) => {
           email: formData.email,
           password: formData.password,
           options: {
-            data: {
-              full_name: formData.name,
-              role: role,
-              phone: formData.phone,
-              location: formData.location,
-              skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
-            },
+data: {
+  full_name: formData.name,
+  role: role,
+  phone: formData.phone,
+  location: formData.location,
+  county: formData.county,
+  subcounty: formData.subcounty,
+  skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
+},
           },
         });
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 5000));
@@ -73,9 +79,9 @@ const handleSubmit = async (e: React.FormEvent) => {
           // Upload profile photo
           let profileImageUrl = '';
           if (profilePhotoFile) {
-            const fileExt = profilePhotoFile.name.split('.').pop();
-            const fileName = `${data.user.id}/avatar.${fileExt}`;
-            const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, profilePhotoFile, { upsert: true });
+            const compressed = await compressImage(profilePhotoFile);
+            const fileName = `${data.user.id}/avatar.${compressed.name.split('.').pop() || 'jpg'}`;
+            const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, compressed, { upsert: true });
             if (!photoError) {
               profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
             }
@@ -86,9 +92,10 @@ const handleSubmit = async (e: React.FormEvent) => {
             const certUrls: string[] = [];
             const filesToUpload = Array.from(certFiles).slice(0, 3);
             for (const file of filesToUpload) {
-              const fileExt = file.name.split('.').pop();
-              const fileName = `${data.user.id}/certs/${Math.random()}.${fileExt}`;
-              const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
+              const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
+              const ext = compressed.name.split('.').pop() || (file.type.startsWith('image/') ? 'jpg' : file.name.split('.').pop());
+              const fileName = `${data.user.id}/certs/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+              const { error: certError } = await supabase.storage.from('adverts').upload(fileName, compressed);
               if (!certError) {
                 const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
                 certUrls.push(publicUrl);
@@ -198,7 +205,8 @@ const handleSubmit = async (e: React.FormEvent) => {
               </p>
               <button
                 type="button"
-                onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '', skills: '', resume: '' }); setCertFiles(null); }}
+                onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
+county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
                 Back to Sign In
@@ -300,6 +308,17 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                <select value={formData.county} onChange={e => setFormData({ ...formData, county: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                  <option value="">Select county</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
+                <input type="text" value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" placeholder="e.g. Kikuyu" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
                 <input
                   type="text"
@@ -387,7 +406,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
           {!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
-              Jobseeker registration requires a one-time M-Pesa payment of <span className="font-semibold text-green-700">KES 100</span> to activate your profile.
+              Jobseeker membership is <span className="font-semibold text-green-700">KES 100/mo</span> — a 30-day subscription. Pay now to start bidding on jobs and connecting with employers.
             </p>
           )}
         </form>

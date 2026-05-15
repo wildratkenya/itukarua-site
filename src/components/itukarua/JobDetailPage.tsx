@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, type DbJob, type DbBid, type DbRating } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, type DbJob, type DbBid, type DbRating } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -38,6 +38,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [selectedBidderForRating, setSelectedBidderForRating] = useState<string | null>(null);
   const [selectedBidderName, setSelectedBidderName] = useState('');
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null);
+  const [subscriptionActive, setSubscriptionActive] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -49,8 +50,15 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };
+    const checkSub = async () => {
+      if (user?.role === 'jobseeker') {
+        const active = await checkSubscriptionActive(user.id);
+        setSubscriptionActive(active);
+      }
+    };
     load();
-  }, [jobId]);
+    checkSub();
+  }, [jobId, user]);
 
 
   useEffect(() => {
@@ -396,6 +404,17 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     <button type="button" onClick={() => setShowBidForm(false)} className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
                   </div>
                 </form>
+              ) : user?.role === 'jobseeker' && !subscriptionActive ? (
+                <div>
+                  <div className="text-center mb-4">
+                    <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-2" />
+                    <p className="font-semibold text-gray-900">Subscription Expired</p>
+                    <p className="text-sm text-gray-500 mt-1">Renew your subscription for KES 100 to continue bidding.</p>
+                  </div>
+                  <button onClick={() => onOpenMpesa(100, 'Jobseeker subscription renewal', user.id)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
+                    Renew KES 100
+                  </button>
+                </div>
               ) : (
                 <div>
                   <p className="text-sm text-gray-500 mb-4">Are you a skilled worker? Submit your bid with your best price and proposal.</p>

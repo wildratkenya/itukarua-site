@@ -6,7 +6,7 @@ import ServiceCard from './ServiceCard';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
-import { getPlatformStats, createServiceRating, checkServiceRating, createProfileReview, getProfileReviews, checkContactAccess, type PlatformStats } from '@/lib/database';
+import { getPlatformStats, createServiceRating, checkServiceRating, createProfileReview, getProfileReviews, checkContactAccess, incrementProfileViews, type PlatformStats } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 import ImageViewerModal from './ImageViewerModal';
@@ -102,6 +102,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
     title: j.title,
     description: j.description,
     location: j.location,
+    county: j.county,
+    subcounty: j.subcounty,
     budgetMin: j.budget_min,
     budgetMax: j.budget_max,
     deadline: j.deadline,
@@ -131,6 +133,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
         images: serviceImages,
         location: s.location,
+        county: s.county,
+        subcounty: s.subcounty,
         contact: s.contact,
         expiryDate: s.expiry_date,
         featured: s.featured,
@@ -283,7 +287,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
                   <div className="space-y-2 text-sm">
                     {selectedWorker.phone && <p className="flex items-center gap-2 text-gray-700"><Phone className="w-4 h-4 text-green-600" /> {selectedWorker.phone}</p>}
                     {selectedWorker.email && <p className="flex items-center gap-2 text-gray-700"><Mail className="w-4 h-4 text-green-600" /> {selectedWorker.email}</p>}
-                    {selectedWorker.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {selectedWorker.location}</p>}
+                    {selectedWorker.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {selectedWorker.county ? `${selectedWorker.county}${selectedWorker.subcounty ? `, ${selectedWorker.subcounty}` : ''} - ${selectedWorker.location}` : selectedWorker.location}</p>}
                   </div>
                   {selectedWorker.certificates && selectedWorker.certificates.length > 0 && (
                     <>
@@ -499,7 +503,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
                   {workersData.map((worker) => {
                     const firstSkill = typeof worker.skills === 'string' ? worker.skills.split(',')[0]?.trim() : worker.skills?.[0];
                     return (
-                    <div key={worker.id} onClick={() => setSelectedWorker(worker)} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer">
+                    <div key={worker.id} onClick={() => { setSelectedWorker(worker); incrementProfileViews(worker.id); }} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer">
                       {worker.profile_image ? (
                         <img src={optimizeImageUrl(worker.profile_image, 96, 96)} alt={worker.full_name} className="w-12 h-12 rounded-full mx-auto mb-3 object-cover ring-2 ring-gray-100 group-hover:ring-green-200 transition-all" onError={handleImageError} />
                       ) : (

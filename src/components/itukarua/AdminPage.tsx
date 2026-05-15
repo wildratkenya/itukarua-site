@@ -2,7 +2,8 @@
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { getProfile } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
-import { JOB_CATEGORIES, SERVICE_CATEGORIES } from '@/data/siteData';
+import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
+import { compressImage } from '@/lib/imageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -273,6 +274,8 @@ const AdminPage: React.FC = () => {
     const phone = formData.get('phone') as string;
     const role = formData.get('role') as string;
     const location = formData.get('location') as string;
+    const county = formData.get('county') as string;
+    const subcounty = formData.get('subcounty') as string;
     const skills = formData.get('skills') as string;
     const resume = formData.get('resume') as string;
 
@@ -294,7 +297,7 @@ const AdminPage: React.FC = () => {
           'apikey': supabaseKey,
         },
         body: JSON.stringify({
-          email, password, full_name: fullName, phone, role, location, skills, resume,
+          email, password, full_name: fullName, phone, role, location, county: county || undefined, subcounty: subcounty || undefined, skills, resume,
           ratings_enabled: ratingsEnabled,
           terms_accepted: termsAccepted,
           data_sharing_consent: dataSharingConsent,
@@ -313,9 +316,9 @@ const AdminPage: React.FC = () => {
       // Upload profile photo
       let profileImageUrl = '';
       if (profileImageFile) {
-        const ext = profileImageFile.name.split('.').pop();
-        const fileName = `${result.user_id}/avatar.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, profileImageFile, { upsert: true });
+        const compressed = await compressImage(profileImageFile);
+        const fileName = `${result.user_id}/avatar.${compressed.name.split('.').pop() || 'jpg'}`;
+        const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed, { upsert: true });
         if (!uploadError) {
           profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
         } else {
@@ -333,9 +336,9 @@ const AdminPage: React.FC = () => {
       if (certFiles.length > 0 && role === 'jobseeker') {
         try {
           for (const file of certFiles) {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${result.user_id}/certs/img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
-            const { error: certError } = await supabase.storage.from('adverts').upload(fileName, file);
+            const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
+            const fileName = `${result.user_id}/certs/img_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
+            const { error: certError } = await supabase.storage.from('adverts').upload(fileName, compressed);
             if (!certError) {
               certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
             }
@@ -394,6 +397,8 @@ const AdminPage: React.FC = () => {
     const email = formData.get('email') as string;
     const phone = formData.get('phone') as string;
     const location = formData.get('location') as string;
+    const county = formData.get('county') as string;
+    const subcounty = formData.get('subcounty') as string;
     const role = formData.get('role') as string;
     const skills = formData.get('skills') as string;
     const resume = formData.get('resume') as string;
@@ -402,9 +407,9 @@ const AdminPage: React.FC = () => {
       // Upload new photo if selected
       let profileImageUrl: string | null = null;
       if (editProfileImageFile) {
-        const ext = editProfileImageFile.name.split('.').pop();
-        const fileName = `${editingUser.id}/avatar.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, editProfileImageFile, { upsert: true });
+        const compressed = await compressImage(editProfileImageFile);
+        const fileName = `${editingUser.id}/avatar.${compressed.name.split('.').pop() || 'jpg'}`;
+        const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed, { upsert: true });
         if (!uploadError) {
           profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
         }
@@ -417,6 +422,8 @@ const AdminPage: React.FC = () => {
         p_phone: phone || '',
         p_role: role,
         p_location: location || '',
+        p_county: county || null,
+        p_subcounty: subcounty || null,
         p_skills: role === 'jobseeker' ? (skills || '') : '',
         p_resume: role === 'jobseeker' ? (resume || '') : '',
         p_profile_image: profileImageUrl,
@@ -529,6 +536,8 @@ const AdminPage: React.FC = () => {
       category: formData.get('category'),
       description: formData.get('description') || '',
       location: formData.get('location'),
+      county: formData.get('county') || null,
+      subcounty: formData.get('subcounty') || null,
       budget_min: Number(formData.get('budget_min')) || 0,
       budget_max: Number(formData.get('budget_max')) || 0,
       posted_by: formData.get('posted_by') || null,
@@ -606,6 +615,8 @@ const AdminPage: React.FC = () => {
       description: formData.get('description') || editingAd?.description || '',
       category: formData.get('category') || editingAd?.category,
       location: formData.get('location') || editingAd?.location,
+      county: formData.get('county') || editingAd?.county || null,
+      subcounty: formData.get('subcounty') || editingAd?.subcounty || null,
       contact_person: formData.get('contact_person') || editingAd?.contact_person || '',
       contact: formData.get('contact') || editingAd?.contact,
       owner_id: formData.get('owner_id') || editingAd?.owner_id || null,
@@ -1273,6 +1284,17 @@ const AdminPage: React.FC = () => {
                 <Label>Location</Label>
                 <Input name="location" defaultValue={editingJob?.location} required />
               </div>
+              <div>
+                <Label>County</Label>
+                <select name="county" defaultValue={editingJob?.county || ''} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">Select county</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Subcounty</Label>
+                <Input name="subcounty" defaultValue={editingJob?.subcounty || ''} placeholder="e.g. Kikuyu" />
+              </div>
             </div>
             <div>
               <Label>Description</Label>
@@ -1410,6 +1432,17 @@ const AdminPage: React.FC = () => {
               <div>
                 <Label>Location</Label>
                 <Input name="location" defaultValue={editingAd?.location} required />
+              </div>
+              <div>
+                <Label>County</Label>
+                <select name="county" defaultValue={editingAd?.county || ''} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">Select county</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Subcounty</Label>
+                <Input name="subcounty" defaultValue={editingAd?.subcounty || ''} placeholder="e.g. Kikuyu" />
               </div>
             </div>
             <div>
@@ -1655,6 +1688,17 @@ const AdminPage: React.FC = () => {
               <Input name="location" placeholder="Kenyatta Road, Itukarua" />
             </div>
             <div>
+              <Label>County</Label>
+              <select name="county" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                <option value="">Select county</option>
+                {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Subcounty</Label>
+              <Input name="subcounty" placeholder="e.g. Kikuyu" />
+            </div>
+            <div>
               <Label>Role</Label>
               <Select name="role" defaultValue="employer" onValueChange={(val) => {
                 setTimeout(() => {
@@ -1773,6 +1817,17 @@ const AdminPage: React.FC = () => {
               <div>
                 <Label>Location</Label>
                 <Input name="location" defaultValue={editingUser.location || ''} />
+              </div>
+              <div>
+                <Label>County</Label>
+                <select name="county" defaultValue={editingUser.county || ''} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">Select county</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Subcounty</Label>
+                <Input name="subcounty" defaultValue={editingUser.subcounty || ''} placeholder="e.g. Kikuyu" />
               </div>
               <div>
                 <Label>Role</Label>

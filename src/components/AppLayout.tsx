@@ -17,6 +17,7 @@ import InboxPage from './itukarua/InboxPage';
 import AuthModal from './itukarua/AuthModal';
 import MpesaModal from './itukarua/MpesaModal';
 import AdminPage from './itukarua/AdminPage';
+import ChatBot from './itukarua/ChatBot';
 
 export interface UserState {
   id: string;
@@ -314,6 +315,7 @@ const AppLayout: React.FC = () => {
           });
         }}
       />
+      <ChatBot />
     </div>
   );
 };
