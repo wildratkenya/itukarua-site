@@ -1066,3 +1066,12 @@ export async function getNewsletterSubscribers(): Promise<{ email: string; creat
   if (error) return [];
   return data || [];
 }
+
+export async function deleteNewsletterSubscriber(email: string): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('newsletter_subscribers')
+    .delete()
+    .eq('email', email);
+  if (error) return { error: 'Failed to delete subscriber.' };
+  return {};
+}
