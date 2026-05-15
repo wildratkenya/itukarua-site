@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -124,6 +124,9 @@ const AdminPage: React.FC = () => {
   const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [subscribers, setSubscribers] = useState<{ email: string; created_at: string }[]>([]);
+  const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
+  const [subscriberMsg, setSubscriberMsg] = useState('');
 
   useEffect(() => {
     loadData();
@@ -148,7 +151,8 @@ const AdminPage: React.FC = () => {
         loadJobs(),
         loadAds(),
         supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
-        supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || []))
+        supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || [])),
+        getNewsletterSubscribers().then(setSubscribers),
       ]);
 
       // Use individual category lists for modals
@@ -852,13 +856,14 @@ const AdminPage: React.FC = () => {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="jobs">Jobs</TabsTrigger>
             <TabsTrigger value="ads">Ads</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
+            <TabsTrigger value="subscribers">Subscribers</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
@@ -1249,6 +1254,54 @@ const AdminPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="subscribers">
+            <Card>
+              <CardHeader>
+                <CardTitle>Newsletter Subscribers ({subscribers.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2 mb-4">
+                  <input type="email" value={newSubscriberEmail} onChange={e => setNewSubscriberEmail(e.target.value)} placeholder="Enter email to add" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                  <button onClick={async () => {
+                    if (!newSubscriberEmail.trim() || !/\S+@\S+\.\S+/.test(newSubscriberEmail)) { setSubscriberMsg('Invalid email'); return; }
+                    const result = await subscribeNewsletter(newSubscriberEmail.trim());
+                    if (result.error) { setSubscriberMsg(result.error); } else { setSubscriberMsg('Added!'); setNewSubscriberEmail(''); setSubscribers(await getNewsletterSubscribers()); }
+                  }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Add</button>
+                </div>
+                {subscriberMsg && <p className={`text-sm mb-3 ${subscriberMsg === 'Invalid email' || subscriberMsg.includes('already') ? 'text-amber-600' : 'text-green-600'}`}>{subscriberMsg}</p>}
+                {subscribers.length === 0 ? (
+                  <p className="text-sm text-gray-400">No subscribers yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-3 font-medium text-gray-600">Email</th>
+                          <th className="text-left py-2 px-3 font-medium text-gray-600">Subscribed</th>
+                          <th className="text-right py-2 px-3 font-medium text-gray-600">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subscribers.map(s => (
+                          <tr key={s.email} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-2 px-3 text-gray-800">{s.email}</td>
+                            <td className="py-2 px-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
+                            <td className="py-2 px-3 text-right">
+                              <button onClick={async () => {
+                                if (!confirm(`Remove ${s.email}?`)) return;
+                                await deleteNewsletterSubscriber(s.email);
+                                setSubscribers(await getNewsletterSubscribers());
+                              }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
