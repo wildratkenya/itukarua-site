@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw } from 'lucide-react';
 import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
-import { supabase } from '@/lib/supabase';
+import { supabase, optimizeImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
@@ -405,7 +405,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             </div>
             {ads.length > 0 ? ads.map(ad => (
               <div key={ad.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                <img src={ad.image || IMAGES.services[0]} alt={ad.business_name} className="w-16 h-16 rounded-lg object-cover" />
+                <img src={optimizeImageUrl(ad.image || IMAGES.services[0], 100, 100)} alt={ad.business_name} className="w-16 h-16 rounded-lg object-cover" />
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{ad.business_name}</h4>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
