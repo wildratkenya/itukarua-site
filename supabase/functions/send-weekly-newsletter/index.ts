@@ -14,8 +14,8 @@ const transport = nodemailer.createTransport({
   port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
   secure: false,
   auth: {
-    user: Deno.env.get('ETHEREAL_USER') || 'elvera4@ethereal.email',
-    pass: Deno.env.get('ETHEREAL_PASS') || '9FEKWK92kDkedwr6TJ',
+    user: Deno.env.get('ETHEREAL_USER') || 'amely.daniel97@ethereal.email',
+    pass: Deno.env.get('ETHEREAL_PASS') || 'QxtDQD48fAbM6NJ65',
   },
 })
 
