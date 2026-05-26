@@ -133,6 +133,7 @@ const AdminPage: React.FC = () => {
   const [subscriberMsg, setSubscriberMsg] = useState('');
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -385,14 +386,15 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const deleteUser = async () => {
-    if (!deletingUser) return;
+  const deleteUser = async (userId?: string) => {
+    const id = userId || deletingUser?.id;
+    if (!id) return;
     try {
       const functionUrl = `${supabaseUrl}/functions/v1/delete-user`;
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
-        body: JSON.stringify({ user_id: deletingUser.id }),
+        body: JSON.stringify({ user_id: id }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to delete user');
@@ -403,6 +405,27 @@ const AdminPage: React.FC = () => {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
     }
+  };
+
+  const bulkDeleteUsers = async () => {
+    const ids = [...selectedUsers];
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} user(s)? This cannot be undone.`)) return;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+          body: JSON.stringify({ user_id: id }),
+        });
+        if (!res.ok) failed++;
+      } catch { failed++; }
+    }
+    setSelectedUsers(new Set());
+    await loadData();
+    if (failed === 0) toast({ title: 'Success', description: `${ids.length} user(s) deleted` });
+    else toast({ title: 'Partial success', description: `${ids.length - failed} deleted, ${failed} failed`, variant: 'destructive' });
   };
 
   const editProfile = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -884,9 +907,22 @@ const AdminPage: React.FC = () => {
                 </Button>
               </CardHeader>
               <CardContent>
+                {selectedUsers.size > 0 && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm text-gray-600">{selectedUsers.size} selected</span>
+                    <button onClick={bulkDeleteUsers} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">Delete Selected</button>
+                    <button onClick={() => setSelectedUsers(new Set())} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors">Clear</button>
+                  </div>
+                )}
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <input type="checkbox" checked={selectedUsers.size === users.length} onChange={() => {
+                          if (selectedUsers.size === users.length) setSelectedUsers(new Set());
+                          else setSelectedUsers(new Set(users.map(u => u.id)));
+                        }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                      </TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Verified</TableHead>
@@ -895,8 +931,17 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
+                    {users.map((user) => {
+                      const uChecked = selectedUsers.has(user.id);
+                      return (
+                      <TableRow key={user.id} className={uChecked ? 'bg-green-50' : ''}>
+                        <TableCell className="w-10">
+                          <input type="checkbox" checked={uChecked} onChange={() => {
+                            const next = new Set(selectedUsers);
+                            if (uChecked) next.delete(user.id); else next.add(user.id);
+                            setSelectedUsers(next);
+                          }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                        </TableCell>
                         <TableCell>
                           {user.full_name}
                           <div className="text-xs text-gray-500">{user.email}</div>
@@ -965,7 +1010,7 @@ const AdminPage: React.FC = () => {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )})}
                   </TableBody>
                 </Table>
               </CardContent>
