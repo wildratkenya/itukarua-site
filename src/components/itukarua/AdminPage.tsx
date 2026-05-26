@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
@@ -157,8 +158,11 @@ const AdminPage: React.FC = () => {
       setLoading(true);
       // Load everything initially
       await Promise.all([
-        supabase.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
-        supabase.from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).then(({data}) => setTrashedUsers(data || [])),
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }).then(({data}) => {
+          const all = data || [];
+          setUsers(all.filter(u => !u.deleted_at));
+          setTrashedUsers(all.filter(u => u.deleted_at).sort((a, b) => (b.deleted_at || '').localeCompare(a.deleted_at || '')));
+        }),
         loadJobs(),
         loadAds(),
         supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
@@ -390,21 +394,22 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const reloadUsers = async () => {
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    const all = data || [];
+    setUsers(all.filter(u => !u.deleted_at));
+    setTrashedUsers(all.filter(u => u.deleted_at).sort((a, b) => (b.deleted_at || '').localeCompare(a.deleted_at || '')));
+  };
+
   const trashUser = async (userId: string) => {
     await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', userId);
-    await Promise.all([
-      supabase.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
-      supabase.from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).then(({data}) => setTrashedUsers(data || [])),
-    ]);
+    await reloadUsers();
     toast({ title: 'Success', description: 'User moved to trash' });
   };
 
   const restoreUser = async (userId: string) => {
     await supabase.from('profiles').update({ deleted_at: null }).eq('id', userId);
-    await Promise.all([
-      supabase.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
-      supabase.from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).then(({data}) => setTrashedUsers(data || [])),
-    ]);
+    await reloadUsers();
     toast({ title: 'Success', description: 'User restored from trash' });
   };
 
