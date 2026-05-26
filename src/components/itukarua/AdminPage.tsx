@@ -130,6 +130,7 @@ const AdminPage: React.FC = () => {
   const [subscribers, setSubscribers] = useState<{ email: string; created_at: string }[]>([]);
   const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
   const [subscriberMsg, setSubscriberMsg] = useState('');
+  const [sendingNewsletter, setSendingNewsletter] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -1323,6 +1324,30 @@ const AdminPage: React.FC = () => {
                   }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Add</button>
                 </div>
                 {subscriberMsg && <p className={`text-sm mb-3 ${subscriberMsg === 'Invalid email' || subscriberMsg.includes('already') ? 'text-amber-600' : 'text-green-600'}`}>{subscriberMsg}</p>}
+                <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200">
+                  <button onClick={async () => {
+                    if (subscribers.length === 0) { setSubscriberMsg('No subscribers to send to.'); return; }
+                    setSendingNewsletter(true);
+                    setSubscriberMsg('');
+                    try {
+                      const res = await fetch(`${supabaseUrl}/functions/v1/send-weekly-newsletter`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      setSubscriberMsg(`Newsletter sent to ${data.sent} subscribers${data.failed > 0 ? ` (${data.failed} failed)` : ''}! Check Ethereal inbox.`);
+                    } catch (err: any) {
+                      setSubscriberMsg(`Error: ${err.message}`);
+                    } finally {
+                      setSendingNewsletter(false);
+                    }
+                  }} disabled={sendingNewsletter || subscribers.length === 0} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                    {sendingNewsletter ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {sendingNewsletter ? 'Sending...' : 'Send Newsletter Now'}
+                  </button>
+                  <span className="text-xs text-gray-400">Sends to {subscribers.length} subscriber(s) via Ethereal test SMTP</span>
+                </div>
                 {subscribers.length === 0 ? (
                   <p className="text-sm text-gray-400">No subscribers yet.</p>
                 ) : (
