@@ -25,23 +25,38 @@ export const FALLBACK_IMAGE = 'https://d64gsuwffb70l.cloudfront.net/699028ea5785
 
 const STORAGE_PREFIX = `${supabaseUrl}/storage/v1/object/public/`;
 
+const BUCKET_ALIASES: Record<string, string> = { adverts: 'a' }
+const BUCKET_ALIASES_REVERSE: Record<string, string> = { a: 'adverts' }
+
 export function optimizeImageUrl(url: string, width: number = 400, height: number = 400): string {
   if (!url || !url.startsWith(supabaseUrl)) {
     return url;
   }
   
-  // Proxy through Vercel to avoid ad-blocker blocking supabase.co/storage requests
   if (url.startsWith(STORAGE_PREFIX) && typeof window !== 'undefined') {
     const origin = window.location.origin;
-    // Skip proxy on localhost since Vite dev server doesn't have the rewrite rule
     if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
       const path = url.substring(STORAGE_PREFIX.length);
-      return `${origin}/supabase-storage/${path}?width=${width}&height=${height}&resize=cover&quality=80`;
+      const slash = path.indexOf('/');
+      const bucket = slash > 0 ? path.slice(0, slash) : path;
+      const rest = slash > 0 ? path.slice(slash + 1) : '';
+      const safe = BUCKET_ALIASES[bucket] || bucket;
+      return `${origin}/img/${safe}/${rest}?width=${width}&height=${height}&resize=cover&quality=80`;
     }
   }
   
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}width=${width}&height=${height}&resize=cover&quality=80`;
+}
+
+export function restoreStorageUrl(proxyPath: string): string {
+  // /img/a/admin/foo.jpg -> https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/foo.jpg
+  const parts = proxyPath.replace(/^\/img\//, '').split('/');
+  if (parts.length < 2) return proxyPath;
+  const safe = parts[0];
+  const bucket = BUCKET_ALIASES_REVERSE[safe] || safe;
+  const rest = parts.slice(1).join('/');
+  return `${STORAGE_PREFIX}${bucket}/${rest}`;
 }
 
 export function handleImageError(e: React.SyntheticEvent<HTMLImageElement>) {
