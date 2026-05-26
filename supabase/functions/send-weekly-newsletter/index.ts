@@ -129,9 +129,14 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const { data: subscribers } = await supabase.from('newsletter_subscribers').select('email')
+    let { data: subscribers } = await supabase.from('newsletter_subscribers').select('email')
     if (!subscribers || subscribers.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, failed: 0, message: 'No subscribers' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const { data: rpcResult } = await supabase.rpc('admin_newsletter', { action: 'list' })
+      if (rpcResult && rpcResult.length > 0) {
+        subscribers = rpcResult
+      } else {
+        return new Response(JSON.stringify({ sent: 0, failed: 0, message: 'No subscribers' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
     }
 
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
