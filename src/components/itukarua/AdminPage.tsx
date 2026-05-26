@@ -1450,7 +1450,7 @@ const AdminPage: React.FC = () => {
                     try {
                       const res = await fetch(`${supabaseUrl}/functions/v1/send-weekly-newsletter`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
                       });
                       const data = await res.json();
                       if (data.error) throw new Error(data.error);

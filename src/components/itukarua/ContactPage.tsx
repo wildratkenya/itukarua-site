@@ -62,7 +62,7 @@ const ContactPage: React.FC = () => {
       });
       fetch(`${supabaseUrl}/functions/v1/send-contact-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
         body: JSON.stringify(formData),
       }).catch(() => {});
       localStorage.setItem('contact_last_submit', String(Date.now()));
