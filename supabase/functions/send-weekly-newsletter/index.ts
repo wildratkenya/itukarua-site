@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
 
     const transport = createFreshTransport()
     let sent = 0, failed = 0
+    let lastError = ''
     for (const sub of subscribers) {
       try {
         await transport.sendMail({
@@ -173,12 +174,13 @@ Deno.serve(async (req) => {
           html: html.replace('{{email}}', encodeURIComponent(sub.email)),
         })
         sent++
-      } catch {
+      } catch (e: any) {
         failed++
+        if (!lastError) lastError = e?.message || String(e)
       }
     }
 
-    return new Response(JSON.stringify({ sent, failed, total: subscribers.length }), {
+    return new Response(JSON.stringify({ sent, failed, total: subscribers.length, lastError }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err: any) {
