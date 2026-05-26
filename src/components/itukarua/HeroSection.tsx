@@ -2,7 +2,7 @@
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal } from 'lucide-react';
 import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
-import { getCustomCategories } from '@/lib/database';
+import { getCustomCategories, getNewsletterSubscribers } from '@/lib/database';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 
@@ -26,8 +26,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
   const [filterLocation, setFilterLocation] = useState('');
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [extraCats, setExtraCats] = useState<string[]>([]);
+  const [subCount, setSubCount] = useState(0);
 
-  useEffect(() => { getCustomCategories('job').then(setExtraCats); }, []);
+  useEffect(() => {
+    getCustomCategories('job').then(setExtraCats);
+    getNewsletterSubscribers().then(subs => setSubCount(subs.length));
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +122,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
               {[
                 { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
                 { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
-                { label: 'Businesses', value: `${stats?.active_businesses || 0}+` },
+                { label: 'Subscribers', value: `${subCount}+` },
                 { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
               ].map(stat => (
                 <div key={stat.label}>
