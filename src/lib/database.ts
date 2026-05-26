@@ -1047,31 +1047,27 @@ export async function incrementProfileViews(profileId: string): Promise<void> {
 
 // ─── Newsletter ────────────────────────────────────────────────────────────
 
-export async function subscribeNewsletter(email: string): Promise<{ error?: string }> {
+export async function subscribeNewsletter(email: string, name?: string): Promise<{ error?: string }> {
   const { error } = await supabase
-    .from('newsletter_subscribers')
-    .insert({ email });
+    .rpc('admin_newsletter', { action: 'add', p_email: email, p_name: name || '' });
   if (error) {
-    if (error.code === '23505') return { error: 'This email is already subscribed.' };
+    if (error.code === '23505' || error.message?.includes('23505') || error.message?.includes('duplicate'))
+      return { error: 'This email is already subscribed.' };
     return { error: 'Subscription failed. Please try again.' };
   }
   return {};
 }
 
-export async function getNewsletterSubscribers(): Promise<{ email: string; created_at: string }[]> {
+export async function getNewsletterSubscribers(): Promise<{ email: string; name: string; created_at: string }[]> {
   const { data, error } = await supabase
-    .from('newsletter_subscribers')
-    .select('email, created_at')
-    .order('created_at', { ascending: false });
-  if (error) return [];
-  return data || [];
+    .rpc('admin_newsletter', { action: 'list' });
+  if (error) { console.error('getNewsletterSubscribers error:', error); return []; }
+  return (data || []) as { email: string; name: string; created_at: string }[];
 }
 
 export async function deleteNewsletterSubscriber(email: string): Promise<{ error?: string }> {
   const { error } = await supabase
-    .from('newsletter_subscribers')
-    .delete()
-    .eq('email', email);
+    .rpc('admin_newsletter', { action: 'delete', p_email: email });
   if (error) return { error: 'Failed to delete subscriber.' };
   return {};
 }

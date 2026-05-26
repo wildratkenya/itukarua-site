@@ -127,7 +127,8 @@ const AdminPage: React.FC = () => {
   const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [subscribers, setSubscribers] = useState<{ email: string; created_at: string }[]>([]);
+  const [subscribers, setSubscribers] = useState<{ email: string; name: string; created_at: string }[]>([]);
+  const [newSubscriberName, setNewSubscriberName] = useState('');
   const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
   const [subscriberMsg, setSubscriberMsg] = useState('');
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
@@ -1316,11 +1317,16 @@ const AdminPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2 mb-4">
-                  <input type="email" value={newSubscriberEmail} onChange={e => setNewSubscriberEmail(e.target.value)} placeholder="Enter email to add" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                  <input type="text" value={newSubscriberName} onChange={e => setNewSubscriberName(e.target.value)} placeholder="Full name" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                  <input type="email" value={newSubscriberEmail} onChange={e => setNewSubscriberEmail(e.target.value)} placeholder="Email address" className="flex-[2] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                  <input type="text" name="_website" value="" onChange={() => {}} tabIndex={-1} autoComplete="off" className="absolute left-[-9999px] h-0 w-0 opacity-0" aria-hidden="true" />
                   <button onClick={async () => {
+                    const hp = document.querySelector('input[name="_website"]') as HTMLInputElement;
+                    if (hp?.value) { setSubscriberMsg('Spam detected'); return; }
+                    if (!newSubscriberName.trim()) { setSubscriberMsg('Name is required'); return; }
                     if (!newSubscriberEmail.trim() || !/\S+@\S+\.\S+/.test(newSubscriberEmail)) { setSubscriberMsg('Invalid email'); return; }
-                    const result = await subscribeNewsletter(newSubscriberEmail.trim());
-                    if (result.error) { setSubscriberMsg(result.error); } else { setSubscriberMsg('Added!'); setNewSubscriberEmail(''); setSubscribers(await getNewsletterSubscribers()); }
+                    const result = await subscribeNewsletter(newSubscriberEmail.trim(), newSubscriberName.trim());
+                    if (result.error) { setSubscriberMsg(result.error); } else { setSubscriberMsg('Added!'); setNewSubscriberName(''); setNewSubscriberEmail(''); setSubscribers(await getNewsletterSubscribers()); }
                   }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Add</button>
                 </div>
                 {subscriberMsg && <p className={`text-sm mb-3 ${subscriberMsg === 'Invalid email' || subscriberMsg.includes('already') ? 'text-amber-600' : 'text-green-600'}`}>{subscriberMsg}</p>}
@@ -1355,6 +1361,7 @@ const AdminPage: React.FC = () => {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-3 font-medium text-gray-600">Name</th>
                           <th className="text-left py-2 px-3 font-medium text-gray-600">Email</th>
                           <th className="text-left py-2 px-3 font-medium text-gray-600">Subscribed</th>
                           <th className="text-right py-2 px-3 font-medium text-gray-600">Actions</th>
@@ -1363,6 +1370,7 @@ const AdminPage: React.FC = () => {
                       <tbody>
                         {subscribers.map(s => (
                           <tr key={s.email} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-2 px-3 text-gray-800 font-medium">{s.name || '—'}</td>
                             <td className="py-2 px-3 text-gray-800">{s.email}</td>
                             <td className="py-2 px-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
                             <td className="py-2 px-3 text-right">

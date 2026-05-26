@@ -115,7 +115,7 @@ data: {
           }
           
           if (subscribeToNewsletter) {
-            await subscribeNewsletter(formData.email);
+            await subscribeNewsletter(formData.email, formData.name.trim());
           }
           setEmailSent(true);
           setServerError('');
