@@ -172,7 +172,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
                     onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images); }}
                     className="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-transparent hover:border-green-500 transition-colors"
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" onError={handleImageError} />
+                    <img src={optimizeImageUrl(img, 128, 128)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
                   </button>
                 ))}
               </div>

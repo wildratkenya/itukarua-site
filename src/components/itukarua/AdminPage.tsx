@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
@@ -1178,7 +1178,7 @@ const AdminPage: React.FC = () => {
                     {ads.map((ad) => (
                       <TableRow key={ad.id}>
                         <TableCell>
-                          <img src={ad.image || (ad.images?.[0]) || '/images/services.png'} alt="" className="w-12 h-12 object-cover rounded" />
+                          <img src={optimizeImageUrl(ad.image || ad.images?.[0] || '/images/services.png', 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
                         </TableCell>
                         <TableCell>
                           <div>{ad.business_name}</div>
@@ -1454,7 +1454,7 @@ const AdminPage: React.FC = () => {
                       });
                       const data = await res.json();
                       if (data.error) throw new Error(data.error);
-                      setSubscriberMsg(`Newsletter sent to ${data.sent} subscribers${data.failed > 0 ? ` (${data.failed} failed)` : ''}! Check Ethereal inbox.`);
+                      setSubscriberMsg(data.message || `Newsletter sent to ${data.sent} subscriber(s)${data.failed > 0 ? ` (${data.failed} failed)` : ''}! Check Ethereal inbox.`);
                     } catch (err: any) {
                       setSubscriberMsg(`Error: ${err.message}`);
                     } finally {
@@ -1798,7 +1798,7 @@ const AdminPage: React.FC = () => {
                   {/* Existing images */}
                   {editingAd?.images?.map((img: string, i: number) => (
                     <div key={`existing-${i}`} className="relative flex-shrink-0 w-20 h-20 rounded-lg border-2 border-green-500 overflow-hidden group">
-                      <img src={img} alt="" className="w-full h-full object-cover" />
+                      <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
                       <button 
                         type="button"
                         onClick={() => {
