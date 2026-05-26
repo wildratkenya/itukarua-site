@@ -34,6 +34,7 @@ interface Profile {
   suspended?: boolean;
   ratings_enabled?: boolean;
   created_at: string;
+  deleted_at?: string;
   resume?: string;
   certificates?: string[];
 }
@@ -134,6 +135,8 @@ const AdminPage: React.FC = () => {
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [trashedUsers, setTrashedUsers] = useState<Profile[]>([]);
+  const [showTrash, setShowTrash] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -154,7 +157,8 @@ const AdminPage: React.FC = () => {
       setLoading(true);
       // Load everything initially
       await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
+        supabase.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
+        supabase.from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).then(({data}) => setTrashedUsers(data || [])),
         loadJobs(),
         loadAds(),
         supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
@@ -386,6 +390,24 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const trashUser = async (userId: string) => {
+    await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', userId);
+    await Promise.all([
+      supabase.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
+      supabase.from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).then(({data}) => setTrashedUsers(data || [])),
+    ]);
+    toast({ title: 'Success', description: 'User moved to trash' });
+  };
+
+  const restoreUser = async (userId: string) => {
+    await supabase.from('profiles').update({ deleted_at: null }).eq('id', userId);
+    await Promise.all([
+      supabase.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false }).then(({data}) => setUsers(data || [])),
+      supabase.from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).then(({data}) => setTrashedUsers(data || [])),
+    ]);
+    toast({ title: 'Success', description: 'User restored from trash' });
+  };
+
   const deleteUser = async (userId?: string) => {
     const id = userId || deletingUser?.id;
     if (!id) return;
@@ -398,7 +420,7 @@ const AdminPage: React.FC = () => {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to delete user');
-      toast({ title: 'Success', description: `User deleted successfully` });
+      toast({ title: 'Success', description: `User permanently deleted` });
       setIsDeleteDialogOpen(false);
       setDeletingUser(null);
       await loadData();
@@ -407,10 +429,34 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const bulkDeleteUsers = async () => {
+  const bulkTrashUsers = async () => {
     const ids = [...selectedUsers];
     if (ids.length === 0) return;
-    if (!confirm(`Delete ${ids.length} user(s)? This cannot be undone.`)) return;
+    if (!confirm(`Move ${ids.length} user(s) to trash?`)) return;
+    for (const id of ids) {
+      await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    }
+    setSelectedUsers(new Set());
+    await loadData();
+    toast({ title: 'Success', description: `${ids.length} user(s) moved to trash` });
+  };
+
+  const bulkRestoreUsers = async () => {
+    const ids = [...selectedUsers];
+    if (ids.length === 0) return;
+    if (!confirm(`Restore ${ids.length} user(s) from trash?`)) return;
+    for (const id of ids) {
+      await supabase.from('profiles').update({ deleted_at: null }).eq('id', id);
+    }
+    setSelectedUsers(new Set());
+    await loadData();
+    toast({ title: 'Success', description: `${ids.length} user(s) restored` });
+  };
+
+  const bulkDeletePermanently = async () => {
+    const ids = [...selectedUsers];
+    if (ids.length === 0) return;
+    if (!confirm(`Permanently delete ${ids.length} user(s)? This cannot be undone.`)) return;
     let failed = 0;
     for (const id of ids) {
       try {
@@ -424,7 +470,7 @@ const AdminPage: React.FC = () => {
     }
     setSelectedUsers(new Set());
     await loadData();
-    if (failed === 0) toast({ title: 'Success', description: `${ids.length} user(s) deleted` });
+    if (failed === 0) toast({ title: 'Success', description: `${ids.length} user(s) permanently deleted` });
     else toast({ title: 'Partial success', description: `${ids.length - failed} deleted, ${failed} failed`, variant: 'destructive' });
   };
 
@@ -901,16 +947,28 @@ const AdminPage: React.FC = () => {
           <TabsContent value="users">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>User Management</CardTitle>
-                <Button onClick={() => { setCertFiles([]); setTermsAccepted(false); setDataSharingConsent(false); setIsCreateUserModalOpen(true); }}>
+                <div className="flex items-center gap-3">
+                  <CardTitle>{showTrash ? `Trash (${trashedUsers.length})` : `User Management (${users.length})`}</CardTitle>
+                  <button onClick={() => { setShowTrash(!showTrash); setSelectedUsers(new Set()); }} className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${showTrash ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {showTrash ? 'Active Users' : `Trash (${trashedUsers.length})`}
+                  </button>
+                </div>
+                {!showTrash && <Button onClick={() => { setCertFiles([]); setTermsAccepted(false); setDataSharingConsent(false); setIsCreateUserModalOpen(true); }}>
                   + Add New User
-                </Button>
+                </Button>}
               </CardHeader>
               <CardContent>
                 {selectedUsers.size > 0 && (
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-sm text-gray-600">{selectedUsers.size} selected</span>
-                    <button onClick={bulkDeleteUsers} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">Delete Selected</button>
+                    {showTrash ? (
+                      <>
+                        <button onClick={bulkRestoreUsers} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">Restore Selected</button>
+                        <button onClick={bulkDeletePermanently} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">Delete Permanently</button>
+                      </>
+                    ) : (
+                      <button onClick={bulkTrashUsers} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg transition-colors">Trash Selected</button>
+                    )}
                     <button onClick={() => setSelectedUsers(new Set())} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors">Clear</button>
                   </div>
                 )}
@@ -918,20 +976,22 @@ const AdminPage: React.FC = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10">
-                        <input type="checkbox" checked={selectedUsers.size === users.length} onChange={() => {
-                          if (selectedUsers.size === users.length) setSelectedUsers(new Set());
-                          else setSelectedUsers(new Set(users.map(u => u.id)));
+                        <input type="checkbox" checked={selectedUsers.size === (showTrash ? trashedUsers : users).length} onChange={() => {
+                          const list = showTrash ? trashedUsers : users;
+                          if (selectedUsers.size === list.length) setSelectedUsers(new Set());
+                          else setSelectedUsers(new Set(list.map(u => u.id)));
                         }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
                       </TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Registration</TableHead>
+                      {showTrash && <TableHead>Trashed</TableHead>}
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((user) => {
+                    {(showTrash ? trashedUsers : users).map((user) => {
                       const uChecked = selectedUsers.has(user.id);
                       return (
                       <TableRow key={user.id} className={uChecked ? 'bg-green-50' : ''}>
@@ -947,19 +1007,23 @@ const AdminPage: React.FC = () => {
                           <div className="text-xs text-gray-500">{user.email}</div>
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => updateUserRole(user.id, value)}
-                          >
-                            <SelectTrigger className="w-32 h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="jobseeker">Jobseeker</SelectItem>
-                              <SelectItem value="employer">Employer</SelectItem>
-                              <SelectItem value="super_admin">Super Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {showTrash ? (
+                            <Badge variant="outline">{user.role}</Badge>
+                          ) : (
+                            <Select
+                              value={user.role}
+                              onValueChange={(value) => updateUserRole(user.id, value)}
+                            >
+                              <SelectTrigger className="w-32 h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="jobseeker">Jobseeker</SelectItem>
+                                <SelectItem value="employer">Employer</SelectItem>
+                                <SelectItem value="super_admin">Super Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant={user.verified ? 'default' : 'secondary'}>
@@ -971,43 +1035,40 @@ const AdminPage: React.FC = () => {
                             {user.registration_paid ? 'Paid' : 'Unpaid'}
                           </Badge>
                         </TableCell>
+                        {showTrash && (
+                          <TableCell className="text-xs text-gray-500">
+                            {user.deleted_at ? new Date(user.deleted_at).toLocaleDateString() : '—'}
+                          </TableCell>
+                        )}
                         <TableCell className="flex gap-2 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleUserVerification(user.id, user.verified)}
-                          >
-                            {user.verified ? 'Unverify' : 'Verify'}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => triggerPasswordReset(user.email)}
-                            disabled={!user.email}
-                          >
-                            Reset PW
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditingUser(user);
-                              setRatingsEnabled(!!user.ratings_enabled);
-                              setIsEditUserModalOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setDeletingUser(user);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                          >
-                            Delete
-                          </Button>
+                          {showTrash ? (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => restoreUser(user.id)}>Restore</Button>
+                              <Button variant="destructive" size="sm" onClick={() => {
+                                setDeletingUser(user);
+                                setIsDeleteDialogOpen(true);
+                              }}>Delete Permanently</Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => toggleUserVerification(user.id, user.verified)}>
+                                {user.verified ? 'Unverify' : 'Verify'}
+                              </Button>
+                              <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email}>
+                                Reset PW
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => {
+                                setEditingUser(user);
+                                setRatingsEnabled(!!user.ratings_enabled);
+                                setIsEditUserModalOpen(true);
+                              }}>
+                                Edit
+                              </Button>
+                              <Button variant="destructive" size="sm" onClick={() => trashUser(user.id)}>
+                                Trash
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     )})}
@@ -2106,18 +2167,18 @@ const AdminPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete User Confirmation */}
+      {/* Delete User Permanently Confirmation */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if (!open) { setDeletingUser(null); setIsDeleteDialogOpen(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogTitle>Delete User Permanently</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deletingUser?.full_name}</strong>? This will permanently remove their account and all profile data. This action cannot be undone.
+              Are you sure you want to permanently delete <strong>{deletingUser?.full_name}</strong>? This will remove their account and all profile data from the platform. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setDeletingUser(null); setIsDeleteDialogOpen(false); }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteUser} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={deleteUser} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
