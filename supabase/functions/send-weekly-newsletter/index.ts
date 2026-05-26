@@ -9,15 +9,17 @@ const corsHeaders = {
 const SITE_URL = Deno.env.get('SITE_URL') || 'https://itukarua3.vercel.app'
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'Itukarua <noreply@itukarua.ke>'
 
-const transport = nodemailer.createTransport({
-  host: Deno.env.get('ETHEREAL_HOST') || 'smtp.ethereal.email',
-  port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
-  secure: false,
-  auth: {
-    user: Deno.env.get('ETHEREAL_USER') || 'amely.daniel97@ethereal.email',
-    pass: Deno.env.get('ETHEREAL_PASS') || 'QxtDQD48fAbM6NJ65',
-  },
-})
+function createFreshTransport() {
+  return nodemailer.createTransport({
+    host: Deno.env.get('ETHEREAL_HOST') || 'smtp.ethereal.email',
+    port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
+    secure: false,
+    auth: {
+      user: Deno.env.get('ETHEREAL_USER') || 'amely.daniel97@ethereal.email',
+      pass: Deno.env.get('ETHEREAL_PASS') || 'QxtDQD48fAbM6NJ65',
+    },
+  })
+}
 
 function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
   const jobCards = jobs.map(j => `
@@ -154,6 +156,7 @@ Deno.serve(async (req) => {
     const html = buildNewsletterHtml(jobs || [], ads || [], dateStr)
     const textPlain = `Itukarua Weekly Digest - ${dateStr}\n\n${(jobs || []).length} new jobs, ${(ads || []).length} new services this week.\n\nView online: ${SITE_URL}`
 
+    const transport = createFreshTransport()
     let sent = 0, failed = 0
     for (const sub of subscribers) {
       try {
@@ -169,8 +172,6 @@ Deno.serve(async (req) => {
         failed++
       }
     }
-
-    await transport.close()
 
     return new Response(JSON.stringify({ sent, failed, total: subscribers.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
