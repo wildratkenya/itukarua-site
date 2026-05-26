@@ -68,9 +68,6 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
     </tr>
   `}).join('')
 
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  const jobsParam = `after=${weekAgo.toISOString().split('T')[0]}`
-  const adsParam = `after=${weekAgo.toISOString().split('T')[0]}`
 
   return `
 <!DOCTYPE html>
@@ -78,29 +75,41 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
 <table cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;background:#ffffff">
-  <tr><td style="background:#059669;padding:32px 24px;text-align:center">
-    <img src="${SITE_URL}/images/logo.png" alt="Itukarua" width="60" height="60" style="border-radius:12px;margin-bottom:12px" />
-    <h1 style="color:#fff;font-size:22px;margin:0 0 4px">Itukarua Weekly Digest</h1>
-    <p style="color:#d1fae5;font-size:13px;margin:0">${dateStr}</p>
+  <tr><td style="background:linear-gradient(135deg,#059669,#047857);padding:24px">
+    <table cellpadding="0" cellspacing="0" style="width:100%">
+      <tr>
+        <td style="width:56px;vertical-align:middle">
+          <img src="${SITE_URL}/images/logo.png" alt="" width="56" height="56" style="border-radius:12px;display:block" />
+        </td>
+        <td style="padding-left:16px;vertical-align:middle">
+          <h1 style="color:#fff;font-size:20px;margin:0 0 2px;font-weight:700">Itukarua</h1>
+          <p style="color:#d1fae5;font-size:13px;margin:0">${dateStr}</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:20px 24px 4px">
+    <h2 style="font-size:18px;color:#111827;margin:0 0 4px">Weekly Available Jobs &amp; Businesses Around you</h2>
+    <p style="font-size:13px;color:#6b7280;margin:0">Here are the latest listings from this week</p>
   </td></tr>
 
   ${jobs.length > 0 ? `
   <tr><td style="padding:24px">
     <h2 style="font-size:16px;color:#111827;margin:0 0 12px">⭐ Top Job Picks</h2>
     <table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">${jobCards}</table>
-    <a href="${SITE_URL}/jobs?${jobsParam}" style="display:block;text-align:center;margin-top:12px;color:#059669;font-size:13px;font-weight:600;text-decoration:none">Browse All Jobs →</a>
+    <a href="${SITE_URL}/jobs" style="display:block;text-align:center;margin-top:12px;color:#059669;font-size:13px;font-weight:600;text-decoration:none">Browse All Jobs →</a>
   </td></tr>` : ''}
 
   ${ads.length > 0 ? `
   <tr><td style="padding:0 24px 24px">
-    <h2 style="font-size:16px;color:#111827;margin:0 0 12px">🌟 New Services</h2>
+    <h2 style="font-size:16px;color:#111827;margin:0 0 12px">🌟 Businesses Around You</h2>
     <table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">${adCards}</table>
-    <a href="${SITE_URL}/services?${adsParam}" style="display:block;text-align:center;margin-top:12px;color:#059669;font-size:13px;font-weight:600;text-decoration:none">Browse All Services →</a>
+    <a href="${SITE_URL}/services" style="display:block;text-align:center;margin-top:12px;color:#059669;font-size:13px;font-weight:600;text-decoration:none">Browse All Services →</a>
   </td></tr>` : ''}
 
   ${jobs.length === 0 && ads.length === 0 ? `
   <tr><td style="padding:48px 24px;text-align:center">
-    <p style="color:#6b7280;font-size:14px;margin:0">No new listings this week. Check back next week!</p>
+    <p style="color:#6b7280;font-size:14px;margin:0">No listings available at the moment. Check back soon!</p>
   </td></tr>` : ''}
 
   <tr><td style="background:#f3f4f6;padding:20px 24px;text-align:center;border-top:1px solid #e5e7eb">
@@ -139,27 +148,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-
     const { data: jobs } = await supabase
       .from('jobs')
       .select('id, title, description, location, budget_min, budget_max, category, created_at, urgent, images')
-      .gte('created_at', weekAgo)
       .order('urgent', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(6)
+      .limit(12)
 
     const { data: ads } = await supabase
       .from('service_ads')
       .select('id, business_name, description, category, location, image, images, created_at, featured')
-      .gte('created_at', weekAgo)
       .order('featured', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(6)
+      .limit(12)
 
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     const html = buildNewsletterHtml(jobs || [], ads || [], dateStr)
-    const textPlain = `Itukarua Weekly Digest - ${dateStr}\n\n${(jobs || []).length} new jobs, ${(ads || []).length} new services this week.\n\nView online: ${SITE_URL}`
+    const textPlain = `Itukarua Weekly Digest - ${dateStr}\n\n${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
 
     const transport = createFreshTransport()
     let sent = 0, failed = 0
