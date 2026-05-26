@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
+import { subscribeNewsletter } from '@/lib/database';
 interface FooterProps {
   onNavigate: (page: Page) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
@@ -10,17 +11,25 @@ const Footer: React.FC<FooterProps> = ({
   onNavigate,
   onOpenAuth
 }) => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [subError, setSubError] = useState('');
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim() && /\S+@\S+\.\S+/.test(email)) {
-      setSubscribed(true);
-      setEmail('');
-      setTimeout(() => setSubscribed(false), 4000);
-    }
+    setSubError('');
+    const hp = (document.querySelector('input[name="_website"]') as HTMLInputElement)?.value;
+    if (hp) return;
+    if (!name.trim()) { setSubError('Name is required'); return; }
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setSubError('Invalid email'); return; }
+    const result = await subscribeNewsletter(email.trim(), name.trim());
+    if (result.error) { setSubError(result.error); return; }
+    setSubscribed(true);
+    setName('');
+    setEmail('');
+    setTimeout(() => setSubscribed(false), 4000);
   };
   return <footer className="bg-gray-900 text-gray-300">
       {/* Newsletter Banner */}
@@ -31,13 +40,19 @@ const Footer: React.FC<FooterProps> = ({
               <h3 className="text-xl font-bold text-white">Stay Updated with Itukarua</h3>
               <p className="text-green-100 text-sm mt-1">Get the latest jobs, services, and community updates delivered to your inbox.</p>
             </div>
-            <form onSubmit={handleSubscribe} className="flex w-full md:w-auto gap-2">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email" className="flex-1 md:w-72 px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-green-200 focus:ring-2 focus:ring-white/30 focus:border-transparent outline-none" />
-              <button type="submit" className="px-6 py-3 bg-white text-green-700 font-semibold rounded-lg hover:bg-green-50 transition-colors flex items-center gap-2">
+            <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row w-full md:w-auto gap-2 items-start sm:items-center">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" className="flex-1 md:w-48 px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-green-200 focus:ring-2 focus:ring-white/30 focus:border-transparent outline-none" />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email" className="flex-1 md:w-64 px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-green-200 focus:ring-2 focus:ring-white/30 focus:border-transparent outline-none" />
+              </div>
+              <input type="text" name="_website" value="" onChange={() => {}} tabIndex={-1} autoComplete="off" className="absolute left-[-9999px] h-0 w-0 opacity-0" aria-hidden="true" />
+              <button type="submit" className="px-6 py-3 bg-white text-green-700 font-semibold rounded-lg hover:bg-green-50 transition-colors flex items-center gap-2 shrink-0">
                 <Send className="w-4 h-4" />
                 {subscribed ? 'Subscribed!' : 'Subscribe'}
               </button>
+              {subError && <p className="text-sm text-red-300 w-full sm:hidden">{subError}</p>}
             </form>
+            {subError && <p className="text-sm text-red-300 hidden sm:block mt-1">{subError}</p>}
           </div>
         </div>
       </div>

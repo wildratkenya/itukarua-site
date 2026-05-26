@@ -366,7 +366,7 @@ const AdminPage: React.FC = () => {
       }
 
       if (subscribeToNewsletter) {
-        await subscribeNewsletter(email);
+        await subscribeNewsletter(email, fullName);
       }
       toast({ title: 'Success', description: `User ${fullName} created successfully!` });
       setCreatingUser(false);
