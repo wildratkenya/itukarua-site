@@ -5,15 +5,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const transport = nodemailer.createTransport({
-  host: Deno.env.get('ETHEREAL_HOST') || 'smtp.ethereal.email',
-  port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
-  secure: false,
-  auth: {
-    user: Deno.env.get('ETHEREAL_USER') || 'amely.daniel97@ethereal.email',
-    pass: Deno.env.get('ETHEREAL_PASS') || 'QxtDQD48fAbM6NJ65',
-  },
-})
+function createTransport() {
+  return nodemailer.createTransport({
+    host: Deno.env.get('ETHEREAL_HOST') || 'smtp.ethereal.email',
+    port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
+    secure: false,
+    auth: {
+      user: Deno.env.get('ETHEREAL_USER') || 'sn5lk4qnes6yyqyd@ethereal.email',
+      pass: Deno.env.get('ETHEREAL_PASS') || 'BUPHgH7pTE4sp7BFT7',
+    },
+  })
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -45,6 +47,7 @@ Deno.serve(async (req) => {
 </body>
 </html>`
 
+    const transport = createTransport()
     await transport.sendMail({
       from: 'Itukarua Contact <noreply@itukarua.ke>',
       to: 'info@itukarua.co.ke',
@@ -52,8 +55,6 @@ Deno.serve(async (req) => {
       text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\nSubject: ${subject || 'General Inquiry'}\nMessage:\n${message}`,
       html,
     })
-
-    await transport.close()
 
     return new Response(JSON.stringify({ sent: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
