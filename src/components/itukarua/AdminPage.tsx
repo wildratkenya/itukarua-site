@@ -132,6 +132,7 @@ const AdminPage: React.FC = () => {
   const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
   const [subscriberMsg, setSubscriberMsg] = useState('');
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
+  const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -1357,33 +1358,65 @@ const AdminPage: React.FC = () => {
                 {subscribers.length === 0 ? (
                   <p className="text-sm text-gray-400">No subscribers yet.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-3 font-medium text-gray-600">Name</th>
-                          <th className="text-left py-2 px-3 font-medium text-gray-600">Email</th>
-                          <th className="text-left py-2 px-3 font-medium text-gray-600">Subscribed</th>
-                          <th className="text-right py-2 px-3 font-medium text-gray-600">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {subscribers.map(s => (
-                          <tr key={s.email} className="border-b border-gray-50 hover:bg-gray-50">
-                            <td className="py-2 px-3 text-gray-800 font-medium">{s.name || '—'}</td>
-                            <td className="py-2 px-3 text-gray-800">{s.email}</td>
-                            <td className="py-2 px-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
-                            <td className="py-2 px-3 text-right">
-                              <button onClick={async () => {
-                                if (!confirm(`Remove ${s.email}?`)) return;
-                                await deleteNewsletterSubscriber(s.email);
-                                setSubscribers(await getNewsletterSubscribers());
-                              }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
-                            </td>
+                  <div>
+                    {selectedSubs.size > 0 && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-sm text-gray-600">{selectedSubs.size} selected</span>
+                        <button onClick={async () => {
+                          if (!confirm(`Delete ${selectedSubs.size} subscriber(s)?`)) return;
+                          await Promise.all([...selectedSubs].map(email => deleteNewsletterSubscriber(email)));
+                          setSelectedSubs(new Set());
+                          setSubscribers(await getNewsletterSubscribers());
+                          setSubscriberMsg(`Deleted ${selectedSubs.size} subscriber(s).`);
+                        }} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">Delete Selected</button>
+                        <button onClick={() => setSelectedSubs(new Set())} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors">Clear</button>
+                      </div>
+                    )}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="py-2 px-3 w-10">
+                              <input type="checkbox" checked={selectedSubs.size === subscribers.length} onChange={() => {
+                                if (selectedSubs.size === subscribers.length) setSelectedSubs(new Set());
+                                else setSelectedSubs(new Set(subscribers.map(s => s.email)));
+                              }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                            </th>
+                            <th className="text-left py-2 px-3 font-medium text-gray-600">Name</th>
+                            <th className="text-left py-2 px-3 font-medium text-gray-600">Email</th>
+                            <th className="text-left py-2 px-3 font-medium text-gray-600">Subscribed</th>
+                            <th className="text-right py-2 px-3 font-medium text-gray-600">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {subscribers.map(s => {
+                            const checked = selectedSubs.has(s.email);
+                            return (
+                              <tr key={s.email} className={`border-b border-gray-50 hover:bg-gray-50 ${checked ? 'bg-green-50' : ''}`}>
+                                <td className="py-2 px-3">
+                                  <input type="checkbox" checked={checked} onChange={() => {
+                                    const next = new Set(selectedSubs);
+                                    if (checked) next.delete(s.email); else next.add(s.email);
+                                    setSelectedSubs(next);
+                                  }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                                </td>
+                                <td className="py-2 px-3 text-gray-800 font-medium">{s.name || '—'}</td>
+                                <td className="py-2 px-3 text-gray-800">{s.email}</td>
+                                <td className="py-2 px-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
+                                <td className="py-2 px-3 text-right">
+                                  <button onClick={async () => {
+                                    if (!confirm(`Remove ${s.email}?`)) return;
+                                    await deleteNewsletterSubscriber(s.email);
+                                    setSelectedSubs(new Set([...selectedSubs].filter(e => e !== s.email)));
+                                    setSubscribers(await getNewsletterSubscribers());
+                                  }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </CardContent>
