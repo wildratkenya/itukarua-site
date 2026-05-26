@@ -1,6 +1,7 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle, Bell } from 'lucide-react';
 import { createMessage } from '@/lib/database';
+import { supabaseUrl, supabaseKey } from '@/lib/supabase';
 
 const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
@@ -59,6 +60,11 @@ const ContactPage: React.FC = () => {
         message: `Phone: ${formData.phone || 'N/A'}\n\n${formData.message}`,
         type: 'support',
       });
+      fetch(`${supabaseUrl}/functions/v1/send-contact-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        body: JSON.stringify(formData),
+      }).catch(() => {});
       localStorage.setItem('contact_last_submit', String(Date.now()));
       setSubmitted(true);
       setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
