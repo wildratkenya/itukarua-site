@@ -41,12 +41,12 @@ export function optimizeImageUrl(url: string, width: number = 400, height: numbe
       const bucket = slash > 0 ? path.slice(0, slash) : path;
       const rest = slash > 0 ? path.slice(slash + 1) : '';
       const safe = BUCKET_ALIASES[bucket] || bucket;
-      return `${origin}/img/${safe}/${rest}?width=${width}&height=${height}&resize=cover&quality=80`;
+      return `${origin}/img/${safe}/${rest}?width=${width}&height=${height}&resize=cover&quality=80&format=webp`;
     }
   }
   
   const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}width=${width}&height=${height}&resize=cover&quality=80`;
+  return `${url}${separator}width=${width}&height=${height}&resize=cover&quality=80&format=webp`;
 }
 
 export function restoreStorageUrl(proxyPath: string): string {
