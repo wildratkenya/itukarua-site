@@ -4,5 +4,13 @@
     { "source": "/img/:bucket/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:bucket/:match*" },
     { "source": "/supabase-storage/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:match*" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    { "source": "/img/(.*)", "headers": [
+      { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+    ]},
+    { "source": "/supabase-storage/(.*)", "headers": [
+      { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+    ]}
   ]
 }

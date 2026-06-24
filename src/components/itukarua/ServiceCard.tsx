@@ -56,10 +56,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-sm">
         {allImages.length > 0 ? (
           <>
-            <img
+<img
               src={optimizeImageUrl(allImages[currentImageIndex], 400, 400)}
               alt={`${service.businessName} - Image ${currentImageIndex + 1}`}
               loading="lazy"
+              fetchpriority="high"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               onError={handleImageError}
               draggable={false}
