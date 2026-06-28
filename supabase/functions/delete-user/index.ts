@@ -1,7 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -31,12 +33,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Delete profile first (cascade may not be set)
-    await supabase.from('profiles').delete().eq('id', user_id)
-
-    // Delete auth user
+    // Delete auth user first, then profile to avoid orphan auth records
     const { error: authError } = await supabase.auth.admin.deleteUser(user_id)
     if (authError) throw authError
+
+    await supabase.from('profiles').delete().eq('id', user_id)
 
     return new Response(
       JSON.stringify({ success: true }),

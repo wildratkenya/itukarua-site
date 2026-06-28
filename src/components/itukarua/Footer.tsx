@@ -23,7 +23,7 @@ const Footer: React.FC<FooterProps> = ({
     const hp = (document.querySelector('input[name="_website"]') as HTMLInputElement)?.value;
     if (hp) return;
     if (!name.trim()) { setSubError('Name is required'); return; }
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setSubError('Invalid email'); return; }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setSubError('Invalid email'); return; }
     const result = await subscribeNewsletter(email.trim(), name.trim());
     if (result.error) { setSubError(result.error); return; }
     setSubscribed(true);

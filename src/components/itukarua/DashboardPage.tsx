@@ -125,7 +125,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         for (const file of certFiles) {
           const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
           const ext = compressed.name.split('.').pop() || 'jpg';
-          const fileName = `${user.id}/certs/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const fileName = `${user.id}/certs/${Date.now()}_${crypto.randomUUID()}.${ext}`;
           const { error: upErr } = await supabase.storage.from('adverts').upload(fileName, compressed);
           if (!upErr) {
             certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);

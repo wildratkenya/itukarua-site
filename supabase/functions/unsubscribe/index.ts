@@ -1,11 +1,17 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SITE_URL = Deno.env.get('SITE_URL') || 'https://itukarua3.vercel.app'
+const SITE_URL = Deno.env.get('SITE_URL') || 'https://www.itukarua.co.ke'
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -14,7 +20,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url)
     const email = url.searchParams.get('email')
 
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return new Response(htmlPage('Invalid Link', 'The unsubscribe link appears to be invalid.'), {
         headers: { ...corsHeaders, 'Content-Type': 'text/html' },
       })
@@ -59,7 +65,7 @@ function htmlPage(title: string, message: string, success = false): string {
     <div class="icon">${success ? '✅' : '⚠️'}</div>
     <h1>${title}</h1>
     <p>${message}</p>
-    <a href="${SITE_URL}">Back to Itukarua</a>
+    <a href="${escapeHtml(SITE_URL)}">Back to Itukarua</a>
   </div>
 </body></html>`
 }

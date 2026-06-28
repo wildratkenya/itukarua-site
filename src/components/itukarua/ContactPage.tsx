@@ -23,7 +23,7 @@ const ContactPage: React.FC = () => {
     const errs: Record<string, string> = {};
     if (!formData.name.trim()) errs.name = 'Name is required';
     if (!formData.email.trim()) errs.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) errs.email = 'Invalid email';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
     if (!formData.message.trim()) errs.message = 'Message is required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
