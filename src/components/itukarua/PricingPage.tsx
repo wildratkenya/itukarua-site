@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Check, Zap, Shield, Phone } from 'lucide-react';
 import { PRICING_PLANS } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
@@ -50,8 +51,21 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Helmet>
+        <title>Pricing - Itukarua</title>
+        <meta name="description" content="Choose the plan that works for you. All payments are processed securely through M-Pesa." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/pricing" />
+        <meta property="og:title" content="Pricing - Itukarua" />
+        <meta property="og:description" content="Choose the plan that works for you. All payments are processed securely through M-Pesa." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Pricing - Itukarua" />
+        <meta name="twitter:description" content="Choose the plan that works for you. All payments are processed securely through M-Pesa." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
       {/* Header */}
-      <div className="relative py-14 lg:py-20 bg-cover bg-center" style={{ backgroundImage: 'url(/images/pricing.png)' }}>
+      <div className="relative py-14 lg:py-20 overflow-hidden">
+        <img src="/images/pricing.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-black/40"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3">Simple, Transparent Pricing</h1>

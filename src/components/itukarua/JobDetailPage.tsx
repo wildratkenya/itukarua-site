@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
 import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, type DbJob, type DbBid, type DbRating } from '@/lib/database';
 import { IMAGES } from '@/data/siteData';
+import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
@@ -217,6 +219,19 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Helmet>
+        <title>{job?.title ? `${job.title} - Itukarua` : 'Job Details - Itukarua'}</title>
+        <meta name="description" content={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'} />
+        <link rel="canonical" href={job?.id ? `https://www.itukarua.co.ke/jobs/${job.id}` : 'https://www.itukarua.co.ke/jobs'} />
+        <meta property="og:title" content={job?.title ? `${job.title} - Itukarua` : 'Job Details - Itukarua'} />
+        <meta property="og:description" content={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'} />
+        <meta property="og:image" content={job?.images?.[0] || 'https://www.itukarua.co.ke/og.jpg'} />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={job?.title ? `${job.title} - Itukarua` : 'Job Details - Itukarua'} />
+        <meta name="twitter:description" content={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'} />
+        <meta name="twitter:image" content={job?.images?.[0] || 'https://www.itukarua.co.ke/og.jpg'} />
+      </Helmet>
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <button onClick={onBack} className="flex items-center gap-2 text-green-200 hover:text-white mb-4 transition-colors">
@@ -249,10 +264,12 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     {job.images.map((img, i) => (
                       <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-gray-100 group">
                         <img 
-                          src={img} 
+                          src={optimizeImageUrl(img, 400, 400)} 
                           alt={`Job image ${i + 1}`} 
+                          loading="lazy"
                           className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
                           onClick={() => setViewingImage({ images: job.images, index: i })}
+                          onError={handleImageError}
                           draggable={false}
                         />
                       </div>
@@ -317,7 +334,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   {sortedBids.map((bid, idx) => (
                     <div key={bid.id} className={`border rounded-xl p-4 transition-all ${selectedBid === bid.id ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}>
                       <div className="flex items-start gap-4">
-                        <img src={bid.bidder_image || IMAGES.workers[idx % IMAGES.workers.length]} alt={bid.bidder_name || 'Bidder'} className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100" />
+                        <img src={optimizeImageUrl(bid.bidder_image || IMAGES.workers[idx % IMAGES.workers.length], 96, 96)} alt={bid.bidder_name || 'Bidder'} className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100" loading="lazy" onError={handleImageError} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <div>

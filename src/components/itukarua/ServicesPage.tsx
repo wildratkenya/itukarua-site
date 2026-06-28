@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Search, SlidersHorizontal, X, Plus } from 'lucide-react';
 import ServiceCard from './ServiceCard';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
@@ -91,6 +92,18 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Helmet>
+        <title>Services & Business Directory - Itukarua</title>
+        <meta name="description" content="Discover local businesses and service providers in Itukarua County. Find mechanics, plumbers, electricians and more." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/services" />
+        <meta property="og:title" content="Services & Business Directory - Itukarua" />
+        <meta property="og:description" content="Discover local businesses and service providers in Itukarua County. Find mechanics, plumbers, electricians and more." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Services & Business Directory - Itukarua" />
+        <meta name="twitter:description" content="Discover local businesses and service providers in Itukarua County. Find mechanics, plumbers, electricians and more." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -196,7 +209,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
         />
       )}
 
-      <div className="relative py-10 lg:py-14 bg-cover bg-center" style={{ backgroundImage: 'url(/images/services.png)' }}>
+      <div className="relative py-10 lg:py-14 overflow-hidden">
+        <img src="/images/services.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-black/40"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">Services & Business Directory</h1>

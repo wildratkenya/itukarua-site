@@ -1,4 +1,5 @@
 import React from 'react';
+import { Helmet } from 'react-helmet-async';
 import { MapPin, Users, Briefcase, Shield, Target, Heart, TrendingUp, Award } from 'lucide-react';
 import { IMAGES } from '@/data/siteData';
 
@@ -8,9 +9,21 @@ const STATS = { activeJobs: 156, registeredWorkers: 432, completedJobs: 1847, co
 const AboutPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
+      <Helmet>
+        <title>About Us - Itukarua</title>
+        <meta name="description" content="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers in Itukarua County, Kenya." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/about" />
+        <meta property="og:title" content="About Us - Itukarua" />
+        <meta property="og:description" content="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers in Itukarua County, Kenya." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="About Us - Itukarua" />
+        <meta name="twitter:description" content="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers in Itukarua County, Kenya." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
       {/* Hero */}
       <div className="relative">
-        <img src={IMAGES.community[1]} alt="Community" className="w-full h-64 lg:h-80 object-cover" />
+        <img src={IMAGES.community[1]} alt="ITUKARUA community members collaborating" fetchpriority="high" className="w-full h-64 lg:h-80 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 to-gray-900/30" />
         <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-12">
           <div className="max-w-7xl mx-auto">

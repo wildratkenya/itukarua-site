@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock } from 'lucide-react';
 import HeroSection from './HeroSection';
 import JobCard from './JobCard';
@@ -149,6 +150,20 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
 
   return (
     <div className="pb-12">
+      <Helmet>
+        <title>Itukarua - Find Local Jobs, Services & Opportunities in Itukarua County</title>
+        <meta name="description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/" />
+        <meta property="og:title" content="Itukarua - Find Local Jobs, Services & Opportunities in Itukarua County" />
+        <meta property="og:description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
+        <meta property="og:url" content="https://www.itukarua.co.ke/" />
+        <meta property="og:image" content="https://www.itukarua.co.ke/og.jpg" />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Itukarua - Find Local Jobs, Services & Opportunities in Itukarua County" />
+        <meta name="twitter:description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
       <HeroSection onNavigate={onNavigate} onSearch={onSearch} stats={stats} />
 
       {/* Service Detail Modal - Matches ServicesPage logic */}
