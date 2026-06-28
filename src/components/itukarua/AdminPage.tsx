@@ -1436,7 +1436,7 @@ const AdminPage: React.FC = () => {
                     const hp = document.querySelector('input[name="_website"]') as HTMLInputElement;
                     if (hp?.value) { setSubscriberMsg('Spam detected'); return; }
                     if (!newSubscriberName.trim()) { setSubscriberMsg('Name is required'); return; }
-                    if (!newSubscriberEmail.trim() || !/\S+@\S+\.\S+/.test(newSubscriberEmail)) { setSubscriberMsg('Invalid email'); return; }
+                    if (!newSubscriberEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSubscriberEmail)) { setSubscriberMsg('Invalid email'); return; }
                     const result = await subscribeNewsletter(newSubscriberEmail.trim(), newSubscriberName.trim());
                     if (result.error) { setSubscriberMsg(result.error); } else { setSubscriberMsg('Added!'); setNewSubscriberName(''); setNewSubscriberEmail(''); setSubscribers(await getNewsletterSubscribers()); }
                   }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Add</button>

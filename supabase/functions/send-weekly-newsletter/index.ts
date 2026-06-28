@@ -1,8 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import nodemailer from 'npm:nodemailer@6.9.16'
 
+const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -15,8 +17,8 @@ function createFreshTransport() {
     port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
     secure: false,
     auth: {
-      user: Deno.env.get('ETHEREAL_USER') || 'sn5lk4qnes6yyqyd@ethereal.email',
-      pass: Deno.env.get('ETHEREAL_PASS') || 'BUPHgH7pTE4sp7BFT7',
+      user: Deno.env.get('ETHEREAL_USER') || '',
+      pass: Deno.env.get('ETHEREAL_PASS') || '',
     },
   })
 }
@@ -29,7 +31,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
           <tr>
             <td style="width:80px;padding-right:12px;vertical-align:top">
               <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none">
-                <img src="${j.image || `${SITE_URL}/images/logo.png`}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
+                <img src="${escapeHtml(j.image || `${SITE_URL}/images/logo.png`)}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
               </a>
             </td>
             <td style="vertical-align:top">
@@ -45,7 +47,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
   `).join('')
 
   const adCards = ads.map(a => {
-    const img = Array.isArray(a.images) && a.images.length > 0 ? a.images[0] : a.image || `${SITE_URL}/images/logo.png`
+    const img = escapeHtml(Array.isArray(a.images) && a.images.length > 0 ? a.images[0] : a.image || `${SITE_URL}/images/logo.png`)
     return `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">

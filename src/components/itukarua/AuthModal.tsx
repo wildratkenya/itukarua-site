@@ -42,7 +42,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     const errs: Record<string, string> = {};
     if (tab === 'signup' && !formData.name.trim()) errs.name = 'Name is required';
     if (!formData.email.trim()) errs.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) errs.email = 'Invalid email';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
     if (!formData.password || formData.password.length < 6) errs.password = 'Min 6 characters';
     if (tab === 'signup' && !formData.phone.trim()) errs.phone = 'Phone is required';
     setErrors(errs);
@@ -96,7 +96,7 @@ data: {
             for (const file of filesToUpload) {
               const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
               const ext = compressed.name.split('.').pop() || (file.type.startsWith('image/') ? 'jpg' : file.name.split('.').pop());
-              const fileName = `${data.user.id}/certs/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+              const fileName = `${data.user.id}/certs/${Date.now()}_${crypto.randomUUID()}.${ext}`;
               const { error: certError } = await supabase.storage.from('adverts').upload(fileName, compressed);
               if (!certError) {
                 const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;

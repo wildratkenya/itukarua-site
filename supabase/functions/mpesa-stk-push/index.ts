@@ -1,14 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 const CONSUMER_KEY = Deno.env.get('MPESA_CONSUMER_KEY')!
 const CONSUMER_SECRET = Deno.env.get('MPESA_CONSUMER_SECRET')!
-const PASSKEY = Deno.env.get('MPESA_PASSKEY') || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
-const SHORTCODE = Deno.env.get('MPESA_SHORTCODE') || '174379'
+const PASSKEY = Deno.env.get('MPESA_PASSKEY') || ''
+const SHORTCODE = Deno.env.get('MPESA_SHORTCODE') || ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SIMULATE = Deno.env.get('MPESA_SIMULATE') === 'true'
@@ -144,7 +146,7 @@ Deno.serve(async (req) => {
           const darajaDesc = stkData.ResponseDescription ?? stkData.responseDesc
 
           if (darajaCode !== '0' && darajaCode !== 0) {
-            console.error('[STK Push] Daraja error:', JSON.stringify(stkData))
+            console.error('[STK Push] Daraja error code:', darajaCode, 'desc:', darajaDesc)
             return new Response(
               JSON.stringify({ error: `Daraja: ${darajaDesc}`, daraja: stkData }),
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -178,7 +180,8 @@ Deno.serve(async (req) => {
     // ─── Handle Safaricom Callback ─────────────────────────────────
     if (req.method === 'POST' && path === '/callback') {
       const callbackData = await req.json()
-      console.log('[STK Callback] Received:', JSON.stringify(callbackData))
+      const safeCallback = { ...callbackData, Body: { ...callbackData.Body, stkCallback: { ResultCode: callbackData.Body?.stkCallback?.ResultCode, CheckoutRequestID: callbackData.Body?.stkCallback?.CheckoutRequestID } } }
+      console.log('[STK Callback] ResultCode:', safeCallback.Body?.stkCallback?.ResultCode, 'CheckoutRequestID:', safeCallback.Body?.stkCallback?.CheckoutRequestID)
 
       const { Body } = callbackData
       if (!Body?.stkCallback) {

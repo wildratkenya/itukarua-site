@@ -1,8 +1,14 @@
 import nodemailer from 'npm:nodemailer@6.9.16'
 
+const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 function createTransport() {
@@ -11,8 +17,8 @@ function createTransport() {
     port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
     secure: false,
     auth: {
-      user: Deno.env.get('ETHEREAL_USER') || 'sn5lk4qnes6yyqyd@ethereal.email',
-      pass: Deno.env.get('ETHEREAL_PASS') || 'BUPHgH7pTE4sp7BFT7',
+      user: Deno.env.get('ETHEREAL_USER') || '',
+      pass: Deno.env.get('ETHEREAL_PASS') || '',
     },
   })
 }
@@ -22,6 +28,11 @@ Deno.serve(async (req) => {
 
   try {
     const { name, email, phone, subject, message } = await req.json()
+    const eName = escapeHtml(name || '')
+    const eEmail = escapeHtml(email || '')
+    const ePhone = escapeHtml(phone || '')
+    const eSubject = escapeHtml(subject || 'General Inquiry')
+    const eMessage = escapeHtml(message || '')
 
     const html = `
 <!DOCTYPE html>
@@ -33,14 +44,14 @@ Deno.serve(async (req) => {
   </td></tr>
   <tr><td style="padding:24px">
     <table style="width:100%;border-collapse:collapse">
-      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;width:100px">Name</td><td style="padding:8px 12px">${name}</td></tr>
-      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Email</td><td style="padding:8px 12px">${email}</td></tr>
-      ${phone ? `<tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Phone</td><td style="padding:8px 12px">${phone}</td></tr>` : ''}
-      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Subject</td><td style="padding:8px 12px">${subject || 'General Inquiry'}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;width:100px">Name</td><td style="padding:8px 12px">${eName}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Email</td><td style="padding:8px 12px">${eEmail}</td></tr>
+      ${phone ? `<tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Phone</td><td style="padding:8px 12px">${ePhone}</td></tr>` : ''}
+      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Subject</td><td style="padding:8px 12px">${eSubject}</td></tr>
     </table>
     <div style="margin-top:16px;padding:16px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">
       <p style="margin:0 0 8px;font-weight:600;color:#111827">Message:</p>
-      <p style="margin:0;color:#374151;line-height:1.6;white-space:pre-wrap">${message}</p>
+      <p style="margin:0;color:#374151;line-height:1.6;white-space:pre-wrap">${eMessage}</p>
     </div>
   </td></tr>
 </table>
@@ -51,8 +62,8 @@ Deno.serve(async (req) => {
     await transport.sendMail({
       from: 'Itukarua Contact <noreply@itukarua.ke>',
       to: 'info@itukarua.co.ke',
-      subject: `Contact: ${subject || 'General Inquiry'} from ${name}`,
-      text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\nSubject: ${subject || 'General Inquiry'}\nMessage:\n${message}`,
+      subject: `Contact: ${eSubject} from ${eName}`,
+      text: `Name: ${eName}\nEmail: ${eEmail}\nPhone: ${ePhone || 'N/A'}\nSubject: ${eSubject}\nMessage:\n${eMessage}`,
       html,
     })
 
