@@ -1,4 +1,5 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle, Bell } from 'lucide-react';
 import { createMessage } from '@/lib/database';
 import { supabaseUrl, supabaseKey } from '@/lib/supabase';
@@ -77,7 +78,20 @@ const ContactPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="relative py-14 lg:py-20 bg-cover bg-center" style={{ backgroundImage: 'url(/images/contact.png)' }}>
+      <Helmet>
+        <title>Contact Us - Itukarua</title>
+        <meta name="description" content="Get in touch with the Itukarua team. Send us a message and we'll respond as soon as possible." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/contact" />
+        <meta property="og:title" content="Contact Us - Itukarua" />
+        <meta property="og:description" content="Get in touch with the Itukarua team. Send us a message and we'll respond as soon as possible." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Contact Us - Itukarua" />
+        <meta name="twitter:description" content="Get in touch with the Itukarua team. Send us a message and we'll respond as soon as possible." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
+      <div className="relative py-14 lg:py-20 overflow-hidden">
+        <img src="/images/contact.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-black/40"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3">Contact Us</h1>

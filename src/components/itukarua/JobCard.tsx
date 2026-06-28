@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Clock, Users, AlertTriangle, Camera } from 'lucide-react';
+import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import { IMAGES } from '@/data/siteData';
 
 interface Job {
   id: string; title: string; description: string; location: string; county?: string; subcounty?: string; budgetMin: number; budgetMax: number;
@@ -42,12 +44,11 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
         {images.length > 0 ? (
           <>
             <img
-              src={images[currentImageIndex]}
+              src={optimizeImageUrl(images[currentImageIndex], 400, 400)}
               alt={`${job.title} - Image ${currentImageIndex + 1}`}
+              loading="lazy"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800';
-              }}
+              onError={handleImageError}
               draggable={false}
             />
             {hasMultipleImages && (
@@ -105,8 +106,9 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
           </>
         ) : (
           <img
-            src='https://images.unsplash.com/photo-1581578731522-745d05ad9a2d?auto=format&fit=crop&q=80&w=800'
+            src={IMAGES.services[0]}
             alt={job.title}
+            loading="lazy"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         )}
@@ -118,7 +120,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
               onClick={(e) => e.stopPropagation()}
               className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
             >
-              <img src={images[0]} alt="" className="w-full h-full object-cover" />
+              <img src={optimizeImageUrl(images[0], 100, 100)} alt="" className="w-full h-full object-cover" />
             </button>
           ) : (
             images.map((img, i) => (
@@ -132,7 +134,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
                   i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
                 }`}
               >
-                <img src={img} alt="" className="w-full h-full object-cover" />
+                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
               </button>
             ))
           )}

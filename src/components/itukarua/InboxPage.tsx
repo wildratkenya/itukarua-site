@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Send, Loader2, User } from 'lucide-react';
 import { getConversations, getConversationMessages, sendMessage, markConversationRead, type DbConversationWithParticipant, type DbDirectMessage } from '@/lib/database';
-import { supabase } from '@/lib/supabase';
+import { supabase, optimizeImageUrl } from '@/lib/supabase';
 
 interface InboxPageProps {
   userId: string;
@@ -97,6 +98,18 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Helmet>
+        <title>Messages - Itukarua</title>
+        <meta name="description" content="View and manage your messages on Itukarua." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/messages" />
+        <meta property="og:title" content="Messages - Itukarua" />
+        <meta property="og:description" content="View and manage your messages on Itukarua." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Messages - Itukarua" />
+        <meta name="twitter:description" content="View and manage your messages on Itukarua." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-4 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <button onClick={onBack} className="text-green-200 hover:text-white transition-colors">
@@ -130,7 +143,7 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                         {conv.other_user_image ? (
-                          <img src={conv.other_user_image} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          <img src={optimizeImageUrl(conv.other_user_image, 100, 100)} alt="" className="w-10 h-10 rounded-full object-cover" />
                         ) : (
                           <User className="w-5 h-5 text-green-700" />
                         )}
@@ -165,7 +178,7 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
                   </button>
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                     {activeConvData.other_user_image ? (
-                      <img src={activeConvData.other_user_image} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      <img src={optimizeImageUrl(activeConvData.other_user_image, 80, 80)} alt="" className="w-8 h-8 rounded-full object-cover" />
                     ) : (
                       <User className="w-4 h-4 text-green-700" />
                     )}

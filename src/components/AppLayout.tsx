@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '@/lib/supabase';
 import { getProfile, type DbProfile } from '@/lib/database';
 import Header, { type Page } from './itukarua/Header';
@@ -274,6 +275,40 @@ const AppLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Helmet>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "Organization",
+                "@id": "https://www.itukarua.co.ke/#organization",
+                "name": "Itukarua",
+                "url": "https://www.itukarua.co.ke/",
+                "logo": {
+                  "@type": "ImageObject",
+                  "url": "https://www.itukarua.co.ke/og.jpg"
+                }
+              },
+              {
+                "@type": "WebSite",
+                "@id": "https://www.itukarua.co.ke/#website",
+                "url": "https://www.itukarua.co.ke/",
+                "name": "Itukarua",
+                "description": "Local marketplace for jobs, services, and business listings in Itukarua County, Kenya.",
+                "potentialAction": {
+                  "@type": "SearchAction",
+                  "target": {
+                    "@type": "EntryPoint",
+                    "urlTemplate": "https://www.itukarua.co.ke/?q={search_term_string}"
+                  },
+                  "query-input": "required name=search_term_string"
+                }
+              }
+            ]
+          })}
+        </script>
+      </Helmet>
       <Header
         currentPage={currentPage}
         onNavigate={handleNavigate}

@@ -6,6 +6,10 @@ emergency_disable_rls.sql
 fix_rls_policies.sql
 src/lib/ratings_db.txt
 
+# Supabase temp / dumps
+supabase/.temp/
+supabase/dump.sql
+
 # Logs
 logs
 *.log

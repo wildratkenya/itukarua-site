@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import { JOB_CATEGORIES, LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
@@ -77,7 +78,20 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="relative py-10 lg:py-14 bg-cover bg-center" style={{ backgroundImage: 'url(/images/plumber.png)' }}>
+      <Helmet>
+        <title>Browse Jobs - Itukarua</title>
+        <meta name="description" content="Browse available jobs and work opportunities in Itukarua County, Kenya. Find local employment across all wards." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/jobs" />
+        <meta property="og:title" content="Browse Jobs - Itukarua" />
+        <meta property="og:description" content="Browse available jobs and work opportunities in Itukarua County, Kenya. Find local employment across all wards." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Browse Jobs - Itukarua" />
+        <meta name="twitter:description" content="Browse available jobs and work opportunities in Itukarua County, Kenya. Find local employment across all wards." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
+      <div className="relative py-10 lg:py-14 overflow-hidden">
+        <img src="/images/plumber.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-black/40"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">Browse Jobs</h1>

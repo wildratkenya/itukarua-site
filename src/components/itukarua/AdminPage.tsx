@@ -1646,7 +1646,7 @@ const AdminPage: React.FC = () => {
                 <div className="flex gap-2 mb-2">
                   {editingJob.images.map((img: string, i: number) => (
                     <div key={i} className="relative w-20 h-20 rounded border border-gray-200 overflow-hidden group">
-                      <img src={img} alt="" className="w-full h-full object-cover" />
+                      <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
                       <button 
                         type="button"
                         onClick={() => {
@@ -1916,7 +1916,7 @@ const AdminPage: React.FC = () => {
                                 <span className="text-[8px] mt-1 truncate px-1">Cert {i + 1}</span>
                               </div>
                             ) : (
-                              <img src={cert} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                              <img src={optimizeImageUrl(cert, 100, 100)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                             )}
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <span className="text-white text-[10px] font-bold">View Full</span>
@@ -2149,7 +2149,7 @@ const AdminPage: React.FC = () => {
                 <Label>Profile Photo</Label>
                 {(editProfileImageFile || editingUser.profile_image) && (
                   <div className="relative w-16 h-16 mb-2 rounded-full overflow-hidden border-2 border-green-200">
-                    <img src={editProfileImageFile ? URL.createObjectURL(editProfileImageFile) : editingUser.profile_image} alt="" className="w-full h-full object-cover" />
+                    <img src={optimizeImageUrl(editProfileImageFile ? URL.createObjectURL(editProfileImageFile) : editingUser.profile_image, 200, 200)} alt="" className="w-full h-full object-cover" />
                     {editProfileImageFile && (
                       <button type="button" onClick={() => setEditProfileImageFile(null)} className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center text-[10px] rounded-full">X</button>
                     )}

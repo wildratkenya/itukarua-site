@@ -60,7 +60,6 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
               src={optimizeImageUrl(allImages[currentImageIndex], 400, 400)}
               alt={`${service.businessName} - Image ${currentImageIndex + 1}`}
               loading="lazy"
-              fetchpriority="high"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               onError={handleImageError}
               draggable={false}
@@ -140,7 +139,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
               onClick={(e) => e.stopPropagation()}
               className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
             >
-              <img src={optimizeImageUrl(allImages[0], 100, 100)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
+              <img src={optimizeImageUrl(allImages[0], 100, 100)} alt="" className="w-full h-full object-cover" loading="lazy" onError={handleImageError} />
             </button>
           ) : (
             allImages.map((img, i) => (
@@ -154,7 +153,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
                 }`}
               >
-                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
+                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" loading="lazy" onError={handleImageError} />
               </button>
             ))
           )}

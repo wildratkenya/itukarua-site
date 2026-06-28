@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw } from 'lucide-react';
 import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
 import { supabase, optimizeImageUrl } from '@/lib/supabase';
@@ -201,6 +202,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Helmet>
+        <title>Dashboard - Itukarua</title>
+        <meta name="description" content="Manage your account, job listings, and service listings on Itukarua." />
+        <link rel="canonical" href="https://www.itukarua.co.ke/dashboard" />
+        <meta property="og:title" content="Dashboard - Itukarua" />
+        <meta property="og:description" content="Manage your account, job listings, and service listings on Itukarua." />
+        <meta property="og:site_name" content="Itukarua" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Dashboard - Itukarua" />
+        <meta name="twitter:description" content="Manage your account, job listings, and service listings on Itukarua." />
+        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+      </Helmet>
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
