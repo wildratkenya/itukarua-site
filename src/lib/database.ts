@@ -1142,3 +1142,13 @@ export async function deleteAd(id: string) {
     .eq('id', id);
   if (error) throw error;
 }
+
+export async function incrementAdClick(adId: string) {
+  const { error } = await supabase.rpc('increment_ad_click', { ad_id: adId });
+  if (error) console.error('[Ad] click increment failed:', error);
+}
+
+export async function incrementAdDisplay(adId: string) {
+  const { error } = await supabase.rpc('increment_ad_display', { ad_id: adId });
+  if (error) console.error('[Ad] display increment failed:', error);
+}
