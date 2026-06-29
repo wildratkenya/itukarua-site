@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal } from 'lucide-react';
+import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight, X } from 'lucide-react';
 import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
 import { getCustomCategories, getNewsletterSubscribers } from '@/lib/database';
@@ -26,10 +26,15 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
   const [filterLocation, setFilterLocation] = useState('');
   const [extraCats, setExtraCats] = useState<string[]>([]);
   const [subCount, setSubCount] = useState(0);
+  const [showAds, setShowAds] = useState(false);
+  const [affiliateAds, setAffiliateAds] = useState<any[]>([]);
 
   useEffect(() => {
     getCustomCategories('job').then(setExtraCats);
     getNewsletterSubscribers().then(subs => setSubCount(subs.length));
+    supabase.from('advertisements').select('*').eq('active', true).order('sort_order').then(({ data }) => {
+      if (data && data.length > 0) setAffiliateAds(data);
+    });
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -102,34 +107,73 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 mb-6">
-              <div className="flex gap-2">
-                <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-                  <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
-                  <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
-                </button>
-                <button onClick={() => onNavigate('services')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-                  <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-orange-400" /></div>
-                  <div className="text-left"><p className="text-white font-semibold text-xs">Services</p><p className="text-gray-400 text-[10px]">Local businesses</p></div>
-                </button>
-                <button onClick={() => onNavigate('post-job')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-                  <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-400" /></div>
-                  <div className="text-left"><p className="text-white font-semibold text-xs">Post a Job</p><p className="text-gray-400 text-[10px]">Hire local talent</p></div>
-                </button>
+            <div className="relative">
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <div className="flex gap-2">
+                  <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                    <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
+                    <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
+                  </button>
+                  <button onClick={() => onNavigate('services')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                    <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-orange-400" /></div>
+                    <div className="text-left"><p className="text-white font-semibold text-xs">Services</p><p className="text-gray-400 text-[10px]">Local businesses</p></div>
+                  </button>
+                  <button onClick={() => onNavigate('post-job')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                    <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-400" /></div>
+                    <div className="text-left"><p className="text-white font-semibold text-xs">Post a Job</p><p className="text-gray-400 text-[10px]">Hire local talent</p></div>
+                  </button>
+                </div>
+                <div className="flex gap-4 lg:gap-6 flex-shrink-0">
+                  {[
+                    { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
+                    { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
+                    { label: 'Subscribers', value: `${subCount}+` },
+                    { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
+                  ].map(stat => (
+                    <div key={stat.label}>
+                      <p className="text-lg lg:text-xl font-bold text-white">{stat.value}</p>
+                      <p className="text-[10px] text-gray-400">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-4 lg:gap-6 flex-shrink-0">
-                {[
-                  { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
-                  { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
-                  { label: 'Subscribers', value: `${subCount}+` },
-                  { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
-                ].map(stat => (
-                  <div key={stat.label}>
-                    <p className="text-lg lg:text-xl font-bold text-white">{stat.value}</p>
-                    <p className="text-[10px] text-gray-400">{stat.label}</p>
+
+              {/* Affiliate Ads Pin & Rollout */}
+              {affiliateAds.length > 0 && (
+                <div className="absolute right-0 top-0 -mr-3 z-10">
+                  <button
+                    onClick={() => setShowAds(!showAds)}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ${
+                      showAds
+                        ? 'bg-green-500 border-green-400 text-white'
+                        : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white'
+                    }`}
+                    title={showAds ? 'Close' : 'Sponsored'}
+                  >
+                    {showAds ? <X className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              )}
+
+              {showAds && affiliateAds.length > 0 && (
+                <div className="mb-6 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    {affiliateAds.map(ad => (
+                      <a
+                        key={ad.id}
+                        href={`${ad.destination_url}?ref=ad_${ad.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/15 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <img src={ad.image_url} alt="" className="w-7 h-7 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <span className="text-xs text-white/80 font-medium whitespace-nowrap">{ad.title}</span>
+                        <span className="px-1 py-0.5 bg-amber-500/20 text-amber-300 text-[9px] font-bold rounded uppercase">Ad</span>
+                      </a>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
