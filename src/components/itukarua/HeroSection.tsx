@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight, X } from 'lucide-react';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ExternalLink } from 'lucide-react';
 import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
-import { getCustomCategories, getNewsletterSubscribers, getActiveAds } from '@/lib/database';
+import { getCustomCategories, getNewsletterSubscribers, getActiveAds, incrementAdClick, incrementAdDisplay } from '@/lib/database';
+import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 
@@ -18,6 +19,8 @@ const steps = [
   { icon: CreditCard, title: 'Pay via M-Pesa', desc: 'Complete payment through M-Pesa after job completion. Secure and fast.', color: 'bg-purple-100 text-purple-600' },
 ];
 
+const AD_INTERVAL = 8000;
+
 const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -25,8 +28,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
   const [filterLocation, setFilterLocation] = useState('');
   const [extraCats, setExtraCats] = useState<string[]>([]);
   const [subCount, setSubCount] = useState(0);
-  const [showAds, setShowAds] = useState(false);
   const [affiliateAds, setAffiliateAds] = useState<any[]>([]);
+  const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const displayedAds = useRef<Set<string>>(new Set());
+  const rotationRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     getCustomCategories('job').then(setExtraCats);
@@ -36,6 +42,28 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
       if (ads && ads.length > 0) setAffiliateAds(ads);
     }).catch(err => console.error('[Hero] Failed to fetch ads:', err));
   }, []);
+
+  useEffect(() => {
+    if (affiliateAds.length === 0) return;
+    if (rotationRef.current) clearInterval(rotationRef.current);
+    rotationRef.current = setInterval(() => {
+      if (!isHovered) {
+        setCurrentAdIndex(prev => (prev + 1) % affiliateAds.length);
+      }
+    }, AD_INTERVAL);
+    return () => { if (rotationRef.current) clearInterval(rotationRef.current); };
+  }, [affiliateAds.length, isHovered]);
+
+  useEffect(() => {
+    if (affiliateAds.length === 0) return;
+    const ad = affiliateAds[currentAdIndex];
+    if (ad && !displayedAds.current.has(ad.id)) {
+      displayedAds.current.add(ad.id);
+      incrementAdDisplay(ad.id);
+    }
+  }, [currentAdIndex, affiliateAds]);
+
+  const currentAd = affiliateAds.length > 0 ? affiliateAds[currentAdIndex] : null;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,74 +135,85 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
               </div>
             )}
 
-            <div className="relative">
-              <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex gap-2">
-                  <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-                    <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
-                    <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
-                  </button>
-                  <button onClick={() => onNavigate('services')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-                    <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-orange-400" /></div>
-                    <div className="text-left"><p className="text-white font-semibold text-xs">Services</p><p className="text-gray-400 text-[10px]">Local businesses</p></div>
-                  </button>
-                  <button onClick={() => onNavigate('post-job')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
-                    <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-400" /></div>
-                    <div className="text-left"><p className="text-white font-semibold text-xs">Post a Job</p><p className="text-gray-400 text-[10px]">Hire local talent</p></div>
-                  </button>
-                </div>
-                <div className="flex gap-4 lg:gap-6 flex-shrink-0">
-                  {[
-                    { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
-                    { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
-                    { label: 'Subscribers', value: `${subCount}+` },
-                    { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
-                  ].map(stat => (
-                    <div key={stat.label}>
-                      <p className="text-lg lg:text-xl font-bold text-white">{stat.value}</p>
-                      <p className="text-[10px] text-gray-400">{stat.label}</p>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex gap-2">
+                <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                  <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
+                  <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
+                </button>
+                <button onClick={() => onNavigate('services')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                  <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-orange-400" /></div>
+                  <div className="text-left"><p className="text-white font-semibold text-xs">Services</p><p className="text-gray-400 text-[10px]">Local businesses</p></div>
+                </button>
+                <button onClick={() => onNavigate('post-job')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
+                  <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-purple-400" /></div>
+                  <div className="text-left"><p className="text-white font-semibold text-xs">Post a Job</p><p className="text-gray-400 text-[10px]">Hire local talent</p></div>
+                </button>
               </div>
+              <div className="flex gap-4 lg:gap-6 flex-shrink-0">
+                {[
+                  { label: 'Active Jobs', value: `${stats?.active_jobs || 0}+` },
+                  { label: 'Workers', value: `${stats?.registered_workers || 0}+` },
+                  { label: 'Subscribers', value: `${subCount}+` },
+                  { label: 'Jobs Done', value: `${stats?.completed_jobs || 0}+` },
+                ].map(stat => (
+                  <div key={stat.label}>
+                    <p className="text-lg lg:text-xl font-bold text-white">{stat.value}</p>
+                    <p className="text-[10px] text-gray-400">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-              {/* Affiliate Ads Pin & Rollout */}
-              {affiliateAds.length > 0 && (
-                <div className="absolute -right-3 top-1/2 -translate-y-1/2 z-10">
-                  <button
-                    onClick={() => setShowAds(!showAds)}
-                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ${
-                      showAds
-                        ? 'bg-green-500 border-green-400 text-white'
-                        : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white'
-                    }`}
-                    title={showAds ? 'Close' : 'Sponsored'}
-                  >
-                    {showAds ? <X className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              )}
-
-              {showAds && affiliateAds.length > 0 && (
-                <div className="mb-6 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 transition-all duration-200">
-                  <div className="flex items-center gap-2 overflow-x-auto">
-                    {affiliateAds.map(ad => (
-                      <a
-                        key={ad.id}
-                        href={`${ad.destination_url}?ref=ad_${ad.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/15 rounded-lg transition-colors flex-shrink-0"
-                      >
-                        <img src={ad.image_url} alt="" className="w-7 h-7 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        <span className="text-xs text-white/80 font-medium whitespace-nowrap">{ad.title}</span>
-                        <span className="px-1 py-0.5 bg-amber-500/20 text-amber-300 text-[9px] font-bold rounded uppercase">Ad</span>
-                      </a>
-                    ))}
+            {/* Affiliate Ad Strip — Persistent, one ad at a time */}
+            {currentAd && (
+              <a
+                href={`${currentAd.destination_url}?ref=ad_${currentAd.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => incrementAdClick(currentAd.id)}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className="block group mb-6"
+              >
+                <div className="flex items-center gap-4 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 hover:bg-white/15 transition-all duration-200">
+                  <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+                    <img
+                      src={optimizeImageUrl(currentAd.image_url, 120, 120)}
+                      alt={currentAd.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={handleImageError}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-semibold text-white truncate">{currentAd.title}</h4>
+                    <p className="text-xs text-gray-300 mt-0.5 line-clamp-2 leading-relaxed">
+                      {currentAd.description || 'Click to learn more about this offer'}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <span className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                      {currentAd.cta_text || 'Learn More'} <ExternalLink className="w-3 h-3" />
+                    </span>
+                    <span className="sm:hidden px-1.5 py-0.5 bg-green-600 text-white text-[10px] font-bold rounded">Go</span>
+                    <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded uppercase">Ad</span>
                   </div>
                 </div>
-              )}
-            </div>
+                {/* Dot indicators */}
+                {affiliateAds.length > 1 && (
+                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                    {affiliateAds.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={e => { e.preventDefault(); setCurrentAdIndex(i); }}
+                        className={`w-1.5 h-1.5 rounded-full transition-colors ${i === currentAdIndex ? 'bg-white' : 'bg-white/30 hover:bg-white/50'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </a>
+            )}
           </div>
 
           {/* Right Column: How It Works Timeline */}
