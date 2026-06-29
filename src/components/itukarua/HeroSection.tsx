@@ -1,8 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight, X } from 'lucide-react';
 import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
-import { supabase } from '@/lib/supabase';
-import { getCustomCategories, getNewsletterSubscribers } from '@/lib/database';
+import { getCustomCategories, getNewsletterSubscribers, getActiveAds } from '@/lib/database';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 
@@ -32,9 +31,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
   useEffect(() => {
     getCustomCategories('job').then(setExtraCats);
     getNewsletterSubscribers().then(subs => setSubCount(subs.length));
-    supabase.from('advertisements').select('*').eq('active', true).order('sort_order').then(({ data }) => {
-      if (data && data.length > 0) setAffiliateAds(data);
-    });
+    getActiveAds().then(ads => {
+      console.debug('[Hero] Active ads fetched:', ads?.length);
+      if (ads && ads.length > 0) setAffiliateAds(ads);
+    }).catch(err => console.error('[Hero] Failed to fetch ads:', err));
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -140,7 +140,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
 
               {/* Affiliate Ads Pin & Rollout */}
               {affiliateAds.length > 0 && (
-                <div className="absolute right-0 top-0 -mr-3 z-10">
+                <div className="absolute -right-3 top-1/2 -translate-y-1/2 z-10">
                   <button
                     onClick={() => setShowAds(!showAds)}
                     className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border ${
@@ -156,7 +156,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
               )}
 
               {showAds && affiliateAds.length > 0 && (
-                <div className="mb-6 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 animate-in slide-in-from-top-2 duration-200">
+                <div className="mb-6 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 transition-all duration-200">
                   <div className="flex items-center gap-2 overflow-x-auto">
                     {affiliateAds.map(ad => (
                       <a
