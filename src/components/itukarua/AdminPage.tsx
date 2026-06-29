@@ -138,6 +138,9 @@ const AdminPage: React.FC = () => {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [trashedUsers, setTrashedUsers] = useState<Profile[]>([]);
   const [showTrash, setShowTrash] = useState(false);
+  const [adverts, setAdverts] = useState<any[]>([]);
+  const [showAdForm, setShowAdForm] = useState(false);
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', is_affiliate: false });
 
   useEffect(() => {
     loadData();
@@ -146,6 +149,11 @@ const AdminPage: React.FC = () => {
   const loadAds = async () => {
     const { data } = await supabase.from('service_ads').select('*').order('created_at', { ascending: false });
     setAds(data || []);
+  };
+
+  const loadAdverts = async () => {
+    const { data } = await supabase.from('advertisements').select('*').order('sort_order');
+    setAdverts(data || []);
   };
 
   const loadJobs = async () => {
@@ -168,6 +176,7 @@ const AdminPage: React.FC = () => {
         supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
         supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || [])),
         getNewsletterSubscribers().then(setSubscribers),
+        loadAdverts(),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
       ]);
@@ -939,7 +948,7 @@ const AdminPage: React.FC = () => {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="jobs">Jobs</TabsTrigger>
             <TabsTrigger value="ads">Ads</TabsTrigger>
@@ -947,6 +956,7 @@ const AdminPage: React.FC = () => {
             <TabsTrigger value="messages">Messages</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="subscribers">Subscribers</TabsTrigger>
+            <TabsTrigger value="adverts">Adverts</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
@@ -1528,6 +1538,97 @@ const AdminPage: React.FC = () => {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="adverts">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Advertisements ({adverts.length})</CardTitle>
+                <Button onClick={() => { setAdForm({ title: '', image_url: '', destination_url: '', is_affiliate: false }); setShowAdForm(true); }}>+ Add Advert</Button>
+              </CardHeader>
+              <CardContent>
+                {showAdForm && (
+                  <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Advert'}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                          Affiliate
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={async () => {
+                        if (!adForm.title || !adForm.image_url || !adForm.destination_url) return;
+                        try {
+                          if (adForm.id) {
+                            const { error } = await supabase.from('advertisements').update(adForm).eq('id', adForm.id);
+                            if (error) throw error;
+                          } else {
+                            const { error } = await supabase.from('advertisements').insert(adForm);
+                            if (error) throw error;
+                          }
+                          setShowAdForm(false);
+                          loadAdverts();
+                        } catch (err: any) {
+                          toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                        }
+                      }} className="bg-green-600 hover:bg-green-700">{adForm.id ? 'Update' : 'Create'}</Button>
+                      <Button variant="outline" onClick={() => setShowAdForm(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+                {adverts.length === 0 ? (
+                  <p className="text-sm text-gray-400">No advertisements yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-3 font-medium text-gray-600">Image</th>
+                          <th className="text-left py-2 px-3 font-medium text-gray-600">Title</th>
+                          <th className="text-left py-2 px-3 font-medium text-gray-600">Destination</th>
+                          <th className="text-center py-2 px-3 font-medium text-gray-600">Type</th>
+                          <th className="text-center py-2 px-3 font-medium text-gray-600">Active</th>
+                          <th className="text-right py-2 px-3 font-medium text-gray-600">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adverts.map(ad => (
+                          <tr key={ad.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-2 px-3">
+                              <img src={ad.image_url} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            </td>
+                            <td className="py-2 px-3 text-gray-800 font-medium">{ad.title}</td>
+                            <td className="py-2 px-3 text-gray-500 truncate max-w-[200px]">{ad.destination_url}</td>
+                            <td className="py-2 px-3 text-center">{ad.is_affiliate ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded">Affiliate</span> : <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded">Managed</span>}</td>
+                            <td className="py-2 px-3 text-center">
+                              <button onClick={async () => {
+                                await supabase.from('advertisements').update({ active: !ad.active }).eq('id', ad.id);
+                                loadAdverts();
+                              }} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                              </button>
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url, is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
+                              <button onClick={async () => {
+                                if (!confirm(`Delete "${ad.title}"?`)) return;
+                                await supabase.from('advertisements').delete().eq('id', ad.id);
+                                loadAdverts();
+                              }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>

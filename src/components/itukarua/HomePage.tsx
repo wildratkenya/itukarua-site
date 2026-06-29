@@ -4,6 +4,7 @@ import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap,
 import HeroSection from './HeroSection';
 import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
+import AdBar from './AdBar';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
@@ -165,6 +166,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
       </Helmet>
       <HeroSection onNavigate={onNavigate} onSearch={onSearch} stats={stats} />
+      <AdBar />
 
       {/* Service Detail Modal - Matches ServicesPage logic */}
       {selectedService && (

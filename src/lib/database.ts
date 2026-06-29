@@ -1095,3 +1095,50 @@ export async function deleteCustomCategory(name: string, type: 'job' | 'service'
   if (error) return { error: error.message };
   return {};
 }
+
+// ─── Advertisements ──────────────────────────────────────────────────────────
+
+export async function getActiveAds() {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .eq('active', true)
+    .order('sort_order');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getAllAds() {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .order('sort_order');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createAd(ad: { title: string; image_url: string; destination_url: string; is_affiliate?: boolean; sort_order?: number }) {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .insert(ad)
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAd(id: string, updates: Partial<{ title: string; image_url: string; destination_url: string; is_affiliate: boolean; active: boolean; sort_order: number }>) {
+  const { error } = await supabase
+    .from('advertisements')
+    .update(updates)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAd(id: string) {
+  const { error } = await supabase
+    .from('advertisements')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
