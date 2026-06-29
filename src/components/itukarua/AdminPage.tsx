@@ -140,7 +140,7 @@ const AdminPage: React.FC = () => {
   const [showTrash, setShowTrash] = useState(false);
   const [adverts, setAdverts] = useState<any[]>([]);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; description: string; cta_text: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', is_affiliate: false });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
 
   useEffect(() => {
     loadData();
@@ -1547,7 +1547,7 @@ const AdminPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisements ({adverts.length})</CardTitle>
-                <Button onClick={() => { setAdForm({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', is_affiliate: false }); setShowAdForm(true); }}>+ Add Advert</Button>
+                <Button onClick={() => { setAdForm({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false }); setShowAdForm(true); }}>+ Add Advert</Button>
               </CardHeader>
               <CardContent>
                 {showAdForm && (
@@ -1559,6 +1559,7 @@ const AdminPage: React.FC = () => {
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
                         <label className="flex items-center gap-2 text-sm text-gray-700">
                           <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
@@ -1624,7 +1625,7 @@ const AdminPage: React.FC = () => {
                               </button>
                             </td>
                             <td className="py-2 px-3 text-right">
-                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url, description: ad.description || '', cta_text: ad.cta_text || 'Learn More', is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
+                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url, description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
                               <button onClick={async () => {
                                 if (!confirm(`Delete "${ad.title}"?`)) return;
                                 await supabase.from('advertisements').delete().eq('id', ad.id);
