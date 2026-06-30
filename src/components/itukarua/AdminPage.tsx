@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
@@ -141,6 +141,7 @@ const AdminPage: React.FC = () => {
   const [adverts, setAdverts] = useState<any[]>([]);
   const [showAdForm, setShowAdForm] = useState(false);
   const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
+  const [advUploading, setAdvUploading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -1555,7 +1556,33 @@ const AdminPage: React.FC = () => {
                     <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Advert'}</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                       <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <div className="col-span-full">
+                        <div className="flex gap-2">
+                          <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                          <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+                            {advUploading ? 'Uploading...' : 'Upload'}
+                            <input type="file" accept="image/*" hidden disabled={advUploading} onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setAdvUploading(true);
+                              try {
+                                const compressed = await compressImage(file);
+                                const fileName = `adverts/${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+                                const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed);
+                                if (uploadError) throw uploadError;
+                                const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
+                                setAdForm(f => ({ ...f, image_url: publicUrl }));
+                                toast({ title: 'Uploaded', description: 'Image uploaded successfully' });
+                              } catch (err: any) {
+                                toast({ title: 'Upload Error', description: err.message, variant: 'destructive' });
+                              } finally { setAdvUploading(false); e.target.value = ''; }
+                            }} />
+                          </label>
+                        </div>
+                        {adForm.image_url && (
+                          <img src={adForm.image_url} alt="" className="mt-2 h-20 w-auto rounded border border-gray-200 object-cover" onError={handleImageError} />
+                        )}
+                      </div>
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
