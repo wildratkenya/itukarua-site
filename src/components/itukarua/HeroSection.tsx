@@ -173,9 +173,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
                   className="w-full relative rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-all focus:outline-none"
                 >
                   <img
-                    src={optimizeImageUrl(currentAd.image_url, 800, 220)}
+                    key={currentAdIndex}
+                    src={optimizeImageUrl(currentAd.image_url, 1200, 150)}
                     alt={currentAd.title}
-                    className="w-full h-28 lg:h-32 object-cover"
+                    className="w-full aspect-[728/90] object-cover animate-fade-in"
                     loading="lazy"
                     onError={handleImageError}
                   />
