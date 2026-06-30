@@ -19,7 +19,7 @@ const steps = [
   { icon: CreditCard, title: 'Pay via M-Pesa', desc: 'Complete payment through M-Pesa after job completion. Secure and fast.', color: 'bg-purple-100 text-purple-600' },
 ];
 
-const AD_INTERVAL = 8000;
+const AD_INTERVAL = 5000;
 
 const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }) => {
   const [searchQuery, setSearchQuery] = useState('');
