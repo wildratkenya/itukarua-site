@@ -1599,7 +1599,8 @@ const AdminPage: React.FC = () => {
                         if (!adForm.title || !adForm.image_url || !adForm.destination_url) return;
                         try {
                           if (adForm.id) {
-                            const { error } = await supabase.from('advertisements').update(adForm).eq('id', adForm.id);
+                            const { id, ...updateData } = adForm;
+                            const { error } = await supabase.from('advertisements').update(updateData).eq('id', adForm.id);
                             if (error) throw error;
                           } else {
                             const { error } = await supabase.from('advertisements').insert(adForm);
