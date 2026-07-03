@@ -176,7 +176,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, stats }
                     key={currentAdIndex}
                     src={optimizeImageUrl(currentAd.image_url, 1200, 150)}
                     alt={currentAd.title}
-                    className="w-full aspect-[728/90] object-cover animate-fade-in"
+                    className="w-full aspect-[728/90] object-contain bg-gray-900 animate-fade-in"
                     loading="lazy"
                     onError={handleImageError}
                   />
