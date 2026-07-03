@@ -15,4 +15,6 @@ CREATE POLICY "Anyone can view active ads" ON advertisements
   FOR SELECT USING (active = true);
 
 CREATE POLICY "Admins can manage ads" ON advertisements
-  USING (auth.jwt() ->> 'role' = 'super_admin');
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'super_admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'super_admin'));
