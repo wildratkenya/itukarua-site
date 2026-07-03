@@ -1555,8 +1555,12 @@ const AdminPage: React.FC = () => {
                   <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
                     <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Advert'}</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                      <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Title <span className="text-red-500">*</span></label>
+                        <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      </div>
                       <div className="col-span-full">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Image URL <span className="text-red-500">*</span></label>
                         <div className="flex gap-2">
                           <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                           <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
@@ -1596,18 +1600,18 @@ const AdminPage: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={async () => {
-                        if (!adForm.title || !adForm.image_url || !adForm.destination_url) {
-                          toast({ title: 'Missing fields', description: 'Title, Image URL, and Destination URL are required', variant: 'destructive' });
+                        if (!adForm.title || !adForm.image_url) {
+                          toast({ title: 'Missing fields', description: 'Title and Image URL are required', variant: 'destructive' });
                           return;
                         }
                         try {
                           if (adForm.id) {
                             const { id, ...updateData } = adForm;
-                            const { error } = await supabase.from('advertisements').update(updateData).eq('id', adForm.id);
+                            const { error } = await supabase.from('advertisements').update({ ...updateData, destination_url: updateData.destination_url || null }).eq('id', adForm.id);
                             if (error) throw error;
                           } else {
                             const { id, ...insertData } = adForm;
-                            const { error } = await supabase.from('advertisements').insert(insertData);
+                            const { error } = await supabase.from('advertisements').insert({ ...insertData, destination_url: insertData.destination_url || null });
                             if (error) throw error;
                           }
                           setShowAdForm(false);
@@ -1657,7 +1661,7 @@ const AdminPage: React.FC = () => {
                               </button>
                             </td>
                             <td className="py-2 px-3 text-right">
-                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url, description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
+                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
                               <button onClick={async () => {
                                 if (!window.confirm(`Delete "${ad.title}"?`)) return;
                                 try {
