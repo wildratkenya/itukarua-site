@@ -1570,7 +1570,7 @@ const AdminPage: React.FC = () => {
                               if (!file) return;
                               setAdvUploading(true);
                               try {
-                                const compressed = await compressImage(file, 2000, 800);
+                                const compressed = await compressImage(file, 1456, 800, { w: 728, h: 90 });
                                 const fileName = `adverts/${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
                                 const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed);
                                 if (uploadError) throw uploadError;
