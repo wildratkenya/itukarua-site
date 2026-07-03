@@ -1655,9 +1655,15 @@ const AdminPage: React.FC = () => {
                             <td className="py-2 px-3 text-right">
                               <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url, description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
                               <button onClick={async () => {
-                                if (!confirm(`Delete "${ad.title}"?`)) return;
-                                await supabase.from('advertisements').delete().eq('id', ad.id);
-                                loadAdverts();
+                                if (!window.confirm(`Delete "${ad.title}"?`)) return;
+                                try {
+                                  const { error } = await supabase.from('advertisements').delete().eq('id', ad.id);
+                                  if (error) throw error;
+                                  setAdverts(prev => prev.filter(a => a.id !== ad.id));
+                                  toast({ title: 'Deleted', description: `"${ad.title}" removed` });
+                                } catch (err: any) {
+                                  toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
+                                }
                               }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
                             </td>
                           </tr>
