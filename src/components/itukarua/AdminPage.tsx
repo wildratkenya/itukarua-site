@@ -1566,7 +1566,7 @@ const AdminPage: React.FC = () => {
                               if (!file) return;
                               setAdvUploading(true);
                               try {
-                                const compressed = await compressImage(file);
+                                const compressed = await compressImage(file, 2000, 800);
                                 const fileName = `adverts/${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
                                 const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed);
                                 if (uploadError) throw uploadError;
@@ -1580,7 +1580,7 @@ const AdminPage: React.FC = () => {
                           </label>
                         </div>
                         {adForm.image_url && (
-                          <img src={adForm.image_url} alt="" className="mt-2 h-20 w-auto rounded border border-gray-200 object-cover" onError={handleImageError} />
+                          <img src={adForm.image_url} alt="" className="mt-2 w-full max-w-sm rounded border border-gray-200 object-contain bg-gray-50" onError={handleImageError} />
                         )}
                       </div>
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
@@ -1596,14 +1596,18 @@ const AdminPage: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={async () => {
-                        if (!adForm.title || !adForm.image_url || !adForm.destination_url) return;
+                        if (!adForm.title || !adForm.image_url || !adForm.destination_url) {
+                          toast({ title: 'Missing fields', description: 'Title, Image URL, and Destination URL are required', variant: 'destructive' });
+                          return;
+                        }
                         try {
                           if (adForm.id) {
                             const { id, ...updateData } = adForm;
                             const { error } = await supabase.from('advertisements').update(updateData).eq('id', adForm.id);
                             if (error) throw error;
                           } else {
-                            const { error } = await supabase.from('advertisements').insert(adForm);
+                            const { id, ...insertData } = adForm;
+                            const { error } = await supabase.from('advertisements').insert(insertData);
                             if (error) throw error;
                           }
                           setShowAdForm(false);
