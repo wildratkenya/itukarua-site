@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
@@ -142,6 +142,7 @@ const AdminPage: React.FC = () => {
   const [showAdForm, setShowAdForm] = useState(false);
   const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
   const [advUploading, setAdvUploading] = useState(false);
+  const [advUploadKey, setAdvUploadKey] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -1570,12 +1571,13 @@ const AdminPage: React.FC = () => {
                               if (!file) return;
                               setAdvUploading(true);
                               try {
-                                const compressed = await compressImage(file, 1456, 800, { w: 728, h: 90 });
+                                const compressed = await compressImage(file, 2000, 800);
                                 const fileName = `adverts/${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
                                 const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed);
                                 if (uploadError) throw uploadError;
                                 const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
                                 setAdForm(f => ({ ...f, image_url: publicUrl }));
+                                setAdvUploadKey(k => k + 1);
                                 toast({ title: 'Uploaded', description: 'Image uploaded successfully' });
                               } catch (err: any) {
                                 toast({ title: 'Upload Error', description: err.message, variant: 'destructive' });
@@ -1584,7 +1586,7 @@ const AdminPage: React.FC = () => {
                           </label>
                         </div>
                         {adForm.image_url && (
-                          <img src={adForm.image_url} alt="" className="mt-2 w-full max-w-sm rounded border border-gray-200 object-contain bg-gray-50" onError={handleImageError} />
+                          <img key={advUploadKey} src={adForm.image_url} alt="" className="mt-2 w-full max-w-sm rounded border border-gray-200 object-contain bg-gray-50" />
                         )}
                       </div>
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
