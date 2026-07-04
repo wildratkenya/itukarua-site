@@ -1,4 +1,4 @@
-export function compressImage(file: File, maxWidth = 800, maxSizeKB = 200, aspectRatio?: { w: number; h: number }): Promise<File> {
+export function compressImage(file: File, maxWidth = 800, maxSizeKB = 200): Promise<File> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
       resolve(file);
@@ -6,40 +6,18 @@ export function compressImage(file: File, maxWidth = 800, maxSizeKB = 200, aspec
     }
     const img = new Image();
     img.onload = () => {
-      let sw = img.width;
-      let sh = img.height;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) {
+        h = Math.round((h * maxWidth) / w);
+        w = maxWidth;
+      }
       const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (!ctx) { resolve(file); return; }
-
-      if (aspectRatio) {
-        const targetRatio = aspectRatio.w / aspectRatio.h;
-        const sourceRatio = sw / sh;
-        let sx = 0, sy = 0, cw = sw, ch = sh;
-        if (sourceRatio > targetRatio) {
-          cw = Math.round(sh * targetRatio);
-          sx = Math.round((sw - cw) / 2);
-        } else {
-          ch = Math.round(sw / targetRatio);
-          sy = Math.round((sh - ch) / 2);
-        }
-        let dw = maxWidth;
-        let dh = Math.round(dw / targetRatio);
-        canvas.width = dw;
-        canvas.height = dh;
-        ctx.drawImage(img, sx, sy, cw, ch, 0, 0, dw, dh);
-      } else {
-        let w = sw;
-        let h = sh;
-        if (w > maxWidth) {
-          h = Math.round((h * maxWidth) / w);
-          w = maxWidth;
-        }
-        canvas.width = w;
-        canvas.height = h;
-        ctx.drawImage(img, 0, 0, w, h);
-      }
-
+      ctx.drawImage(img, 0, 0, w, h);
       let quality = 0.75;
       const tryCompress = () => {
         canvas.toBlob((blob) => {
