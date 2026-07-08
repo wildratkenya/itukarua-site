@@ -122,12 +122,14 @@ export interface DbMessage {
   sender_email: string;
   subject: string;
   message: string;
-  type: 'support' | 'feedback' | 'complaint' | 'other';
+  type: 'support' | 'feedback' | 'complaint' | 'other' | 'chat_transcript' | 'chat_message';
   status: 'unread' | 'read' | 'replied' | 'closed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   admin_response: string | null;
   responded_by: string | null;
   responded_at: string | null;
+  conversation_id: string | null;
+  role: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -199,7 +201,7 @@ export async function getProfiles(filters?: {
     query = query.eq('role', filters.role);
   }
   if (filters?.location) {
-    query = query.eq('location', filters.location);
+    query = query.ilike('location', `%${filters.location}%`);
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);
@@ -611,6 +613,50 @@ export async function updateMessageStatus(messageId: string, status: DbMessage['
     .single();
   if (error) throw error;
   return data as DbMessage;
+}
+
+export async function createChatMessage(msg: {
+  conversation_id: string;
+  sender_name: string;
+  sender_email: string;
+  message: string;
+  role: 'user' | 'admin';
+}): Promise<DbMessage> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: msg.conversation_id,
+      sender_name: msg.sender_name,
+      sender_email: msg.sender_email,
+      subject: 'Chat Message',
+      message: msg.message,
+      type: 'chat_message',
+      role: msg.role,
+      status: msg.role === 'admin' ? 'read' : 'unread',
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbMessage;
+}
+
+export async function getChatConversation(conversationId: string): Promise<DbMessage[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+  if (error) { console.error('getChatConversation error:', error); return []; }
+  return data || [];
+}
+
+export function getConversationId(): string {
+  let id = sessionStorage.getItem('chat_conversation_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem('chat_conversation_id', id);
+  }
+  return id;
 }
 
 // ─── Stats ──────────────────────────────────────────────────────────────────

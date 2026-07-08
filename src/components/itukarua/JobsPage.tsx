@@ -165,20 +165,22 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[1,2,3,4,5,6].map(i => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
-                <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
-                <div className="h-3 bg-gray-200 rounded w-full mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-2/3 mb-4" />
-                <div className="h-4 bg-gray-200 rounded w-1/2" />
+          <div className="flex flex-col gap-3">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex gap-3">
+                <div className="w-36 h-28 rounded-lg bg-gray-200 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-1/4" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 rounded w-full" />
+                  <div className="h-3 bg-gray-200 rounded w-1/3" />
+                </div>
               </div>
             ))}
           </div>
         ) : jobs.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {jobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} />)}
+          <div className="flex flex-col gap-3">
+            {jobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} compact />)}
           </div>
         ) : (
           <div className="text-center py-16">

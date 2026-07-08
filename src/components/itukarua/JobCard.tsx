@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Clock, Users, AlertTriangle, Camera } from 'lucide-react';
+import { MapPin, AlertTriangle, Camera } from 'lucide-react';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 
@@ -13,9 +13,10 @@ interface Job {
 interface JobCardProps {
   job: Job;
   onViewJob: (jobId: string) => void;
+  compact?: boolean;
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
+const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const images = job.images && job.images.length > 0 ? job.images : [];
   const hasMultipleImages = images.length > 1;
@@ -34,6 +35,53 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
     Masonry: 'bg-stone-200 text-stone-700',
     Welding: 'bg-slate-200 text-slate-700',
   };
+
+  if (compact) {
+    const imgSrc = images.length > 0 ? optimizeImageUrl(images[0], 200, 150) : IMAGES.services[0];
+    return (
+      <div
+        onClick={() => onViewJob(job.id)}
+        className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-md transition-all cursor-pointer flex gap-3 p-3"
+      >
+        <div className="w-36 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+          <img src={imgSrc} alt={job.title} className="w-full h-full object-cover" loading="lazy" onError={handleImageError} />
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${categoryColors[job.category] || 'bg-gray-100 text-gray-700'}`}>
+                {job.category}
+              </span>
+              {job.urgent && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700 flex items-center gap-0.5">
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  Urgent
+                </span>
+              )}
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900 line-clamp-1">{job.title}</h3>
+            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{job.description}</p>
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="flex items-center gap-1 text-[11px] text-gray-500">
+              <MapPin className="w-3 h-3 text-green-600" />
+              {job.county || job.location || ''}
+            </span>
+            <span className="text-xs font-semibold text-green-700">
+              KES {job.budgetMin.toLocaleString()} - {job.budgetMax.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-gray-400">{job.bidsCount} bids</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewJob(job.id); }}
+              className="ml-auto px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold rounded-lg transition-colors"
+            >
+              Details
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -88,7 +136,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob }) => {
                   {images.length}
                 </div>
               </>
-)}
+            )}
             {hasMultipleImages && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                 {images.map((_, i) => (

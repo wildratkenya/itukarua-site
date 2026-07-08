@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock } from 'lucide-react';
 import HeroSection from './HeroSection';
+import AdBanner from './AdBanner';
 import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
+import WorkerSearchModal from './WorkerSearchModal';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
@@ -30,6 +32,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
   const [hasContactAccess, setHasContactAccess] = useState(false);
   const [workerReviews, setWorkerReviews] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showWorkerSearch, setShowWorkerSearch] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewMsg, setReviewMsg] = useState('');
@@ -164,7 +167,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         <meta name="twitter:description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
         <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
       </Helmet>
-      <HeroSection onNavigate={onNavigate} onSearch={onSearch} stats={stats} />
+      <HeroSection onNavigate={onNavigate} onSearch={onSearch} onOpenWorkerSearch={() => setShowWorkerSearch(true)} stats={stats} />
+      <AdBanner />
 
       {/* Service Detail Modal - Matches ServicesPage logic */}
       {selectedService && (
@@ -327,7 +331,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
                 <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
                   <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-gray-700 mb-1">Contact & Certifications Locked</p>
-                  <p className="text-xs text-gray-500 mb-3">Pay KES 100 to unlock contact details, certifications, and CV</p>
+                  <p className="text-xs text-gray-500 mb-3">Pay KES 50 to unlock contact details, certifications, and CV</p>
                   <button
                     onClick={async () => {
                       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -337,7 +341,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
                     }}
                     className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Pay KES 100 to Unlock
+                    Pay KES 50 to Unlock
                   </button>
                   {reviewMsg === 'Please sign in first' && <p className="text-xs text-red-500 mt-2">{reviewMsg}</p>}
                 </div>
@@ -417,18 +421,25 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         <MpesaModal
           isOpen={true}
           onClose={() => setShowPaymentModal(false)}
-          amount={100}
+          amount={50}
           description={`Unlock contact for ${selectedWorker.full_name}`}
           accountRef={`WRK-${selectedWorker.id}`}
           user={user}
           paymentType="contact_access"
           relatedProfileId={selectedWorker.id}
-          onPaymentComplete={() => {
+          onPaymentComplete={async () => {
+            const { data } = await supabase.from('profiles').select('*').eq('id', selectedWorker.id).single();
+            if (data) setSelectedWorker(data);
             setShowPaymentModal(false);
             setHasContactAccess(true);
           }}
         />
       )}
+
+      <WorkerSearchModal
+        isOpen={showWorkerSearch}
+        onClose={() => setShowWorkerSearch(false)}
+      />
 
 
       {/* Featured Jobs */}

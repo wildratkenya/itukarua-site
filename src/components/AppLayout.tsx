@@ -274,7 +274,11 @@ const AppLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div
+      className="min-h-screen bg-gray-50 flex flex-col"
+      onContextMenu={(e) => { if ((e.target as HTMLElement).tagName === 'IMG') e.preventDefault(); }}
+    >
+      <style>{'img { user-select: none; -webkit-user-drag: none; }'}</style>
       <Helmet>
         <script type="application/ld+json">
           {JSON.stringify({

@@ -148,9 +148,9 @@ export const PRICING_PLANS = {
   ],
   employerAccess: {
     name: 'Contact Access Fee',
-    price: 100,
+    price: 50,
     period: 'per contact',
-    description: 'Pay to unlock jobseeker contact details after selecting the best bidder.',
+    description: 'Pay KES 50 to unlock jobseeker contact details, certifications and CV.',
   },
   featuredBoost: {
     name: 'Featured Boost',

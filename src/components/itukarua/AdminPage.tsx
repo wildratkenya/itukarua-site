@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation } from '@/lib/database';
 import { seedSampleData } from '@/lib/seedData';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -87,6 +87,8 @@ interface Message {
   status: string;
   priority: string;
   admin_response?: string;
+  conversation_id?: string;
+  role?: string;
   created_at: string;
 }
 
@@ -137,6 +139,11 @@ const AdminPage: React.FC = () => {
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [trashedUsers, setTrashedUsers] = useState<Profile[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+  const [conversationThread, setConversationThread] = useState<Message[]>([]);
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [adverts, setAdverts] = useState<any[]>([]);
   const [showAdForm, setShowAdForm] = useState(false);
@@ -1351,7 +1358,17 @@ const AdminPage: React.FC = () => {
                         </TableCell>
                         <TableCell>{new Date(msg.created_at).toLocaleDateString()}</TableCell>
                         <TableCell>
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={async () => {
+                            setSelectedMessage(msg);
+                            setIsMessageModalOpen(true);
+                            setReplyText('');
+                            if (msg.conversation_id) {
+                              const msgs = await getChatConversation(msg.conversation_id);
+                              setConversationThread(msgs);
+                            } else {
+                              setConversationThread([]);
+                            }
+                          }}>
                             View
                           </Button>
                         </TableCell>
@@ -1361,6 +1378,101 @@ const AdminPage: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
+
+            <Dialog open={isMessageModalOpen} onOpenChange={setIsMessageModalOpen}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Message Details</DialogTitle>
+                </DialogHeader>
+                {selectedMessage && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><span className="text-gray-500">From:</span> <span className="font-medium">{selectedMessage.sender_name}</span></div>
+                      <div><span className="text-gray-500">Email:</span> <span>{selectedMessage.sender_email}</span></div>
+                      <div><span className="text-gray-500">Subject:</span> <span>{selectedMessage.subject}</span></div>
+                      <div><span className="text-gray-500">Type:</span> <Badge variant="outline">{selectedMessage.type}</Badge></div>
+                      <div><span className="text-gray-500">Status:</span> <Badge variant={selectedMessage.status === 'unread' ? 'destructive' : 'default'}>{selectedMessage.status}</Badge></div>
+                      <div><span className="text-gray-500">Date:</span> <span>{new Date(selectedMessage.created_at).toLocaleString()}</span></div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedMessage.message}</p>
+                    </div>
+
+                    {conversationThread.length > 1 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Conversation Thread</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                          {conversationThread.map((m, i) => (
+                            <div key={m.id || i} className={`flex ${m.role === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`max-w-[75%] px-3 py-2 rounded-lg text-sm ${
+                                m.role === 'admin'
+                                  ? 'bg-green-600 text-white rounded-br-sm'
+                                  : 'bg-white border border-gray-200 rounded-bl-sm'
+                              }`}>
+                                <div className="text-[10px] opacity-70 mb-0.5">{m.role === 'admin' ? 'You' : m.sender_name}</div>
+                                {m.message}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Reply</h4>
+                      <Textarea
+                        value={replyText}
+                        onChange={e => setReplyText(e.target.value)}
+                        placeholder="Type your reply..."
+                        rows={3}
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          onClick={async () => {
+                            if (!replyText.trim() || sendingReply || !selectedMessage) return;
+                            setSendingReply(true);
+                            try {
+                              const cid = selectedMessage.conversation_id || crypto.randomUUID();
+                              if (!selectedMessage.conversation_id) {
+                                await supabase.from('messages').update({ conversation_id: cid }).eq('id', selectedMessage.id);
+                              }
+                              const { data: { user } } = await supabase.auth.getUser();
+                              await createChatMessage({
+                                conversation_id: cid,
+                                sender_name: 'Admin',
+                                sender_email: user?.email || 'admin@itukarua.co.ke',
+                                message: replyText.trim(),
+                                role: 'admin',
+                              });
+                              await supabase.from('messages').update({ status: 'replied' }).eq('id', selectedMessage.id);
+                              setMessages(prev => prev.map(m => m.id === selectedMessage.id ? { ...m, status: 'replied', conversation_id: cid } : m));
+                              const updated = await getChatConversation(cid);
+                              setConversationThread(updated);
+                              setReplyText('');
+                              toast({ title: 'Reply sent' });
+                            } catch (e) {
+                              toast({ title: 'Error sending reply', variant: 'destructive' });
+                            } finally {
+                              setSendingReply(false);
+                            }
+                          }}
+                          disabled={!replyText.trim() || sendingReply}
+                        >
+                          {sendingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                          Send Reply
+                        </Button>
+                        <Button variant="outline" onClick={async () => {
+                          if (!selectedMessage) return;
+                          await supabase.from('messages').update({ status: 'read' }).eq('id', selectedMessage.id);
+                          setMessages(prev => prev.map(m => m.id === selectedMessage.id ? { ...m, status: 'read' } : m));
+                          setIsMessageModalOpen(false);
+                        }}>Mark as Read</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="categories">
@@ -1561,17 +1673,23 @@ const AdminPage: React.FC = () => {
                         <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       </div>
                       <div className="col-span-full">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Image URL <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Banner Image URL <span className="text-red-500">*</span></label>
+                        <p className="text-[11px] text-amber-600 mb-2">Recommended: 1600 x 200 px (8:1 banner ratio) so it fills the homepage banner without cropping. Max 5MB.</p>
                         <div className="flex gap-2">
                           <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                           <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
                             {advUploading ? 'Uploading...' : 'Upload'}
-                            <input type="file" accept="image/*" hidden disabled={advUploading} onChange={async (e) => {
+                            <input type="file" accept="image/png, image/jpeg, image/webp" hidden disabled={advUploading} onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (!file) return;
+                              if (file.size > 5 * 1024 * 1024) {
+                                toast({ title: 'File too large', description: 'Image must be 5MB or less', variant: 'destructive' });
+                                e.target.value = '';
+                                return;
+                              }
                               setAdvUploading(true);
                               try {
-                                const compressed = await compressImage(file, 2000, 800);
+                                const compressed = await compressImage(file, 1600, 300);
                                 const fileName = `adverts/${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
                                 const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed);
                                 if (uploadError) throw uploadError;
@@ -1586,7 +1704,9 @@ const AdminPage: React.FC = () => {
                           </label>
                         </div>
                         {adForm.image_url && (
-                          <img key={advUploadKey} src={adForm.image_url} alt="" className="mt-2 w-full max-w-sm rounded border border-gray-200 object-contain bg-gray-50" />
+                          <div key={advUploadKey} className="mt-2 w-full max-w-sm aspect-[8/1] rounded border border-gray-200 overflow-hidden bg-gray-100">
+                            <img src={optimizeImageUrl(adForm.image_url, 800, 100)} alt="" className="w-full h-full object-cover" />
+                          </div>
                         )}
                       </div>
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
