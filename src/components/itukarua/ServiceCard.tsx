@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { MapPin, Star, Sparkles, Phone, Camera } from 'lucide-react';
+import { MapPin, Star, Sparkles, Camera } from 'lucide-react';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 
 interface ServiceAd {
@@ -23,9 +23,10 @@ interface ServiceAd {
 interface ServiceCardProps {
   service: ServiceAd;
   onClick?: () => void;
+  compact?: boolean;
 }
 
-const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
+const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const allImages = service.images && service.images.length > 0 
     ? service.images 
@@ -47,6 +48,53 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
     Cleaning: 'bg-emerald-100 text-emerald-700',
     Security: 'bg-slate-200 text-slate-700',
   };
+
+  if (compact) {
+    const imgSrc = allImages.length > 0 ? optimizeImageUrl(allImages[0], 200, 150) : 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg';
+    return (
+      <div
+        onClick={onClick}
+        className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-md transition-all cursor-pointer flex gap-3 p-3"
+      >
+        <div className="w-36 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+          <img src={imgSrc} alt={service.businessName} className="w-full h-full object-cover" loading="lazy" onError={handleImageError} />
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${categoryColors[service.category] || 'bg-gray-100 text-gray-700'}`}>
+                {service.category}
+              </span>
+              {service.featured && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center gap-0.5">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Featured
+                </span>
+              )}
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900 line-clamp-1">{service.businessName}</h3>
+            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{service.description}</p>
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="flex items-center gap-1 text-[11px] text-gray-500">
+              <MapPin className="w-3 h-3 text-green-600" />
+              {service.county || service.location || ''}
+            </span>
+            <span className="flex items-center gap-0.5 text-[11px] text-amber-500">
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+              {service.rating}/5 ({service.reviews})
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); if (onClick) onClick(); }}
+              className="ml-auto px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold rounded-lg transition-colors"
+            >
+              Details
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -73,7 +121,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   }}
                   className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  â€¹
+                  ‹
                 </button>
                 <button
                   onClick={(e) => {
@@ -82,7 +130,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   }}
                   className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  â€º
+                  ›
                 </button>
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                   {allImages.map((_, i) => (
@@ -101,7 +149,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
                   {allImages.length}
                 </div>
               </>
-)}
+            )}
             {hasMultipleImages && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                 {allImages.map((_, i) => (

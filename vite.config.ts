@@ -7,6 +7,13 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/img/a/': {
+        target: 'https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/img\/a\//, ''),
+      },
+    },
   },
   plugins: [
     react()

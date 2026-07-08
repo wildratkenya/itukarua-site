@@ -274,18 +274,22 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <p className="text-sm text-gray-500 mb-6">Showing <span className="font-semibold text-gray-900">{services.length}</span> businesses & services</p>
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[1,2,3,4].map(i => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
-                <div className="h-48 bg-gray-200" />
-                <div className="p-4"><div className="h-4 bg-gray-200 rounded w-1/3 mb-2" /><div className="h-5 bg-gray-200 rounded w-3/4 mb-2" /><div className="h-3 bg-gray-200 rounded w-full" /></div>
+          <div className="flex flex-col gap-3">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex gap-3">
+                <div className="w-36 h-28 rounded-lg bg-gray-200 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-1/4" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 rounded w-full" />
+                </div>
               </div>
             ))}
           </div>
         ) : services.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="flex flex-col gap-3">
             {services.map(service => (
-              <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} />
+              <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} compact />
             ))}
           </div>
         ) : (

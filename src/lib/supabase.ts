@@ -37,12 +37,12 @@ export function optimizeImageUrl(url: string, width: number = 400, height: numbe
   
   if (url.startsWith(STORAGE_PREFIX) && typeof window !== 'undefined') {
     const origin = window.location.origin;
-    if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-      const path = url.substring(STORAGE_PREFIX.length);
-      const slash = path.indexOf('/');
-      const bucket = slash > 0 ? path.slice(0, slash) : path;
-      const rest = slash > 0 ? path.slice(slash + 1) : '';
-      const safe = BUCKET_ALIASES[bucket] || bucket;
+    const path = url.substring(STORAGE_PREFIX.length);
+    const slash = path.indexOf('/');
+    const bucket = slash > 0 ? path.slice(0, slash) : path;
+    const rest = slash > 0 ? path.slice(slash + 1) : '';
+    const safe = BUCKET_ALIASES[bucket];
+    if (safe) {
       return `${origin}/img/${safe}/${rest}?width=${width}&height=${height}&resize=cover&quality=80&format=webp`;
     }
   }
