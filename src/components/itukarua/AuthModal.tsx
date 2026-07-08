@@ -3,7 +3,7 @@ import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield, Camera } from 'lucide-
 import { supabase } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { subscribeNewsletter } from '@/lib/database';
+import { subscribeNewsletter, updateProfile } from '@/lib/database';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -87,6 +87,11 @@ data: {
             if (!photoError) {
               profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
             }
+          }
+
+          // Persist profile image to profiles table so it survives page refresh
+          if (profileImageUrl) {
+            updateProfile(data.user.id, { profile_image: profileImageUrl }).catch(() => {});
           }
 
           // Upload certificates if jobseeker

@@ -46,19 +46,19 @@ const AdBanner: React.FC = () => {
   return (
     <section>
       <div onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-          <button
+          <div
             onClick={() => setModalAd(currentAd)}
-            className="w-full relative block aspect-[8/1]"
+            className="w-full max-h-[250px] bg-gray-100 cursor-pointer flex items-center justify-center overflow-hidden"
           >
             <img
               key={currentAdIndex}
-              src={optimizeImageUrl(currentAd.image_url, 1600, 200)}
+              src={optimizeImageUrl(currentAd.image_url, 2000, 250)}
               alt={currentAd.title}
-              className="w-full h-full absolute inset-0 object-cover animate-fade-in"
+              className="w-full h-full object-contain animate-fade-in"
               loading="lazy"
               onError={handleImageError}
             />
-          </button>
+          </div>
       </div>
 
       {modalAd && (
