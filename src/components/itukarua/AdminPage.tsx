@@ -1,8 +1,9 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search } from 'lucide-react';
+import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation } from '@/lib/database';
-import { seedSampleData } from '@/lib/seedData';
+
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
@@ -146,6 +147,15 @@ const AdminPage: React.FC = () => {
   const [sendingReply, setSendingReply] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [adverts, setAdverts] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchUsers, setSearchUsers] = useState('');
+  const [searchJobs, setSearchJobs] = useState('');
+  const [searchAds, setSearchAds] = useState('');
+  const [searchPayments, setSearchPayments] = useState('');
+  const [searchMessages, setSearchMessages] = useState('');
+  const [searchCategories, setSearchCategories] = useState('');
+  const [searchSubscribers, setSearchSubscribers] = useState('');
+  const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
   const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
   const [advUploading, setAdvUploading] = useState(false);
@@ -921,54 +931,32 @@ const AdminPage: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
 
-        {/* Seed Data Button */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-blue-900">Database Setup</h3>
-              <p className="text-sm text-blue-700">Add sample jobs, services, and profiles to test the platform</p>
-            </div>
-            <Button
-              onClick={async () => {
-                try {
-                  setLoading(true);
-                  await seedSampleData();
-                  toast({
-                    title: "Success",
-                    description: "Sample data has been added to the database",
-                  });
-                  // Refresh data without reloading the page
-                  await loadData();
-                } catch (error) {
-                  toast({
-                    title: "Error",
-                    description: "Failed to seed sample data",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              Seed Sample Data
-            </Button>
+
+        <div className="flex gap-6 items-start">
+          <div className="w-56 flex-shrink-0 sticky top-6">
+            <nav className="bg-white rounded-xl border border-gray-200 p-2 space-y-1">
+              {[
+                { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+                { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
+                { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
+                { id: 'ads', label: 'Ads', icon: <Newspaper className="w-4 h-4" /> },
+                { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
+                { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
+                { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
+                { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
+                { id: 'adverts', label: 'Adverts', icon: <MonitorPlay className="w-4 h-4" /> },
+              ].map(item => (
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {item.icon}
+                  {item.label}
+                </button>
+              ))}
+            </nav>
           </div>
-        </div>
+          <div className="flex-1 min-w-0 space-y-6">
+            {activeTab === 'dashboard' && <AdminDashboard onNavigatePayments={() => setActiveTab('payments')} />}
 
-        <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8">
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="jobs">Jobs</TabsTrigger>
-            <TabsTrigger value="ads">Ads</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="messages">Messages</TabsTrigger>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
-            <TabsTrigger value="subscribers">Subscribers</TabsTrigger>
-            <TabsTrigger value="adverts">Adverts</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="users">
+            {activeTab === 'users' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -996,6 +984,10 @@ const AdminPage: React.FC = () => {
                     <button onClick={() => setSelectedUsers(new Set())} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors">Clear</button>
                   </div>
                 )}
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchUsers} onChange={e => setSearchUsers(e.target.value)} placeholder="Search by name or email..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1015,7 +1007,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(showTrash ? trashedUsers : users).map((user) => {
+                    {(showTrash ? trashedUsers : users).filter(u => !searchUsers || u.full_name?.toLowerCase().includes(searchUsers.toLowerCase()) || u.email?.toLowerCase().includes(searchUsers.toLowerCase())).map((user) => {
                       const uChecked = selectedUsers.has(user.id);
                       return (
                       <TableRow key={user.id} className={uChecked ? 'bg-green-50' : ''}>
@@ -1100,15 +1092,19 @@ const AdminPage: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
-          <TabsContent value="jobs">
+          {activeTab === 'jobs' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Job Management</CardTitle>
                 <Button onClick={() => { setEditingJob(null); setIsJobModalOpen(true); }}>Add Job</Button>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchJobs} onChange={e => setSearchJobs(e.target.value)} placeholder="Search by title, category or poster..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1121,7 +1117,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {jobs.map((job) => (
+                    {jobs.filter(j => !searchJobs || j.title?.toLowerCase().includes(searchJobs.toLowerCase()) || j.posted_by_name?.toLowerCase().includes(searchJobs.toLowerCase()) || j.category?.toLowerCase().includes(searchJobs.toLowerCase())).map((job) => (
                       <TableRow key={job.id}>
                         <TableCell>{job.title}</TableCell>
                         <TableCell>{job.category}</TableCell>
@@ -1171,15 +1167,19 @@ const AdminPage: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
-          <TabsContent value="ads">
+          {activeTab === 'ads' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisement Management</CardTitle>
                 <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchAds} onChange={e => setSearchAds(e.target.value)} placeholder="Search by business name, title or category..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1194,7 +1194,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ads.map((ad) => (
+                    {ads.filter(a => !searchAds || a.business_name?.toLowerCase().includes(searchAds.toLowerCase()) || a.title?.toLowerCase().includes(searchAds.toLowerCase()) || a.category?.toLowerCase().includes(searchAds.toLowerCase()) || a.location?.toLowerCase().includes(searchAds.toLowerCase()) || a.contact_person?.toLowerCase().includes(searchAds.toLowerCase())).map((ad) => (
                       <TableRow key={ad.id}>
                         <TableCell>
                           <img src={optimizeImageUrl(ad.image || ad.images?.[0] || '/images/services.png', 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
@@ -1248,14 +1248,18 @@ const AdminPage: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
-          <TabsContent value="payments">
+          {activeTab === 'payments' && (
             <Card>
               <CardHeader>
                 <CardTitle>Payment Management (M-Pesa)</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchPayments} onChange={e => setSearchPayments(e.target.value)} placeholder="Search by type, M-Pesa ref or description..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1269,7 +1273,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.map((payment) => (
+                    {payments.filter(p => !searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase())).map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell>KSh {payment.amount}</TableCell>
                         <TableCell>{payment.payment_type}</TableCell>
@@ -1306,14 +1310,18 @@ const AdminPage: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
-          <TabsContent value="messages">
+          {activeTab === 'messages' && (<>
             <Card>
               <CardHeader>
                 <CardTitle>Message Management</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchMessages} onChange={e => setSearchMessages(e.target.value)} placeholder="Search by sender, subject or message..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1327,7 +1335,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {messages.map((msg) => (
+                    {messages.filter(m => !searchMessages || m.sender_name?.toLowerCase().includes(searchMessages.toLowerCase()) || m.sender_email?.toLowerCase().includes(searchMessages.toLowerCase()) || m.subject?.toLowerCase().includes(searchMessages.toLowerCase()) || m.message?.toLowerCase().includes(searchMessages.toLowerCase())).map((msg) => (
                       <TableRow key={msg.id}>
                         <TableCell>
                           <div>
@@ -1473,14 +1481,18 @@ const AdminPage: React.FC = () => {
                 )}
               </DialogContent>
             </Dialog>
-          </TabsContent>
+          </>)}
 
-          <TabsContent value="categories">
+          {activeTab === 'categories' && (
             <Card>
               <CardHeader>
                 <CardTitle>Category Management</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchCategories} onChange={e => setSearchCategories(e.target.value)} placeholder="Search categories..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <div className="space-y-6">
                   <div className="flex gap-2 items-end">
                     <div className="flex-1">
@@ -1503,7 +1515,7 @@ const AdminPage: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-semibold text-gray-700 mb-2">Job Categories</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...customJobCats].map((category) => {
+                      {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...customJobCats].filter(c => !searchCategories || c.toLowerCase().includes(searchCategories.toLowerCase())).map((category) => {
                         const isCustom = customJobCats.includes(category);
                         return (
                           <div key={'job-'+category} className="flex items-center gap-1">
@@ -1524,7 +1536,7 @@ const AdminPage: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-semibold text-gray-700 mb-2">Service Categories</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customServiceCats].map((category) => {
+                      {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customServiceCats].filter(c => !searchCategories || c.toLowerCase().includes(searchCategories.toLowerCase())).map((category) => {
                         const isCustom = customServiceCats.includes(category);
                         return (
                           <div key={'svc-'+category} className="flex items-center gap-1">
@@ -1545,13 +1557,18 @@ const AdminPage: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-          <TabsContent value="subscribers">
+          )}
+
+          {activeTab === 'subscribers' && (
             <Card>
               <CardHeader>
                 <CardTitle>Newsletter Subscribers ({subscribers.length})</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchSubscribers} onChange={e => setSearchSubscribers(e.target.value)} placeholder="Search by name or email..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 <div className="flex gap-2 mb-4">
                   <input type="text" value={newSubscriberName} onChange={e => setNewSubscriberName(e.target.value)} placeholder="Full name" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                   <input type="email" value={newSubscriberEmail} onChange={e => setNewSubscriberEmail(e.target.value)} placeholder="Email address" className="flex-[2] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
@@ -1624,7 +1641,7 @@ const AdminPage: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {subscribers.map(s => {
+                          {subscribers.filter(s => !searchSubscribers || s.name?.toLowerCase().includes(searchSubscribers.toLowerCase()) || s.email?.toLowerCase().includes(searchSubscribers.toLowerCase())).map(s => {
                             const checked = selectedSubs.has(s.email);
                             return (
                               <tr key={s.email} className={`border-b border-gray-50 hover:bg-gray-50 ${checked ? 'bg-green-50' : ''}`}>
@@ -1656,14 +1673,19 @@ const AdminPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-          <TabsContent value="adverts">
+          )}
+
+          {activeTab === 'adverts' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisements ({adverts.length})</CardTitle>
                 <Button onClick={() => { setAdForm({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false }); setShowAdForm(true); }}>+ Add Advert</Button>
               </CardHeader>
               <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
                 {showAdForm && (
                   <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
                     <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Advert'}</h4>
@@ -1674,7 +1696,7 @@ const AdminPage: React.FC = () => {
                       </div>
                       <div className="col-span-full">
                         <label className="block text-xs font-medium text-gray-600 mb-1">Banner Image URL <span className="text-red-500">*</span></label>
-                        <p className="text-[11px] text-amber-600 mb-2">Recommended: 1600 x 200 px (8:1 banner ratio) so it fills the homepage banner without cropping. Max 5MB.</p>
+                        <p className="text-[11px] text-amber-600 mb-2">Recommended: 2000 x 250 px (wide banner). The ad will display at full width without cropping. Max 5MB.</p>
                         <div className="flex gap-2">
                           <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                           <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
@@ -1764,7 +1786,7 @@ const AdminPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {adverts.map(ad => (
+                        {adverts.filter(a => !searchAdverts || a.title?.toLowerCase().includes(searchAdverts.toLowerCase())).map(ad => (
                           <tr key={ad.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="py-2 px-3">
                               <img src={ad.image_url} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -1804,8 +1826,9 @@ const AdminPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          )}
+          </div>
+        </div>
       </div>
 
       {/* Job Modal */}

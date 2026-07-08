@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield } from 'lucide-react';
+import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { getProfiles, getCustomCategories } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
@@ -23,6 +23,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
   const [workerDetails, setWorkerDetails] = useState<Map<string, any>>(new Map());
   const [allSkills, setAllSkills] = useState<string[]>([]);
+  const [expandedCv, setExpandedCv] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
   }, []);
 
   useEffect(() => {
+    console.log('[WorkerSearch] isOpen changed to', isOpen);
     if (!isOpen) {
       setQuery('');
       setSelectedCounty('');
@@ -68,6 +70,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
     setLoading(true);
     try {
       const searchQuery = selectedSkill ? [...query.split(/\s+/).filter(Boolean), selectedSkill].join(' ') : query;
+      console.log('[WorkerSearch] fetchWorkers called', { selectedSkill, query, searchQuery, selectedCounty, location: location.trim() });
       const results = await getProfiles({
         role: 'jobseeker',
         county: selectedCounty || undefined,
@@ -75,8 +78,10 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
         search: searchQuery.trim() || undefined,
         limit: 30,
       });
-      setWorkers(results);
-    } catch {
+      console.log('[WorkerSearch] getProfiles returned', results?.length, 'results');
+      setWorkers(results || []);
+    } catch (err) {
+      console.error('[WorkerSearch] Error fetching workers:', err);
       setWorkers([]);
     } finally {
       setLoading(false);
@@ -93,8 +98,14 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
   };
 
   const handlePaymentComplete = async () => {
-    if (!paymentWorker) return;
-    const { data } = await supabase.from('profiles').select('*').eq('id', paymentWorker.id).single();
+    if (!paymentWorker) { console.warn('[WorkerSearch] handlePaymentComplete: no paymentWorker'); return; }
+    console.log('[WorkerSearch] Fetching full profile after payment for', paymentWorker.id);
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', paymentWorker.id).single();
+    if (error) {
+      console.error('[WorkerSearch] Profile fetch error:', error);
+      return;
+    }
+    console.log('[WorkerSearch] Profile fetched:', { id: data.id, hasResume: !!data.resume, resumeLength: data.resume?.length, hasCertificates: !!data.certificates });
     if (data) {
       setUnlockedIds(prev => new Set(prev).add(paymentWorker.id));
       setWorkerDetails(prev => new Map(prev).set(paymentWorker.id, data));
@@ -248,11 +259,23 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
                               </div>
                             </div>
                           )}
-                          {details.resume && (
+                          {details.resume ? (
                             <div>
                               <h5 className="text-xs font-semibold text-gray-700 flex items-center gap-1 mb-1"><FileText className="w-3 h-3" /> Professional CV</h5>
-                              <p className="text-xs text-gray-600 whitespace-pre-wrap line-clamp-4">{details.resume}</p>
+                              <p className={`text-xs text-gray-600 whitespace-pre-wrap ${expandedCv.has(worker.id) ? '' : 'line-clamp-4'}`}>{details.resume}</p>
+                              <button
+                                onClick={() => setExpandedCv(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(worker.id)) next.delete(worker.id); else next.add(worker.id);
+                                  return next;
+                                })}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1"
+                              >
+                                {expandedCv.has(worker.id) ? <>Show less <ChevronUp className="w-3 h-3" /></> : <>Show full CV <ChevronDown className="w-3 h-3" /></>}
+                              </button>
                             </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic">No CV/resume uploaded by this worker.</p>
                           )}
                         </div>
                       )}

@@ -225,12 +225,14 @@ export async function getProfiles(filters?: {
     query = query.limit(filters.limit);
   }
 
+  console.log('[getProfiles] query built', filters);
   const { data, error } = await query;
   if (error) { 
     if (error.message?.includes('AbortError')) return [];
-    console.error('getProfiles error:', error); 
+    console.error('[getProfiles] error:', error); 
     return []; 
   }
+  console.log('[getProfiles] success, rows:', data?.length);
   return data as DbProfile[];
 }
 
