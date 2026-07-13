@@ -152,7 +152,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
   }).filter(Boolean);
 
   return (
-    <div className="pb-12">
+    <div className="relative pb-12">
       <Helmet>
         <title>Itukarua - Find Local Jobs, Services & Opportunities in Itukarua County</title>
         <meta name="description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
@@ -167,6 +167,20 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         <meta name="twitter:description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
         <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
       </Helmet>
+      <a
+        href="https://ikenya-ebon.vercel.app/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute top-4 right-4 z-40 w-48 h-48 lg:w-64 lg:h-64 rounded-xl overflow-hidden shadow-lg hover:shadow-xl hover:scale-105 transition-all group animate-slide-in-right"
+      >
+        <img src="/images/sticker.jpg" alt="Our Other Services" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors" />
+        <div className="absolute inset-0 flex items-center justify-center p-3">
+          <span className="text-white text-4xl lg:text-5xl font-['Changa_One'] text-center leading-tight">
+            Our Other Services
+          </span>
+        </div>
+      </a>
       <HeroSection onNavigate={onNavigate} onSearch={onSearch} onOpenWorkerSearch={() => setShowWorkerSearch(true)} stats={stats} />
       <AdBanner />
 

@@ -20,7 +20,6 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
     { label: 'Jobs', page: 'jobs' },
     { label: 'Services', page: 'services' },
     { label: 'Pricing', page: 'pricing' },
-    { label: 'About', page: 'about' },
     { label: 'Contact', page: 'contact' },
   ];
 

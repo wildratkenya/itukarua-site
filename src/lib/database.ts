@@ -1093,6 +1093,70 @@ export async function incrementProfileViews(profileId: string): Promise<void> {
   await supabase.rpc('increment_profile_views', { p_profile_id: profileId });
 }
 
+export async function trackProfileView(profileId: string, viewerId?: string): Promise<void> {
+  await supabase.from('profile_views_log').insert({ profile_id: profileId, viewer_id: viewerId || null });
+}
+
+export async function getProfileViewHistory(profileId: string, days = 30): Promise<{ view_date: string; view_count: number }[]> {
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  const { data, error } = await supabase
+    .from('profile_views_log')
+    .select('created_at')
+    .eq('profile_id', profileId)
+    .gte('created_at', from.toISOString())
+    .order('created_at', { ascending: true });
+  if (error || !data) { console.error('[getProfileViewHistory]', error); return []; }
+  const grouped: Record<string, number> = {};
+  for (const row of data) {
+    const d = row.created_at?.slice(0, 10);
+    if (d) grouped[d] = (grouped[d] || 0) + 1;
+  }
+  return Object.entries(grouped).map(([view_date, view_count]) => ({ view_date, view_count }));
+}
+
+export async function getSiteTraffic(days = 30): Promise<{ date: string; visitors: number; page_views: number }[]> {
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  const { data, error } = await supabase
+    .from('site_visits_log')
+    .select('created_at, user_id')
+    .gte('created_at', from.toISOString())
+    .order('created_at', { ascending: true });
+  if (error || !data) { console.error('[getSiteTraffic]', error); return []; }
+  const grouped: Record<string, { visitors: Set<string | null>; page_views: number }> = {};
+  for (const row of data) {
+    const d = row.created_at?.slice(0, 10);
+    if (!d) continue;
+    if (!grouped[d]) grouped[d] = { visitors: new Set(), page_views: 0 };
+    grouped[d].visitors.add(row.user_id);
+    grouped[d].page_views++;
+  }
+  return Object.entries(grouped).map(([date, g]) => ({
+    date,
+    visitors: g.visitors.size,
+    page_views: g.page_views,
+  }));
+}
+
+export async function getProfileRanking(profileId: string): Promise<{ rank: number; total: number; reviews_count: number; rating: number } | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, rating, reviews_count')
+    .eq('role', 'jobseeker')
+    .order('rating', { ascending: false, nullsLast: true })
+    .order('reviews_count', { ascending: false, nullsLast: true });
+  if (error || !data) { console.error('[getProfileRanking]', error); return null; }
+  const idx = data.findIndex(p => p.id === profileId);
+  if (idx === -1) return null;
+  return {
+    rank: idx + 1,
+    total: data.length,
+    reviews_count: data[idx].reviews_count || 0,
+    rating: data[idx].rating || 0,
+  };
+}
+
 // ─── Newsletter ────────────────────────────────────────────────────────────
 
 export async function subscribeNewsletter(email: string, name?: string): Promise<{ error?: string }> {
@@ -1199,4 +1263,10 @@ export async function incrementAdClick(adId: string) {
 export async function incrementAdDisplay(adId: string) {
   const { error } = await supabase.rpc('increment_ad_display', { ad_id: adId });
   if (error) console.error('[Ad] display increment failed:', error);
+}
+
+export async function adminResetPassword(userId: string, newPassword: string): Promise<{ error?: string }> {
+  const { error } = await supabase.rpc('admin_reset_password', { p_user_id: userId, p_new_password: newPassword });
+  if (error) return { error: error.message };
+  return {};
 }

@@ -160,18 +160,18 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
             </div>
             <button
               onClick={onOpenWorkerSearch}
-              className="mt-3 w-full flex items-center justify-between gap-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
+              className="mt-3 w-full flex items-center justify-between gap-2 px-5 py-5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Users className="w-4 h-4 text-green-400" />
+                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Users className="w-6 h-6 text-green-400" />
                 </div>
                 <div className="text-left">
-                  <p className="text-white font-semibold text-xs">Find a Worker</p>
-                  <p className="text-gray-400 text-[10px]">Search jobseekers by skill</p>
+                  <p className="text-white font-semibold text-xl">Find a Worker</p>
+                  <p className="text-gray-400 text-sm">Search jobseekers by skill</p>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-green-400 group-hover:translate-x-0.5 transition-transform" />
+              <ChevronRight className="w-6 h-6 text-green-400 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
         </div>

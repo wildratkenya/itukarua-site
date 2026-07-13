@@ -2,7 +2,7 @@
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword } from '@/lib/database';
 
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -132,6 +132,10 @@ const AdminPage: React.FC = () => {
   const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [resetPwUser, setResetPwUser] = useState<Profile | null>(null);
+  const [resetPwPassword, setResetPwPassword] = useState('');
+  const [isResetPwDialogOpen, setIsResetPwDialogOpen] = useState(false);
+  const [resettingPw, setResettingPw] = useState(false);
   const [subscribers, setSubscribers] = useState<{ email: string; name: string; created_at: string }[]>([]);
   const [newSubscriberName, setNewSubscriberName] = useState('');
   const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
@@ -310,6 +314,26 @@ const AdminPage: React.FC = () => {
       toast({ title: 'Success', description: `Password reset email pushed to ${email}` });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to send reset email', variant: 'destructive' });
+    }
+  };
+
+  const handleDirectPasswordReset = async () => {
+    if (!resetPwUser || resetPwPassword.length < 6) {
+      toast({ title: 'Error', description: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+    setResettingPw(true);
+    try {
+      const { error } = await adminResetPassword(resetPwUser.id, resetPwPassword);
+      if (error) throw new Error(error);
+      toast({ title: 'Success', description: `Password updated for ${resetPwUser.email}` });
+      setIsResetPwDialogOpen(false);
+      setResetPwPassword('');
+      setResetPwUser(null);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to reset password', variant: 'destructive' });
+    } finally {
+      setResettingPw(false);
     }
   };
 
@@ -1070,9 +1094,14 @@ const AdminPage: React.FC = () => {
                               <Button variant="outline" size="sm" onClick={() => toggleUserVerification(user.id, user.verified)}>
                                 {user.verified ? 'Unverify' : 'Verify'}
                               </Button>
-                              <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email}>
-                                Reset PW
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email} title="Send reset email">
+                                  Send Email
+                                </Button>
+                                <Button variant="secondary" size="sm" onClick={() => { setResetPwUser(user); setResetPwPassword(''); setIsResetPwDialogOpen(true); }}>
+                                  Set PW
+                                </Button>
+                              </div>
                               <Button variant="outline" size="sm" onClick={() => {
                                 setEditingUser(user);
                                 setRatingsEnabled(!!user.ratings_enabled);
@@ -2482,6 +2511,35 @@ const AdminPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetPwDialogOpen} onOpenChange={(open) => { if (!open) { setResetPwUser(null); setResetPwPassword(''); setIsResetPwDialogOpen(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set New Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-600">
+              Setting password for <strong>{resetPwUser?.email}</strong>
+            </p>
+            <Input
+              type="password"
+              placeholder="New password (min 6 characters)"
+              value={resetPwPassword}
+              onChange={e => setResetPwPassword(e.target.value)}
+              minLength={6}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setResetPwUser(null); setResetPwPassword(''); setIsResetPwDialogOpen(false); }}>
+                Cancel
+              </Button>
+              <Button onClick={handleDirectPasswordReset} disabled={resettingPw || resetPwPassword.length < 6}>
+                {resettingPw ? 'Resetting...' : 'Set Password'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

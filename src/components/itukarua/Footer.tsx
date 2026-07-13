@@ -121,9 +121,6 @@ const Footer: React.FC<FooterProps> = ({
               label: 'Pricing Plans',
               page: 'pricing' as Page
             }, {
-              label: 'About Us',
-              page: 'about' as Page
-            }, {
               label: 'Contact Us',
               page: 'contact' as Page
             }].map(link => <li key={link.page}>
@@ -131,6 +128,11 @@ const Footer: React.FC<FooterProps> = ({
                     {link.label}
                   </button>
                 </li>)}
+                <li>
+                  <a href="https://ikenya-ebon.vercel.app/about" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-green-400 transition-colors">
+                    About Us
+                  </a>
+                </li>
             </ul>
           </div>
 

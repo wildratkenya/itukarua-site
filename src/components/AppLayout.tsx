@@ -196,9 +196,14 @@ const AppLayout: React.FC = () => {
   // Simplified user object for components that don't need full profile
   const simpleUser = user ? { name: user.name, email: user.email, role: user.role } : null;
 
+  // Track page visits for site traffic analytics
   useEffect(() => {
-    console.log('AppLayout State:', { currentPage, user: !!user, authLoading });
-  }, [currentPage, user, authLoading]);
+    if (!currentPage) return;
+    supabase.from('site_visits_log').insert({
+      user_id: user?.id || null,
+      page_path: currentPage,
+    }).then(() => {}).catch(() => {});
+  }, [currentPage]);
 
   const renderPage = () => {
     try {
