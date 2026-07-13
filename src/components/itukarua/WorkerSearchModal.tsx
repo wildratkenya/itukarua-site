@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp } from 'lucide-react';
-import { getProfiles, getCustomCategories } from '@/lib/database';
+import { getProfiles, getCustomCategories, trackProfileView } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import MpesaModal from './MpesaModal';
@@ -106,6 +106,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
       return;
     }
     console.log('[WorkerSearch] Profile fetched:', { id: data.id, hasResume: !!data.resume, resumeLength: data.resume?.length, hasCertificates: !!data.certificates });
+    trackProfileView(paymentWorker.id, user?.id).then(() => console.log('[WorkerSearch] Profile view tracked'));
     if (data) {
       setUnlockedIds(prev => new Set(prev).add(paymentWorker.id));
       setWorkerDetails(prev => new Map(prev).set(paymentWorker.id, data));

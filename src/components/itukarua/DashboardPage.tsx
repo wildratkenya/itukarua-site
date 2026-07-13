@@ -1,13 +1,16 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw } from 'lucide-react';
-import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
+import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
 import { supabase, optimizeImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import MpesaModal from './MpesaModal';
+import ProfileViewsChart from './ProfileViewsChart';
+import SiteTrafficChart from './SiteTrafficChart';
+import UserRanking from './UserRanking';
 
 interface DashboardPageProps {
   user: UserState;
@@ -40,9 +43,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeMessage, setFeeMessage] = useState('');
   const [newsletterSubs, setNewsletterSubs] = useState<{ email: string; created_at: string }[]>([]);
+  const [profileViewHistory, setProfileViewHistory] = useState<{ view_date: string; view_count: number }[]>([]);
+  const [siteTraffic, setSiteTraffic] = useState<{ date: string; visitors: number; page_views: number }[]>([]);
+  const [userRanking, setUserRanking] = useState<{ rank: number; total: number; reviews_count: number; rating: number } | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'super_admin';
   const isJobseeker = user.role === 'jobseeker';
 
   useEffect(() => {
@@ -101,6 +107,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             profile_image: user.profile.profile_image || '',
           });
           setRatingsEnabled(user.profile.ratings_enabled || false);
+        }
+
+        // Fetch analytics
+        if (user.id) {
+          const [history, ranking, traffic] = await Promise.all([
+            getProfileViewHistory(user.id, 30),
+            getProfileRanking(user.id),
+            getSiteTraffic(30),
+          ]);
+          setProfileViewHistory(history || []);
+          setUserRanking(ranking);
+          setSiteTraffic(traffic || []);
+          console.log('[Dashboard] Analytics data:', { history, ranking, traffic });
         }
       } catch (err) { console.error('Dashboard load error:', err); }
       finally { setLoading(false); }
@@ -330,6 +349,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 </div>
               </div>
             )}
+
+            {/* Analytics Section */}
+            <div className="space-y-4">
+              {profileViewHistory.length > 0 && (
+                <ProfileViewsChart data={profileViewHistory} total={user.profile?.profile_views || 0} />
+              )}
+              {siteTraffic.length > 0 && <SiteTrafficChart data={siteTraffic} />}
+              {userRanking && (
+                <UserRanking rank={userRanking.rank} total={userRanking.total} reviewsCount={userRanking.reviews_count} rating={userRanking.rating} />
+              )}
+            </div>
           </div>
         )}
 
