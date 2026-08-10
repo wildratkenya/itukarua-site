@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import nodemailer from 'npm:nodemailer@6.9.16'
+import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 
 const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
 
@@ -8,22 +8,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SITE_URL = Deno.env.get('SITE_URL') || 'https://itukarua3.vercel.app'
-const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'Itukarua <noreply@itukarua.ke>'
-
-function createFreshTransport() {
-  return nodemailer.createTransport({
-    host: Deno.env.get('ETHEREAL_HOST') || 'smtp.ethereal.email',
-    port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
-    secure: false,
-    auth: {
-      user: Deno.env.get('ETHEREAL_USER') || '',
-      pass: Deno.env.get('ETHEREAL_PASS') || '',
-    },
-  })
+function pickImage(item: any): string {
+  if (Array.isArray(item.images) && item.images.length > 0) return item.images[0]
+  return item.image_url || item.image || `${SITE_URL}/images/logo.png`
 }
 
-function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
+function buildBannerGrid(banners: any[]): string {
+  const cells = banners.map(b => {
+    const img = escapeHtml(pickImage(b))
+    const dest = b.destination_url || `${SITE_URL}/services`
+    return `
+      <td style="padding:4px;width:50%;vertical-align:top">
+        <a href="${dest}" style="display:block;text-decoration:none">
+          <img src="${img}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="100%" style="width:100%;border-radius:10px;display:block;border:1px solid #e5e7eb" />
+          ${b.cta_text ? `<span style="display:block;text-align:center;color:#059669;font-size:12px;font-weight:600;margin-top:6px">${escapeHtml(b.cta_text)} →</span>` : ''}
+        </a>
+      </td>`
+  })
+  let rows = ''
+  for (let i = 0; i < cells.length; i += 2) {
+    const a = cells[i]
+    const b = cells[i + 1] || '<td style="padding:4px;width:50%"></td>'
+    rows += `<tr>${a}${b}</tr>`
+  }
+  return rows
+}
+
+function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: string, subject: string, intro: string): string {
   const jobCards = jobs.map(j => `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">
@@ -31,12 +42,12 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
           <tr>
             <td style="width:80px;padding-right:12px;vertical-align:top">
               <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none">
-                <img src="${escapeHtml(j.image || `${SITE_URL}/images/logo.png`)}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
+                <img src="${escapeHtml(pickImage(j))}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
               </a>
             </td>
             <td style="vertical-align:top">
               <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none;color:#111827;font-weight:600;font-size:15px;display:block;margin-bottom:4px">${escapeHtml(j.title)}</a>
-              <span style="color:#6b7280;font-size:12px">📍 ${escapeHtml(j.location)}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}</span>
+              <span style="color:#6b7280;font-size:12px">📍 ${escapeHtml(j.location || '')}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}</span>
               <p style="color:#6b7280;font-size:12px;margin:6px 0 0;line-height:1.4">${escapeHtml((j.description || '').slice(0, 120))}${(j.description || '').length > 120 ? '...' : ''}</p>
               <a href="${SITE_URL}/?viewJob=${j.id}" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Job →</a>
             </td>
@@ -47,7 +58,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
   `).join('')
 
   const adCards = ads.map(a => {
-    const img = escapeHtml(Array.isArray(a.images) && a.images.length > 0 ? a.images[0] : a.image || `${SITE_URL}/images/logo.png`)
+    const img = escapeHtml(pickImage(a))
     return `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">
@@ -70,6 +81,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
     </tr>
   `}).join('')
 
+  const hasContent = jobs.length > 0 || ads.length > 0 || banners.length > 0
 
   return `
 <!DOCTYPE html>
@@ -91,9 +103,15 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
     </table>
   </td></tr>
   <tr><td style="padding:20px 24px 4px">
-    <h2 style="font-size:18px;color:#111827;margin:0 0 4px">Weekly Available Jobs &amp; Businesses Around you</h2>
-    <p style="font-size:13px;color:#6b7280;margin:0">Here are the latest listings from this week</p>
+    <h2 style="font-size:18px;color:#111827;margin:0 0 4px">${escapeHtml(subject)}</h2>
+    <p style="font-size:13px;color:#6b7280;margin:0">${escapeHtml(intro)}</p>
   </td></tr>
+
+  ${banners.length > 0 ? `
+  <tr><td style="padding:20px 24px 4px">
+    <h2 style="font-size:16px;color:#111827;margin:0 0 8px">🏷️ This Month's Banners</h2>
+    <table cellpadding="0" cellspacing="0" style="width:100%">${buildBannerGrid(banners)}</table>
+  </td></tr>` : ''}
 
   ${jobs.length > 0 ? `
   <tr><td style="padding:24px">
@@ -109,7 +127,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
     <a href="${SITE_URL}/services" style="display:block;text-align:center;margin-top:12px;color:#059669;font-size:13px;font-weight:600;text-decoration:none">Browse All Services →</a>
   </td></tr>` : ''}
 
-  ${jobs.length === 0 && ads.length === 0 ? `
+  ${!hasContent ? `
   <tr><td style="padding:48px 24px;text-align:center">
     <p style="color:#6b7280;font-size:14px;margin:0">No listings available at the moment. Check back soon!</p>
   </td></tr>` : ''}
@@ -128,14 +146,13 @@ function buildNewsletterHtml(jobs: any[], ads: any[], dateStr: string): string {
 </html>`
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
+    let body: any = {}
+    try { body = await req.json() } catch { body = {} }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
@@ -150,33 +167,53 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: jobs } = await supabase
-      .from('jobs')
-      .select('id, title, description, location, budget_min, budget_max, category, created_at, urgent, images')
-      .order('urgent', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(12)
-
-    const { data: ads } = await supabase
-      .from('service_ads')
-      .select('id, business_name, description, category, location, image, images, created_at, featured')
-      .order('featured', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(12)
-
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    const html = buildNewsletterHtml(jobs || [], ads || [], dateStr)
-    const textPlain = `Itukarua Weekly Digest - ${dateStr}\n\n${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
 
-    const transport = createFreshTransport()
+    let subject: string
+    let html: string
+    let textPlain: string
+
+    if (body?.html) {
+      subject = body.subject || `Itukarua Monthly Digest — ${dateStr}`
+      html = body.html
+      textPlain = body.text || `Itukarua Newsletter — ${subject}\n\nView online: ${SITE_URL}`
+    } else {
+      const { data: jobs } = await supabase
+        .from('jobs')
+        .select('id, title, description, location, budget_min, budget_max, category, created_at, urgent, images')
+        .order('urgent', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(12)
+
+      const { data: ads } = await supabase
+        .from('service_ads')
+        .select('id, business_name, description, category, location, image, images, created_at, featured')
+        .order('featured', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(12)
+
+      const { data: banners } = await supabase
+        .from('advertisements')
+        .select('id, title, image_url, images, destination_url, cta_text, active, created_at')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(6)
+
+      subject = `Itukarua Monthly Digest — ${dateStr}`
+      html = buildNewsletterHtml(jobs || [], ads || [], banners || [], dateStr, subject, 'This month\u2019s updated Banners, Jobs and Businesses around you')
+      textPlain = `Itukarua Monthly Digest - ${dateStr}\n\n${(banners || []).length} banners, ${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
+    }
+
+    const smtp = await loadSmtpConfig(supabase)
+    const transport = createFreshTransport(smtp)
     let sent = 0, failed = 0
     let lastError = ''
     for (const sub of subscribers) {
       try {
         await transport.sendMail({
-          from: FROM_EMAIL,
+          from: smtp.from,
           to: sub.email,
-          subject: `Itukarua Weekly Digest — ${dateStr}`,
+          subject,
           text: textPlain,
           html: html.replace('{{email}}', encodeURIComponent(sub.email)),
         })

@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword } from '@/lib/database';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider } from '@/lib/database';
 
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -21,6 +21,40 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
+import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out — check your connection and retry`)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
+async function probeDb(): Promise<{ ok: boolean; blocked: boolean }> {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${supabaseUrl}/rest/v1/advertisements?select=id&limit=1`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    clearTimeout(t);
+    return { ok: res.ok, blocked: false };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') return { ok: false, blocked: false };
+    return { ok: false, blocked: err?.name === 'TypeError' };
+  }
+}
+
+function timeoutHint(blocked: boolean, probeOk: boolean): string {
+  if (!probeOk) {
+    return blocked
+      ? ' Your ad blocker or a browser extension is blocking requests to the database. Whitelist this site (or disable the blocker) and retry.'
+      : ' The database did not answer a test request either — check your internet connection, then retry.';
+  }
+  return ' The database answered a test request, but this write got stuck — usually caused by an extension/ad blocker or a stale network connection. Retry once, or test in an incognito window (extensions off) to confirm.';
+}
 
 interface Profile {
   id: string;
@@ -141,6 +175,18 @@ const AdminPage: React.FC = () => {
   const [newSubscriberEmail, setNewSubscriberEmail] = useState('');
   const [subscriberMsg, setSubscriberMsg] = useState('');
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+  const [newsletterSubject, setNewsletterSubject] = useState('');
+  const [newsletterIntro, setNewsletterIntro] = useState('');
+  const [newsletterBanners, setNewsletterBanners] = useState<any[]>([]);
+  const [newsletterJobs, setNewsletterJobs] = useState<any[]>([]);
+  const [newsletterServices, setNewsletterServices] = useState<any[]>([]);
+  const [selBanners, setSelBanners] = useState<Set<string>>(new Set());
+  const [selJobs, setSelJobs] = useState<Set<string>>(new Set());
+  const [selServices, setSelServices] = useState<Set<string>>(new Set());
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [trashedUsers, setTrashedUsers] = useState<Profile[]>([]);
@@ -161,9 +207,18 @@ const AdminPage: React.FC = () => {
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
   const [advUploading, setAdvUploading] = useState(false);
   const [advUploadKey, setAdvUploadKey] = useState(0);
+  const [advUrlInput, setAdvUrlInput] = useState('');
+  const [carouselSettings, setCarouselSettings] = useState<AdCarouselSettings>({ scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' });
+  const [carouselSaving, setCarouselSaving] = useState(false);
+  const [emailProviders, setEmailProviders] = useState<DbEmailProvider[]>([]);
+  const [emailForm, setEmailForm] = useState<Partial<DbEmailProvider>>({ name: '', username: '', password: '', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465, from_name: 'Itukarua', from_email: '', is_active: false });
+  const [showEmailPw, setShowEmailPw] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
+  const [emailMsgType, setEmailMsgType] = useState<'ok' | 'err'>('ok');
 
   useEffect(() => {
     loadData();
@@ -177,6 +232,77 @@ const AdminPage: React.FC = () => {
   const loadAdverts = async () => {
     const { data } = await supabase.from('advertisements').select('*').order('sort_order');
     setAdverts(data || []);
+  };
+
+  const loadEmailProviders = async () => {
+    const providers = await getEmailProviders();
+    setEmailProviders(providers);
+  };
+
+  const uploadAdImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const fileArr = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (adForm.images.length + fileArr.length > 3) {
+      toast({ title: 'Too many images', description: 'A maximum of 3 images per advert', variant: 'destructive' });
+      return;
+    }
+    setAdvUploading(true);
+    try {
+      const newUrls: string[] = [];
+      for (const file of fileArr) {
+        if (file.size > 20 * 1024 * 1024) {
+          toast({ title: 'File too large', description: 'Image must be 20MB or less', variant: 'destructive' });
+          continue;
+        }
+        const compressed = await compressImage(file, 1600, 400);
+        const safeName = compressed.name.replace(/[^a-zA-Z0-9._-]/g, '').replace(/\.[^.]+$/, '') || 'image';
+        const fileName = `${Date.now()}_${safeName}.jpg`;
+        const { error: uploadError } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 30000, 'Upload');
+        if (uploadError) throw uploadError;
+        newUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+      }
+      if (newUrls.length > 0) {
+        setAdForm(f => {
+          const images = [...f.images, ...newUrls];
+          return { ...f, images, image_url: images[0] || f.image_url };
+        });
+        setAdvUploadKey(k => k + 1);
+        toast({ title: 'Uploaded', description: `${newUrls.length} image(s) uploaded successfully` });
+      }
+    } catch (err: any) {
+      toast({ title: 'Upload Error', description: (err instanceof Error ? err.message : 'Upload failed — please retry'), variant: 'destructive' });
+    } finally { setAdvUploading(false); }
+  };
+
+  const addAdminAdUrl = () => {
+    const url = advUrlInput.trim();
+    if (!url) return;
+    setAdvUrlInput('');
+    setAdForm(f => {
+      const images = f.images.length >= 3 ? f.images : [...f.images, url];
+      return { ...f, images, image_url: images[0] || f.image_url };
+    });
+  };
+
+  const removeAdminAdImage = (idx: number) => {
+    setAdForm(f => {
+      const images = f.images.filter((_, i) => i !== idx);
+      return { ...f, images, image_url: images[0] || f.image_url };
+    });
+  };
+
+  const saveCarouselSettings = async () => {
+    setCarouselSaving(true);
+    try {
+      await Promise.all([
+        updateAdCarouselSetting('scroll_interval_seconds', String(carouselSettings.scrollIntervalSeconds)),
+        updateAdCarouselSetting('transition_duration_seconds', String(carouselSettings.transitionDurationSeconds)),
+        updateAdCarouselSetting('effect', carouselSettings.effect),
+      ]);
+      toast({ title: 'Saved', description: 'Carousel settings updated' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally { setCarouselSaving(false); }
   };
 
   const loadJobs = async () => {
@@ -200,8 +326,10 @@ const AdminPage: React.FC = () => {
         supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || [])),
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
+        getAdCarouselSettings().then(setCarouselSettings),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
+        loadEmailProviders(),
       ]);
 
       // Use individual category lists for modals
@@ -218,6 +346,80 @@ const AdminPage: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const monthLabel = () => new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const openNewsletterBuilder = async () => {
+    setNewsletterOpen(true);
+    setNewsletterLoading(true);
+    setNewsletterSubject(`Itukarua Monthly Digest — ${monthLabel()}`);
+    setNewsletterIntro(`Here are this month's updated Banners, Jobs and Businesses around you. Explore new opportunities and connect with local businesses.`);
+    setSubscriberMsg('');
+    try {
+      const [banners, jobs, services] = await Promise.all([
+        getActiveAds(),
+        getJobs({ activeOnly: true, limit: 12 }),
+        getServiceAds({ activeOnly: true, limit: 12 }),
+      ]);
+      setNewsletterBanners(banners || []);
+      setNewsletterJobs(jobs || []);
+      setNewsletterServices(services || []);
+      setSelBanners(new Set((banners || []).map(b => b.id)));
+      setSelJobs(new Set((jobs || []).map(j => j.id)));
+      setSelServices(new Set((services || []).map(s => s.id)));
+    } catch (err: any) {
+      setSubscriberMsg(`Error loading content: ${err.message}`);
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
+
+  const buildNewsletter = () => {
+    const banners = newsletterBanners.filter(b => selBanners.has(b.id));
+    const jobs = newsletterJobs.filter(j => selJobs.has(j.id));
+    const services = newsletterServices.filter(s => selServices.has(s.id));
+    const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const subject = newsletterSubject.trim() || `Itukarua Monthly Digest — ${monthLabel()}`;
+    return {
+      subject,
+      html: buildNewsletterHtml({ banners, jobs, ads: services, dateStr, subject, intro: newsletterIntro }),
+      text: buildNewsletterText({ subject, banners, jobs, ads: services }),
+      counts: { banners: banners.length, jobs: jobs.length, services: services.length },
+    };
+  };
+
+  const toggleSel = (set: Set<string>, id: string): Set<string> => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  };
+
+  const sendComposedNewsletter = async () => {
+    if (subscribers.length === 0) { setSubscriberMsg('No subscribers to send to.'); return; }
+    const { subject, html, text, counts } = buildNewsletter();
+    if (counts.banners + counts.jobs + counts.services === 0) {
+      setSubscriberMsg('Select at least one banner, job, or service to include.');
+      return;
+    }
+    setSendingNewsletter(true);
+    setSubscriberMsg('');
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-weekly-newsletter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+        body: JSON.stringify({ subject, html, text }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSubscriberMsg(data.message || `Newsletter sent to ${data.sent} subscriber(s)${data.failed > 0 ? ` (${data.failed} failed)` : ''}! Check Ethereal inbox.`);
+      setNewsletterOpen(false);
+      setPreviewOpen(false);
+    } catch (err: any) {
+      setSubscriberMsg(`Error: ${err.message}`);
+    } finally {
+      setSendingNewsletter(false);
     }
   };
 
@@ -968,6 +1170,7 @@ const AdminPage: React.FC = () => {
                 { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
+                { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
                 { id: 'adverts', label: 'Adverts', icon: <MonitorPlay className="w-4 h-4" /> },
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -1060,6 +1263,7 @@ const AdminPage: React.FC = () => {
                               <SelectContent>
                                 <SelectItem value="jobseeker">Jobseeker</SelectItem>
                                 <SelectItem value="employer">Employer</SelectItem>
+                                <SelectItem value="advertiser">Advertiser</SelectItem>
                                 <SelectItem value="super_admin">Super Admin</SelectItem>
                               </SelectContent>
                             </Select>
@@ -1613,6 +1817,10 @@ const AdminPage: React.FC = () => {
                 </div>
                 {subscriberMsg && <p className={`text-sm mb-3 ${subscriberMsg === 'Invalid email' || subscriberMsg.includes('already') ? 'text-amber-600' : 'text-green-600'}`}>{subscriberMsg}</p>}
                 <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200">
+                  <button onClick={openNewsletterBuilder} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
+                    <Newspaper className="w-4 h-4" />
+                    Create Newsletter
+                  </button>
                   <button onClick={async () => {
                     if (subscribers.length === 0) { setSubscriberMsg('No subscribers to send to.'); return; }
                     setSendingNewsletter(true);
@@ -1634,7 +1842,7 @@ const AdminPage: React.FC = () => {
                     {sendingNewsletter ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     {sendingNewsletter ? 'Sending...' : 'Send Newsletter Now'}
                   </button>
-                  <span className="text-xs text-gray-400">Sends to {subscribers.length} subscriber(s) via Ethereal test SMTP</span>
+                  <span className="text-xs text-gray-400">Sends to {subscribers.length} subscriber(s) via the active email provider (configure it in Email Providers)</span>
                 </div>
                 {subscribers.length === 0 ? (
                   <p className="text-sm text-gray-400">No subscribers yet.</p>
@@ -1704,11 +1912,197 @@ const AdminPage: React.FC = () => {
             </Card>
           )}
 
+          {activeTab === 'email' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Providers</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-sm">
+                  The active provider below is used to send emails. Credentials can be set two ways — the saved provider here, or Supabase secrets (<code className="bg-white/60 px-1 rounded">SMTP_HOST</code>, <code className="bg-white/60 px-1 rounded">SMTP_USER</code>, <code className="bg-white/60 px-1 rounded">SMTP_PASS</code>), which take priority. The password is saved to the database but only super admins can read it; it is never returned to the browser after saving.
+                </div>
+
+                {emailMsg && (
+                  <div className={`mb-4 p-3 rounded-lg text-sm ${emailMsgType === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {emailMsg}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Provider form */}
+                  <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                    <h3 className="font-semibold text-gray-900 mb-4">{emailForm.id ? 'Edit Provider' : 'Add Email Provider'}</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Provider Name</Label>
+                        <Input value={emailForm.name || ''} onChange={e => setEmailForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Prefetch Systems" />
+                      </div>
+                      <div>
+                        <Label>Username (email address)</Label>
+                        <Input value={emailForm.username || ''} onChange={e => setEmailForm(f => ({ ...f, username: e.target.value }))} placeholder="you@yourdomain.co.ke" />
+                      </div>
+                      <div>
+                        <Label>Password</Label>
+                        <div className="relative">
+                          <Input type={showEmailPw ? 'text' : 'password'} value={emailForm.password || ''} onChange={e => setEmailForm(f => ({ ...f, password: e.target.value }))} placeholder={emailForm.id ? 'Leave blank to keep current password' : 'SMTP / email password'} />
+                          <button type="button" onClick={() => setShowEmailPw(!showEmailPw)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                            {showEmailPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>IMAP Host</Label>
+                          <Input value={emailForm.imap_host || ''} onChange={e => setEmailForm(f => ({ ...f, imap_host: e.target.value }))} placeholder="mail.yourdomain.co.ke" />
+                        </div>
+                        <div>
+                          <Label>IMAP Port</Label>
+                          <Input type="number" value={emailForm.imap_port || ''} onChange={e => setEmailForm(f => ({ ...f, imap_port: Number(e.target.value) }))} placeholder="993" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>SMTP Host (outgoing)</Label>
+                          <Input value={emailForm.smtp_host || ''} onChange={e => setEmailForm(f => ({ ...f, smtp_host: e.target.value }))} placeholder="mail.yourdomain.co.ke" />
+                        </div>
+                        <div>
+                          <Label>SMTP Port</Label>
+                          <Input type="number" value={emailForm.smtp_port || ''} onChange={e => setEmailForm(f => ({ ...f, smtp_port: Number(e.target.value) }))} placeholder="465" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>From Name</Label>
+                          <Input value={emailForm.from_name || ''} onChange={e => setEmailForm(f => ({ ...f, from_name: e.target.value }))} placeholder="Itukarua" />
+                        </div>
+                        <div>
+                          <Label>From Email</Label>
+                          <Input value={emailForm.from_email || ''} onChange={e => setEmailForm(f => ({ ...f, from_email: e.target.value }))} placeholder="noreply@yourdomain.co.ke" />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={!!emailForm.is_active} onChange={e => setEmailForm(f => ({ ...f, is_active: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                        <span className="text-sm text-gray-700 font-medium">Set as active provider</span>
+                      </label>
+                      <div className="flex gap-3">
+                        <Button disabled={emailSaving || !emailForm.name || !emailForm.username || !emailForm.smtp_host} onClick={async () => {
+                          setEmailSaving(true);
+                          setEmailMsg('');
+                          const result = await saveEmailProvider(emailForm);
+                          if (result.error) {
+                            setEmailMsg(result.error);
+                            setEmailMsgType('err');
+                          } else {
+                            setEmailMsg(emailForm.id ? 'Provider updated.' : 'Provider added.');
+                            setEmailMsgType('ok');
+                            setEmailForm({ name: '', username: '', password: '', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465, from_name: 'Itukarua', from_email: '', is_active: false });
+                            loadEmailProviders();
+                          }
+                          setEmailSaving(false);
+                        }} className="flex items-center gap-2">
+                          {emailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                          {emailForm.id ? 'Save Changes' : 'Add Provider'}
+                        </Button>
+                        {emailForm.id && (
+                          <Button variant="outline" onClick={() => setEmailForm({ name: '', username: '', password: '', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465, from_name: 'Itukarua', from_email: '', is_active: false })}>
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Provider list */}
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">Saved Providers ({emailProviders.length})</h3>
+                    {emailProviders.length === 0 ? (
+                      <p className="text-sm text-gray-400">No email providers configured yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {emailProviders.map(p => (
+                          <div key={p.id} className={`rounded-xl border p-4 ${p.is_active ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold text-gray-900 truncate">{p.name}</p>
+                                  {p.is_active && <Badge className="bg-green-600">Active</Badge>}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">{p.username}</p>
+                              </div>
+                              <div className="flex gap-2 flex-shrink-0">
+                                <button onClick={() => { setEmailForm({ ...p, password: '' }); setEmailMsg(''); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit</button>
+                                <button onClick={async () => {
+                                  if (!confirm(`Delete provider "${p.name}"?`)) return;
+                                  const result = await deleteEmailProvider(p.id);
+                                  if (result.error) { setEmailMsg(result.error); setEmailMsgType('err'); }
+                                  else loadEmailProviders();
+                                }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-xs text-gray-500">
+                              <span>IMAP: <span className="font-medium text-gray-700">{p.imap_host || '—'}</span>{p.imap_port ? ` :${p.imap_port}` : ''}</span>
+                              <span>SMTP: <span className="font-medium text-gray-700">{p.smtp_host || '—'}</span>{p.smtp_port ? ` :${p.smtp_port}` : ''}</span>
+                              <span>From: <span className="font-medium text-gray-700">{p.from_email || p.username || '—'}</span></span>
+                              <button
+                                onClick={async () => {
+                                  const result = await saveEmailProvider({ id: p.id, is_active: true });
+                                  if (result.error) { setEmailMsg(result.error); setEmailMsgType('err'); }
+                                  else { setEmailMsg(`"${p.name}" is now the active provider.`); setEmailMsgType('ok'); loadEmailProviders(); }
+                                }}
+                                className="text-left text-green-700 hover:text-green-900 font-medium"
+                              >
+                                {p.is_active ? '✓ Currently active' : 'Set as active'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'adverts' && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Homepage Carousel Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-500 mb-4">The homepage banner shows 5 ad photos at once and rotates to the next 5. These controls set the speed and transition.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Scroll Speed (seconds)</Label>
+                    <Input type="number" min={1} max={60} step={1} value={carouselSettings.scrollIntervalSeconds} onChange={e => setCarouselSettings(s => ({ ...s, scrollIntervalSeconds: Math.max(1, Number(e.target.value) || 1) }))} />
+                    <p className="text-xs text-gray-400 mt-1">Time before it rotates to the next 5 ads</p>
+                  </div>
+                  <div>
+                    <Label>Transition Duration (seconds)</Label>
+                    <Input type="number" min={0} max={5} step={0.1} value={carouselSettings.transitionDurationSeconds} onChange={e => setCarouselSettings(s => ({ ...s, transitionDurationSeconds: Math.max(0, Number(e.target.value) || 0) }))} />
+                    <p className="text-xs text-gray-400 mt-1">How fast the slide/fade happens</p>
+                  </div>
+                  <div>
+                    <Label>Transition Effect</Label>
+                    <select value={carouselSettings.effect} onChange={e => setCarouselSettings(s => ({ ...s, effect: e.target.value as 'slide' | 'fade' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                      <option value="slide">Slide</option>
+                      <option value="fade">Fade</option>
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Slide scrolls pages; Fade cross-fades them</p>
+                  </div>
+                </div>
+                <Button onClick={saveCarouselSettings} disabled={carouselSaving} className="mt-4 bg-green-600 hover:bg-green-700">
+                  {carouselSaving ? 'Saving...' : 'Save Carousel Settings'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {activeTab === 'adverts' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisements ({adverts.length})</CardTitle>
-                <Button onClick={() => { setAdForm({ title: '', image_url: '', destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false }); setShowAdForm(true); }}>+ Add Advert</Button>
+                <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -1724,41 +2118,29 @@ const AdminPage: React.FC = () => {
                         <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       </div>
                       <div className="col-span-full">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Banner Image URL <span className="text-red-500">*</span></label>
-                        <p className="text-[11px] text-amber-600 mb-2">Recommended: 2000 x 250 px (wide banner). The ad will display at full width without cropping. Max 5MB.</p>
-                        <div className="flex gap-2">
-                          <input type="url" value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="Image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                          <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-                            {advUploading ? 'Uploading...' : 'Upload'}
-                            <input type="file" accept="image/png, image/jpeg, image/webp" hidden disabled={advUploading} onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              if (file.size > 5 * 1024 * 1024) {
-                                toast({ title: 'File too large', description: 'Image must be 5MB or less', variant: 'destructive' });
-                                e.target.value = '';
-                                return;
-                              }
-                              setAdvUploading(true);
-                              try {
-                                const compressed = await compressImage(file, 1600, 300);
-                                const fileName = `adverts/${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
-                                const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, compressed);
-                                if (uploadError) throw uploadError;
-                                const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
-                                setAdForm(f => ({ ...f, image_url: publicUrl }));
-                                setAdvUploadKey(k => k + 1);
-                                toast({ title: 'Uploaded', description: 'Image uploaded successfully' });
-                              } catch (err: any) {
-                                toast({ title: 'Upload Error', description: err.message, variant: 'destructive' });
-                              } finally { setAdvUploading(false); e.target.value = ''; }
-                            }} />
-                          </label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Banner Images <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">(up to 3)</span></label>
+                        <p className="text-[11px] text-amber-600 mb-2">First image is the main banner; all images show in the homepage popup. Each photo is compressed automatically and opens full-size when clicked. Max 20MB each.</p>
+                        <div key={advUploadKey} className="flex flex-wrap gap-2 mb-2">
+                          {adForm.images.length === 0 && (
+                            <div className="w-32 h-24 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400"><Plus className="w-5 h-5" /></div>
+                          )}
+                          {adForm.images.map((img, i) => (
+                            <div key={i} className="relative w-32 h-24 rounded border border-gray-200 overflow-hidden bg-gray-100">
+                              <img src={proxyImageUrl(img)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              {i === 0 && <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Main</span>}
+                              <button onClick={() => removeAdminAdImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-colors"><X className="w-3 h-3" /></button>
+                            </div>
+                          ))}
                         </div>
-                        {adForm.image_url && (
-                          <div key={advUploadKey} className="mt-2 w-full max-w-sm aspect-[8/1] rounded border border-gray-200 overflow-hidden bg-gray-100">
-                            <img src={optimizeImageUrl(adForm.image_url, 800, 100)} alt="" className="w-full h-full object-cover" />
-                          </div>
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+                            <Upload className="w-4 h-4 inline mr-1" />
+                            {advUploading ? 'Uploading...' : 'Upload Images'}
+                            <input type="file" accept="image/png, image/jpeg, image/webp" multiple hidden disabled={advUploading} onChange={e => { uploadAdImages(e.target.files); e.target.value = ''; }} />
+                          </label>
+                          <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                          <button onClick={addAdminAdUrl} disabled={adForm.images.length >= 3 || !advUrlInput.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors">Add</button>
+                        </div>
                       </div>
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
@@ -1773,24 +2155,62 @@ const AdminPage: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={async () => {
-                        if (!adForm.title || !adForm.image_url) {
-                          toast({ title: 'Missing fields', description: 'Title and Image URL are required', variant: 'destructive' });
+                        const primaryUrl = adForm.images[0] || adForm.image_url;
+                        if (!adForm.title || !primaryUrl) {
+                          toast({ title: 'Missing fields', description: 'Title and at least one banner image are required', variant: 'destructive' });
                           return;
                         }
-                        try {
-                          if (adForm.id) {
-                            const { id, ...updateData } = adForm;
-                            const { error } = await supabase.from('advertisements').update({ ...updateData, destination_url: updateData.destination_url || null }).eq('id', adForm.id);
-                            if (error) throw error;
-                          } else {
-                            const { id, ...insertData } = adForm;
-                            const { error } = await supabase.from('advertisements').insert({ ...insertData, destination_url: insertData.destination_url || null });
-                            if (error) throw error;
-                          }
+                        const images = adForm.images.length ? adForm.images : [adForm.image_url];
+                        const finishSaved = () => {
                           setShowAdForm(false);
                           loadAdverts();
+                          toast({ title: 'Success', description: adForm.id ? 'Ad updated' : 'Ad created' });
+                        };
+                        const findRecent = async () => {
+                          try {
+                            if (adForm.id) {
+                              const { data } = await withTimeout(supabase.from('advertisements').select('id,title').eq('id', adForm.id).limit(1), 15000, 'Verify');
+                              return !!data && data.length > 0;
+                            }
+                            const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+                            const { data } = await withTimeout(supabase.from('advertisements').select('id').eq('image_url', primaryUrl).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(1), 15000, 'Verify');
+                            return !!data && data.length > 0;
+                          } catch {
+                            return false;
+                          }
+                        };
+                        try {
+                          if (adForm.id) {
+                            const { id, image_url, images: _oldImages, ...updateData } = adForm;
+                            const { error } = await withTimeout(supabase.from('advertisements').update({ ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null }).eq('id', adForm.id), 30000, 'Update');
+                            if (error) throw error;
+                          } else {
+                            const { id, image_url, images: _oldImages, ...insertData } = adForm;
+                            const alreadySaved = await findRecent();
+                            if (alreadySaved) {
+                              finishSaved();
+                              return;
+                            }
+                            const { error } = await withTimeout(supabase.from('advertisements').insert({ ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null }), 30000, 'Save');
+                            if (error) throw error;
+                          }
+                          finishSaved();
                         } catch (err: any) {
-                          toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                          console.error('[Advert Save] failed:', err);
+                          const timedOut = /timed out/i.test(err?.message || '');
+                          if (timedOut) {
+                            const saved = await findRecent();
+                            if (saved) {
+                              finishSaved();
+                              return;
+                            }
+                          }
+                          const code = err?.code ? ` (${err.code})` : '';
+                          const hint = timedOut ? await (async () => {
+                            const probe = await probeDb();
+                            return timeoutHint(probe.blocked, probe.ok);
+                          })() : '';
+                          toast({ title: 'Error', description: `${err?.message || 'Failed to save ad'}${code}${hint}`, variant: 'destructive' });
                         }
                       }} className="bg-green-600 hover:bg-green-700">{adForm.id ? 'Update' : 'Create'}</Button>
                       <Button variant="outline" onClick={() => setShowAdForm(false)}>Cancel</Button>
@@ -1818,7 +2238,7 @@ const AdminPage: React.FC = () => {
                         {adverts.filter(a => !searchAdverts || a.title?.toLowerCase().includes(searchAdverts.toLowerCase())).map(ad => (
                           <tr key={ad.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="py-2 px-3">
-                              <img src={ad.image_url} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             </td>
                             <td className="py-2 px-3 text-gray-800 font-medium">{ad.title}</td>
                             <td className="py-2 px-3 text-gray-500 truncate max-w-[140px]">{ad.destination_url}</td>
@@ -1827,18 +2247,18 @@ const AdminPage: React.FC = () => {
                             <td className="py-2 px-3 text-center text-gray-600 text-xs font-mono">{ad.display_count || 0}</td>
                             <td className="py-2 px-3 text-center">
                               <button onClick={async () => {
-                                await supabase.from('advertisements').update({ active: !ad.active }).eq('id', ad.id);
+                                await withTimeout(supabase.from('advertisements').update({ active: !ad.active }).eq('id', ad.id), 30000, 'Update');
                                 loadAdverts();
                               }} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
                                 <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                               </button>
                             </td>
                             <td className="py-2 px-3 text-right">
-                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
+                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setAdvUrlInput(''); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
                               <button onClick={async () => {
                                 if (!window.confirm(`Delete "${ad.title}"?`)) return;
                                 try {
-                                  const { error } = await supabase.from('advertisements').delete().eq('id', ad.id);
+                                  const { error } = await withTimeout(supabase.from('advertisements').delete().eq('id', ad.id), 30000, 'Delete');
                                   if (error) throw error;
                                   setAdverts(prev => prev.filter(a => a.id !== ad.id));
                                   toast({ title: 'Deleted', description: `"${ad.title}" removed` });
@@ -2321,6 +2741,7 @@ const AdminPage: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="jobseeker">Jobseeker</SelectItem>
                   <SelectItem value="employer">Employer</SelectItem>
+                  <SelectItem value="advertiser">Advertiser</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="super_admin">Super Admin</SelectItem>
                 </SelectContent>
@@ -2456,6 +2877,7 @@ const AdminPage: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="jobseeker">Jobseeker</SelectItem>
                     <SelectItem value="employer">Employer</SelectItem>
+                    <SelectItem value="advertiser">Advertiser</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="super_admin">Super Admin</SelectItem>
                   </SelectContent>
@@ -2540,6 +2962,147 @@ const AdminPage: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Newsletter Builder Dialog */}
+      <Dialog open={newsletterOpen} onOpenChange={(open) => { if (!open) setNewsletterOpen(false); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Newsletter</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500 -mt-2">Auto-captures this month's active Banners, Jobs and Services. Toggle which items to include, then preview before sending.</p>
+
+          <div className="space-y-4">
+            <div>
+              <Label>Subject</Label>
+              <Input value={newsletterSubject} onChange={e => setNewsletterSubject(e.target.value)} placeholder="Itukarua Monthly Digest — August 2026" />
+            </div>
+            <div>
+              <Label>Intro Message</Label>
+              <Textarea value={newsletterIntro} onChange={e => setNewsletterIntro(e.target.value)} rows={2} placeholder="Welcome message for subscribers..." />
+            </div>
+
+            {newsletterLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                <span className="ml-2 text-sm text-gray-500">Capturing latest content...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <NewsletterSection
+                  title="Banners"
+                  icon="🏷️"
+                  items={newsletterBanners}
+                  selected={selBanners}
+                  getLabel={b => b.title || b.business_name || 'Untitled banner'}
+                  getThumb={b => Array.isArray(b.images) && b.images[0] ? b.images[0] : b.image_url}
+                  onToggle={(id) => setSelBanners(prev => toggleSel(prev, id))}
+                  onSelectAll={(on) => setSelBanners(on ? new Set(newsletterBanners.map(b => b.id)) : new Set())}
+                />
+                <NewsletterSection
+                  title="Jobs"
+                  icon="⭐"
+                  items={newsletterJobs}
+                  selected={selJobs}
+                  getLabel={j => j.title || 'Untitled job'}
+                  getThumb={j => Array.isArray(j.images) && j.images[0] ? j.images[0] : undefined}
+                  getSub={j => `${j.location || ''}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}`}
+                  onToggle={(id) => setSelJobs(prev => toggleSel(prev, id))}
+                  onSelectAll={(on) => setSelJobs(on ? new Set(newsletterJobs.map(j => j.id)) : new Set())}
+                />
+                <NewsletterSection
+                  title="Services"
+                  icon="🌟"
+                  items={newsletterServices}
+                  selected={selServices}
+                  getLabel={s => s.business_name || 'Untitled service'}
+                  getThumb={s => Array.isArray(s.images) && s.images[0] ? s.images[0] : s.image}
+                  getSub={s => `${s.category || ''}${s.location ? ` • ${s.location}` : ''}`}
+                  onToggle={(id) => setSelServices(prev => toggleSel(prev, id))}
+                  onSelectAll={(on) => setSelServices(on ? new Set(newsletterServices.map(s => s.id)) : new Set())}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+            <Button variant="outline" onClick={() => setNewsletterOpen(false)}>Cancel</Button>
+            <Button variant="secondary" disabled={newsletterLoading} onClick={() => {
+              setPreviewHtml(buildNewsletter().html);
+              setPreviewOpen(true);
+            }}>
+              Preview
+            </Button>
+            <Button disabled={sendingNewsletter || newsletterLoading} onClick={sendComposedNewsletter} className="bg-purple-600 hover:bg-purple-700">
+              {sendingNewsletter ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {sendingNewsletter ? 'Sending...' : `Send to ${subscribers.length} Subscriber${subscribers.length === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Newsletter Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) setPreviewOpen(false); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Newsletter Preview</DialogTitle>
+          </DialogHeader>
+          <iframe
+            title="Newsletter preview"
+            srcDoc={previewHtml}
+            className="w-full h-[70vh] bg-white border border-gray-200 rounded-lg"
+          />
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Close</Button>
+            <Button disabled={sendingNewsletter} onClick={sendComposedNewsletter} className="bg-purple-600 hover:bg-purple-700">
+              {sendingNewsletter ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {sendingNewsletter ? 'Sending...' : 'Send to Subscribers'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+interface NewsletterSectionProps {
+  title: string;
+  icon: string;
+  items: any[];
+  selected: Set<string>;
+  getLabel: (item: any) => string;
+  getSub?: (item: any) => string;
+  getThumb?: (item: any) => string | undefined;
+  onToggle: (id: string) => void;
+  onSelectAll: (on: boolean) => void;
+}
+
+const NewsletterSection: React.FC<NewsletterSectionProps> = ({ title, icon, items, selected, getLabel, getSub, getThumb, onToggle, onSelectAll }) => {
+  const allSelected = items.length > 0 && items.every(i => selected.has(i.id));
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
+        <span className="text-sm font-semibold text-gray-800">{icon} {title} <span className="text-gray-400 font-normal">({selected.size}/{items.length})</span></span>
+        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+          <Checkbox checked={allSelected} onCheckedChange={(c) => onSelectAll(c === true)} />
+          Select all
+        </label>
+      </div>
+      <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
+        {items.length === 0 ? (
+          <p className="text-sm text-gray-400 px-3 py-3">No active {title.toLowerCase()} this month.</p>
+        ) : items.map(item => (
+          <label key={item.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-gray-50">
+            <Checkbox checked={selected.has(item.id)} onCheckedChange={() => onToggle(item.id)} />
+            {getThumb ? (
+              <img src={getThumb(item)} alt="" className="w-10 h-10 rounded-md object-cover bg-gray-100" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            ) : <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center text-gray-400 text-xs">NA</div>}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-800 font-medium truncate">{getLabel(item)}</p>
+              {getSub ? <p className="text-xs text-gray-500 truncate">{getSub(item)}</p> : null}
+            </div>
+          </label>
+        ))}
+      </div>
     </div>
   );
 };

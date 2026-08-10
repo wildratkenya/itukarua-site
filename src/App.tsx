@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AdminPage from "./components/itukarua/AdminPage";
-import { supabase } from "@/lib/supabase";
+import { supabase, restoreSession } from "@/lib/supabase";
 import { getProfile } from "@/lib/database";
 import React, { useState, useEffect } from "react";
 
@@ -29,6 +29,7 @@ const AdminRoute: React.FC = () => {
 
     const checkAuth = async () => {
       try {
+        await restoreSession();
         const { data: { session } } = await supabase.auth.getSession();
         if (!mounted) return;
 

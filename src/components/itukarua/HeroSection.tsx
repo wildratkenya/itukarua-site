@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight } from 'lucide-react';
 import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
-import { getCustomCategories, getNewsletterSubscribers } from '@/lib/database';
+import { getCustomCategories, getNewsletterSubscriberCount } from '@/lib/database';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
 
@@ -29,7 +29,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
 
   useEffect(() => {
     getCustomCategories('job').then(setExtraCats).catch(() => {});
-    getNewsletterSubscribers().then(subs => setSubCount(subs.length)).catch(() => {});
+    getNewsletterSubscriberCount().then(setSubCount).catch(() => {});
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -54,7 +54,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
         <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 via-gray-900/75 to-gray-900/60" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 lg:pt-8 lg:pb-10">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-2 lg:pt-4 lg:pb-4">
         <div className="grid lg:grid-cols-5 gap-8 items-start">
           {/* Left Column: Hero Content */}
           <div className="lg:col-span-3">

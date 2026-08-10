@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock } from 'lucide-react';
 import HeroSection from './HeroSection';
@@ -19,11 +19,14 @@ interface HomePageProps {
   onNavigate: (page: Page) => void;
   onSearch: (query: string) => void;
   onViewJob: (jobId: string) => void;
+  onOpenAuth: (tab: 'login' | 'signup') => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) => {
+const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onOpenAuth }) => {
+  const pendingAdvertNav = useRef(false);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
   const [selectedService, setSelectedService] = useState<any | null>(null);
+  const [showSticker, setShowSticker] = useState(false);
   const [viewingImage, setViewingImage] = useState<string[] | null>(null);
   const [userRating, setUserRating] = useState<number>(0);
   const [user, setUser] = useState<any>(null);
@@ -44,6 +47,39 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
     });
     return () => listener?.subscription.unsubscribe();
   }, []);
+
+  // "Our Other Services" sticker: pop in 5s after load, then hide for ~1 min
+  // and reappear on a loop. A manual close hides it for the current cycle.
+  useEffect(() => {
+    const VISIBLE_MS = 5000;
+    const HIDDEN_MS = 60000;
+    let timer: number;
+    let stopped = false;
+    const run = (show: boolean) => {
+      if (stopped) return;
+      setShowSticker(show);
+      timer = window.setTimeout(() => run(!show), show ? VISIBLE_MS : HIDDEN_MS);
+    };
+    timer = window.setTimeout(() => run(true), 5000);
+    return () => { stopped = true; window.clearTimeout(timer); };
+  }, []);
+
+  // After sign-in/sign-up from the CTA, continue to the advert form
+  useEffect(() => {
+    if (user && pendingAdvertNav.current) {
+      pendingAdvertNav.current = false;
+      onNavigate('post-advert');
+    }
+  }, [user, onNavigate]);
+
+  const handleAdvertiseClick = () => {
+    if (user) {
+      onNavigate('post-advert');
+    } else {
+      pendingAdvertNav.current = true;
+      onOpenAuth('signup');
+    }
+  };
 
   useEffect(() => {
     if (selectedService && user) {
@@ -167,20 +203,31 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
         <meta name="twitter:description" content="Find local jobs, business listings, and service providers in Itukarua County, Kenya. Browse opportunities across every ward and village." />
         <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
       </Helmet>
-      <a
-        href="https://ikenya-ebon.vercel.app/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute top-4 right-4 z-40 w-48 h-48 lg:w-64 lg:h-64 rounded-xl overflow-hidden shadow-lg hover:shadow-xl hover:scale-105 transition-all group animate-slide-in-right"
-      >
-        <img src="/images/sticker.jpg" alt="Our Other Services" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors" />
-        <div className="absolute inset-0 flex items-center justify-center p-3">
-          <span className="text-white text-4xl lg:text-5xl font-['Changa_One'] text-center leading-tight">
-            Our Other Services
-          </span>
+      {showSticker && (
+        <div className="absolute top-4 right-4 z-40">
+          <a
+            href="https://ikenya-ebon.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative block w-48 h-48 lg:w-64 lg:h-64 rounded-xl overflow-hidden shadow-lg hover:shadow-xl hover:scale-105 transition-all group animate-slide-in-right"
+          >
+            <img src="/images/sticker.jpg" alt="Our Other Services" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors" />
+            <div className="absolute inset-0 flex items-center justify-center p-3">
+              <span className="text-white text-4xl lg:text-5xl font-['Changa_One'] text-center leading-tight">
+                Our Other Services
+              </span>
+            </div>
+          </a>
+          <button
+            onClick={() => setShowSticker(false)}
+            aria-label="Close Our Other Services sticker"
+            className="absolute -top-2 -right-2 w-7 h-7 bg-white/90 hover:bg-white text-gray-700 rounded-full shadow-lg flex items-center justify-center transition-colors z-10"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      </a>
+      )}
       <HeroSection onNavigate={onNavigate} onSearch={onSearch} onOpenWorkerSearch={() => setShowWorkerSearch(true)} stats={stats} />
       <AdBanner />
 
@@ -580,7 +627,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob }) 
           <p className="text-green-100 max-w-2xl mx-auto mb-8">Join thousands of Kenyans building stronger local economies through ITUKARUA Solutions.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button onClick={() => onNavigate('post-job')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
-            <button onClick={() => onNavigate('services')} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise Your Service</button>
+            <button onClick={handleAdvertiseClick} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise Your Service</button>
           </div>
         </div>
       </section>

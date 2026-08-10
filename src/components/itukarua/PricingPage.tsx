@@ -203,6 +203,40 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
           </div>
         </div>
 
+        {/* Homepage Advert */}
+        <div className="mb-16">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Homepage Adverts</h2>
+          <p className="text-gray-500 text-center mb-8">Get your business in front of every visitor — prime banner placement on the homepage carousel</p>
+          <div className="max-w-md mx-auto bg-white rounded-2xl border-2 border-amber-400 shadow-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-center">
+              <p className="text-amber-100 text-sm font-medium">{PRICING_PLANS.homepageAdvert.name}</p>
+              <div className="flex items-baseline justify-center gap-1 mt-1">
+                <span className="text-4xl font-bold text-white">KES {PRICING_PLANS.homepageAdvert.price}<span className="text-lg text-amber-200 font-normal">/week</span></span>
+              </div>
+            </div>
+            <div className="p-6">
+              <ul className="space-y-3 mb-6">
+                {PRICING_PLANS.homepageAdvert.features.map((f, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
+                    <Check className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handlePay(PRICING_PLANS.homepageAdvert.price, 'Homepage Advert (1 week)', 'ADV-HP-WEEK')}
+                disabled={!alreadyAccepted}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <Phone className="w-4 h-4" />
+                Pay with M-Pesa
+              </button>
+              {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
+              <p className="text-[10px] text-gray-400 text-center mt-2">Homepage carousel advert • renews weekly • 5 ads shown at once</p>
+            </div>
+          </div>
+        </div>
+
         {/* Other Fees */}
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">Other Platform Fees</h2>

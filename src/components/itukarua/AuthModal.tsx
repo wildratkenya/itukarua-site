@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { X, Eye, EyeOff, MapPin, User, Briefcase, Shield, Camera } from 'lucide-react';
+import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -15,7 +15,7 @@ interface AuthModalProps {
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', onAuth }) => {
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<'jobseeker' | 'employer' | 'admin'>('employer');
+  const [role, setRole] = useState<'advertiser' | 'employer' | 'jobseeker'>('employer');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -78,6 +78,32 @@ data: {
         if (error) throw error;
 
         if (data.user) {
+          // If email confirmation is disabled, signUp returns an active session
+          // immediately. Persist the profile + chosen role straight to the DB.
+          const hasSession = !!data.session;
+          if (hasSession) {
+            const profileUpsert = supabase.from('profiles').upsert({
+              id: data.user.id,
+              full_name: formData.name,
+              email: formData.email,
+              phone: formData.phone,
+              role,
+              location: formData.location || null,
+              county: formData.county || null,
+              subcounty: formData.subcounty || null,
+              skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
+              resume: formData.resume || null,
+              email_confirmed: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+            const timeoutProfile = new Promise((_, reject) => setTimeout(() => reject(new Error('PROFILE_TIMEOUT')), 8000));
+            const { error: profileError } = await Promise.race([profileUpsert, timeoutProfile]) as any;
+            if (profileError && profileError.message !== 'PROFILE_TIMEOUT') {
+              console.error('[Signup] profile upsert failed:', profileError);
+            }
+          }
+
           // Upload profile photo
           let profileImageUrl = '';
           if (profilePhotoFile) {
@@ -122,10 +148,15 @@ data: {
           if (subscribeToNewsletter) {
             await subscribeNewsletter(formData.email, formData.name.trim());
           }
-          setEmailSent(true);
           setServerError('');
-          onAuth();
-          onClose();
+
+          if (hasSession) {
+            // No email confirmation required — account is live now
+            onAuth();
+            onClose();
+          } else {
+            setEmailSent(true);
+          }
         }
       } else {
         const signinPromise = supabase.auth.signInWithPassword({
@@ -160,9 +191,9 @@ data: {
   };
 
   const roles = [
-    { key: 'employer', label: 'Employer / Advertiser', icon: Briefcase, desc: 'Post jobs & adverts' },
+    { key: 'advertiser', label: 'Advertiser', icon: Megaphone, desc: 'Create banner adverts' },
+    { key: 'employer', label: 'Employer', icon: Briefcase, desc: 'Post jobs & hire' },
     { key: 'jobseeker', label: 'Jobseeker', icon: User, desc: 'Find work & bid' },
-    { key: 'admin', label: 'Admin', icon: Shield, desc: 'Manage platform' },
   ];
 
   return (

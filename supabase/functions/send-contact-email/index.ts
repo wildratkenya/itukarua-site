@@ -1,26 +1,10 @@
-import nodemailer from 'npm:nodemailer@6.9.16'
+import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 
 const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function createTransport() {
-  return nodemailer.createTransport({
-    host: Deno.env.get('ETHEREAL_HOST') || 'smtp.ethereal.email',
-    port: parseInt(Deno.env.get('ETHEREAL_PORT') || '587'),
-    secure: false,
-    auth: {
-      user: Deno.env.get('ETHEREAL_USER') || '',
-      pass: Deno.env.get('ETHEREAL_PASS') || '',
-    },
-  })
 }
 
 Deno.serve(async (req) => {
@@ -54,14 +38,20 @@ Deno.serve(async (req) => {
       <p style="margin:0;color:#374151;line-height:1.6;white-space:pre-wrap">${eMessage}</p>
     </div>
   </td></tr>
+  <tr><td style="background:#f3f4f6;padding:20px 24px;text-align:center">
+    <p style="color:#9ca3af;font-size:11px;margin:0">Sent from the Itukarua contact form. <a href="${SITE_URL}" style="color:#059669;text-decoration:none">Itukarua Classifieds</a></p>
+  </td></tr>
 </table>
 </body>
 </html>`
 
-    const transport = createTransport()
+    const supabase = createServiceClient()
+    const smtp = await loadSmtpConfig(supabase)
+    const transport = createFreshTransport(smtp)
     await transport.sendMail({
-      from: 'Itukarua Contact <noreply@itukarua.ke>',
+      from: smtp.from,
       to: 'info@itukarua.co.ke',
+      replyTo: `${eName} <${eEmail}>`,
       subject: `Contact: ${eSubject} from ${eName}`,
       text: `Name: ${eName}\nEmail: ${eEmail}\nPhone: ${ePhone || 'N/A'}\nSubject: ${eSubject}\nMessage:\n${eMessage}`,
       html,

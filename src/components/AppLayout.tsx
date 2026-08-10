@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { supabase } from '@/lib/supabase';
+import { supabase, saveSession, restoreSession } from '@/lib/supabase';
 import { getProfile, type DbProfile } from '@/lib/database';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
@@ -81,11 +81,16 @@ const AppLayout: React.FC = () => {
       }
     };
 
-    loadUser();
+    restoreSession().finally(() => {
+      if (mounted) loadUser();
+    });
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      if (session) saveSession(session);
+      else if (event === 'SIGNED_OUT') saveSession(null);
       
       if (event === 'SIGNED_IN' && session?.user) {
         // Check if user just confirmed their email
@@ -209,7 +214,7 @@ const AppLayout: React.FC = () => {
     try {
       switch (currentPage) {
         case 'home':
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
           return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
         case 'job-detail':
@@ -237,21 +242,21 @@ const AppLayout: React.FC = () => {
           return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
         case 'dashboard':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
           }
           return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} />;
         case 'inbox':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
           }
           return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
           }
           return <AdminPage />;
         default:
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
       }
     } catch (err: any) {
       console.error('CRITICAL RENDER ERROR:', err);
