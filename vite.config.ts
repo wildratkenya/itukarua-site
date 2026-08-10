@@ -13,6 +13,11 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/img\/a\//, ''),
       },
+      '/supabase': {
+        target: 'https://xahaxtbudiubelemewna.supabase.co',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/supabase/, ''),
+      },
     },
   },
   plugins: [

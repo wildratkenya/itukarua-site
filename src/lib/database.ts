@@ -7,7 +7,7 @@ export interface DbProfile {
   full_name: string;
   email: string;
   phone: string;
-  role: 'super_admin' | 'admin' | 'jobseeker' | 'employer';
+  role: 'super_admin' | 'admin' | 'advertiser' | 'jobseeker' | 'employer';
   location: string;
   county?: string;
   subcounty?: string;
@@ -1087,6 +1087,33 @@ export async function updatePlatformSetting(key: string, value: number): Promise
   if (error) throw error;
 }
 
+export interface AdCarouselSettings {
+  scrollIntervalSeconds: number;
+  transitionDurationSeconds: number;
+  effect: 'slide' | 'fade';
+}
+
+export async function getAdCarouselSettings(): Promise<AdCarouselSettings> {
+  const { data, error } = await supabase
+    .from('ad_carousel_settings')
+    .select('key, value');
+  if (error && error.name !== 'AbortError') { console.error('getAdCarouselSettings error:', error); return { scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' }; }
+  const map: Record<string, string> = {};
+  (data || []).forEach((s: any) => { map[s.key] = s.value; });
+  return {
+    scrollIntervalSeconds: parseFloat(map['scroll_interval_seconds']) || 5,
+    transitionDurationSeconds: parseFloat(map['transition_duration_seconds']) || 0.8,
+    effect: map['effect'] === 'fade' ? 'fade' : 'slide',
+  };
+}
+
+export async function updateAdCarouselSetting(key: string, value: string): Promise<void> {
+  const { error } = await supabase
+    .from('ad_carousel_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 // ─── Profile Views ─────────────────────────────────────────────────────────
 
 export async function incrementProfileViews(profileId: string): Promise<void> {
@@ -1173,8 +1200,14 @@ export async function subscribeNewsletter(email: string, name?: string): Promise
 export async function getNewsletterSubscribers(): Promise<{ email: string; name: string; created_at: string }[]> {
   const { data, error } = await supabase
     .rpc('admin_newsletter', { action: 'list' });
-  if (error) { console.error('getNewsletterSubscribers error:', error); return []; }
+  if (error && error.name !== 'AbortError') { console.error('getNewsletterSubscribers error:', error); return []; }
   return (data || []) as { email: string; name: string; created_at: string }[];
+}
+
+export async function getNewsletterSubscriberCount(): Promise<number> {
+  const { data, error } = await supabase.rpc('get_newsletter_subscriber_count');
+  if (error && error.name !== 'AbortError' && error.code !== 'PGRST202' && !(error as any).status) { console.error('getNewsletterSubscriberCount error:', error); return 0; }
+  return typeof data === 'number' ? data : 0;
 }
 
 export async function deleteNewsletterSubscriber(email: string): Promise<{ error?: string }> {
@@ -1229,7 +1262,7 @@ export async function getAllAds() {
   return data || [];
 }
 
-export async function createAd(ad: { title: string; image_url: string; destination_url: string; is_affiliate?: boolean; sort_order?: number }) {
+export async function createAd(ad: { title: string; image_url: string; images?: string[]; destination_url: string; is_affiliate?: boolean; sort_order?: number }) {
   const { data, error } = await supabase
     .from('advertisements')
     .insert(ad)
@@ -1239,7 +1272,7 @@ export async function createAd(ad: { title: string; image_url: string; destinati
   return data;
 }
 
-export async function updateAd(id: string, updates: Partial<{ title: string; image_url: string; destination_url: string; is_affiliate: boolean; active: boolean; sort_order: number }>) {
+export async function updateAd(id: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string; is_affiliate: boolean; active: boolean; sort_order: number }>) {
   const { error } = await supabase
     .from('advertisements')
     .update(updates)
@@ -1265,8 +1298,119 @@ export async function incrementAdDisplay(adId: string) {
   if (error) console.error('[Ad] display increment failed:', error);
 }
 
+export interface DbAdvertisement {
+  id: string;
+  title: string;
+  image_url: string;
+  images?: string[];
+  destination_url: string | null;
+  description?: string | null;
+  cta_text?: string | null;
+  whatsapp_number?: string | null;
+  is_affiliate: boolean;
+  active: boolean;
+  sort_order: number;
+  owner_id?: string | null;
+  clicks?: number;
+  displays?: number;
+  created_at: string;
+}
+
+export async function getMyAds(userId: string): Promise<DbAdvertisement[]> {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .eq('owner_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getMyAds error:', error); return []; }
+  return data || [];
+}
+
+export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean }) {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateMyAd(id: string, userId: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string | null; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; active: boolean }>) {
+  const { error } = await supabase
+    .from('advertisements')
+    .update({ ...updates, destination_url: updates.destination_url ?? null })
+    .eq('id', id)
+    .eq('owner_id', userId);
+  if (error) throw error;
+}
+
+export async function deleteMyAd(id: string, userId: string) {
+  const { error } = await supabase
+    .from('advertisements')
+    .delete()
+    .eq('id', id)
+    .eq('owner_id', userId);
+  if (error) throw error;
+}
+
 export async function adminResetPassword(userId: string, newPassword: string): Promise<{ error?: string }> {
   const { error } = await supabase.rpc('admin_reset_password', { p_user_id: userId, p_new_password: newPassword });
+  if (error) return { error: error.message };
+  return {};
+}
+
+// ─── Email Providers ────────────────────────────────────────────────────────
+
+export interface DbEmailProvider {
+  id: string;
+  name: string;
+  username: string;
+  password?: string;
+  imap_host: string;
+  imap_port: number;
+  smtp_host: string;
+  smtp_port: number;
+  from_name?: string;
+  from_email?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function getEmailProviders(): Promise<DbEmailProvider[]> {
+  const { data, error } = await supabase
+    .from('email_providers')
+    .select('id, name, username, imap_host, imap_port, smtp_host, smtp_port, from_name, from_email, is_active, created_at')
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getEmailProviders error:', error); return []; }
+  return (data || []).map(p => ({ ...p, password: '' })) as DbEmailProvider[];
+}
+
+export async function saveEmailProvider(provider: Partial<DbEmailProvider>): Promise<{ error?: string }> {
+  if (provider.is_active) {
+    // Only one provider may be active at a time.
+    const { error: resetError } = await supabase
+      .from('email_providers')
+      .update({ is_active: false })
+      .neq('id', provider.id || '');
+    if (resetError) return { error: resetError.message };
+  }
+  const { id, password, ...rest } = provider;
+  if (id) {
+    const { error } = await supabase
+      .from('email_providers')
+      .update({ ...rest, ...(password ? { password } : {}), updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from('email_providers').insert({ ...rest, password: password || '' });
+    if (error) return { error: error.message };
+  }
+  return {};
+}
+
+export async function deleteEmailProvider(id: string): Promise<{ error?: string }> {
+  const { error } = await supabase.from('email_providers').delete().eq('id', id);
   if (error) return { error: error.message };
   return {};
 }

@@ -1,73 +1,206 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, X } from 'lucide-react';
-import { getActiveAds, incrementAdClick, incrementAdDisplay } from '@/lib/database';
-import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { ExternalLink, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getActiveAds, incrementAdClick, incrementAdDisplay, getAdCarouselSettings, type AdCarouselSettings } from '@/lib/database';
+import { proxyImageUrl } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
-const AD_INTERVAL = 5000;
+const PAGE_SIZE = 5;
+const DEFAULT_SETTINGS: AdCarouselSettings = {
+  scrollIntervalSeconds: 5,
+  transitionDurationSeconds: 0.8,
+  effect: 'slide',
+};
 
 const AdBanner: React.FC = () => {
   const [affiliateAds, setAffiliateAds] = useState<any[]>([]);
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [settings, setSettings] = useState<AdCarouselSettings>(DEFAULT_SETTINGS);
+  const [currentPage, setCurrentPage] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [modalAd, setModalAd] = useState<any>(null);
+  const [modalImg, setModalImg] = useState('');
   const displayedAds = useRef<Set<string>>(new Set());
-  const rotationRef = useRef<ReturnType<typeof setInterval>>();
+
+  const modalImages = modalAd
+    ? (modalAd.images?.length ? modalAd.images : modalAd.image_url ? [modalAd.image_url] : [])
+    : [];
+
+  useEffect(() => {
+    setModalImg(modalImages[0] || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalAd]);
+
+  const pageCount = Math.max(1, Math.ceil(affiliateAds.length / PAGE_SIZE));
+
+  const pages = useMemo(() => {
+    const groups: any[][] = [];
+    for (let i = 0; i < affiliateAds.length; i += PAGE_SIZE) {
+      groups.push(affiliateAds.slice(i, i + PAGE_SIZE));
+    }
+    return groups;
+  }, [affiliateAds]);
+
+  const goToPage = useCallback((index: number) => {
+    setCurrentPage(((index % pageCount) + pageCount) % pageCount);
+  }, [pageCount]);
+
+  const goNextPage = useCallback(() => {
+    setCurrentPage(prev => (prev + 1) % pageCount);
+  }, [pageCount]);
+
+  const goPrevPage = useCallback(() => {
+    setCurrentPage(prev => (prev - 1 + pageCount) % pageCount);
+  }, [pageCount]);
 
   useEffect(() => {
     getActiveAds().then(ads => {
       if (ads && ads.length > 0) setAffiliateAds(ads);
     }).catch(() => {});
+    getAdCarouselSettings().then(setSettings).catch(() => {});
   }, []);
 
+  // Autoplay
   useEffect(() => {
-    if (affiliateAds.length === 0) return;
-    if (rotationRef.current) clearInterval(rotationRef.current);
-    rotationRef.current = setInterval(() => {
-      if (!isHovered) {
-        setCurrentAdIndex(prev => (prev + 1) % affiliateAds.length);
+    if (pageCount <= 1) return;
+    const interval = setInterval(() => {
+      if (!isHovered) goNextPage();
+    }, Math.max(1000, settings.scrollIntervalSeconds * 1000));
+    return () => clearInterval(interval);
+  }, [pageCount, settings.scrollIntervalSeconds, isHovered, goNextPage]);
+
+  // Track displays for the ads on the visible page
+  useEffect(() => {
+    const pageAds = pages[currentPage] || [];
+    pageAds.forEach((ad: any) => {
+      if (!displayedAds.current.has(ad.id)) {
+        displayedAds.current.add(ad.id);
+        incrementAdDisplay(ad.id);
       }
-    }, AD_INTERVAL);
-    return () => { if (rotationRef.current) clearInterval(rotationRef.current); };
-  }, [affiliateAds.length, isHovered]);
+    });
+  }, [currentPage, pages]);
 
-  useEffect(() => {
-    if (affiliateAds.length === 0) return;
-    const ad = affiliateAds[currentAdIndex];
-    if (ad && !displayedAds.current.has(ad.id)) {
-      displayedAds.current.add(ad.id);
-      incrementAdDisplay(ad.id);
-    }
-  }, [currentAdIndex, affiliateAds]);
+  if (affiliateAds.length === 0) return null;
 
-  const currentAd = affiliateAds.length > 0 ? affiliateAds[currentAdIndex] : null;
+  const transitionMs = Math.round(Math.max(0, settings.transitionDurationSeconds) * 1000);
+  const isFade = settings.effect === 'fade';
 
-  if (!currentAd) return null;
+  const renderPage = (pageAds: any[]) => (
+    <div className="w-full h-full grid grid-cols-5 gap-2 sm:gap-3 p-2 sm:p-3">
+      {pageAds.map(ad => (
+        <button
+          key={ad.id}
+          onClick={() => setModalAd(ad)}
+          className="group/item relative rounded-lg overflow-hidden bg-gray-200 cursor-pointer"
+        >
+          <img
+            src={proxyImageUrl(ad.image_url)}
+            alt={ad.title}
+            className="absolute inset-0 w-full h-full object-cover group-hover/item:scale-105 transition-transform duration-300"
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover/item:bg-black/25 transition-colors" />
+          <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity">
+            <p className="text-white text-[10px] sm:text-xs font-medium truncate">{ad.title}</p>
+          </div>
+          <span className="absolute top-1 left-1 px-1 py-0.5 bg-amber-500/80 text-white text-[8px] font-bold rounded uppercase">Ad</span>
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <section>
-      <div onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-          <div
-            onClick={() => setModalAd(currentAd)}
-            className="w-full max-h-[250px] bg-gray-100 cursor-pointer flex items-center justify-center overflow-hidden"
-          >
-            <img
-              key={currentAdIndex}
-              src={optimizeImageUrl(currentAd.image_url, 2000, 250)}
-              alt={currentAd.title}
-              className="w-full h-full object-contain animate-fade-in"
-              loading="lazy"
-              onError={handleImageError}
-            />
+      <div
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="group relative overflow-hidden bg-gray-100"
+      >
+        <div className="w-full h-[210px] sm:h-[250px] lg:h-[280px]">
+          {isFade ? (
+            <div className="relative w-full h-full">
+              {pages.map((pageAds, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'absolute inset-0',
+                    i === currentPage ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                  )}
+                  style={{ transition: `opacity ${transitionMs}ms ease` }}
+                >
+                  {renderPage(pageAds)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              className="flex h-full"
+              style={{ transform: `translateX(-${currentPage * 100}%)`, transition: `transform ${transitionMs}ms ease` }}
+            >
+              {pages.map((pageAds, i) => (
+                <div key={i} className="w-full h-full flex-shrink-0">
+                  {renderPage(pageAds)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {pageCount > 1 && (
+          <>
+            <button
+              onClick={goPrevPage}
+              aria-label="Previous ads"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={goNextPage}
+              aria-label="Next ads"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
+        )}
+
+        {pageCount > 1 && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+            {pages.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => goToPage(i)}
+                aria-label={`Go to ads page ${i + 1}`}
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  i === currentPage ? 'w-6 bg-green-500' : 'w-1.5 bg-white/70 hover:bg-white'
+                )}
+              />
+            ))}
           </div>
+        )}
       </div>
 
       {modalAd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setModalAd(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="relative">
-              <img src={optimizeImageUrl(modalAd.image_url, 600, 400)} alt={modalAd.title} className="w-full h-48 object-cover" />
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="relative bg-black">
+              <img src={proxyImageUrl(modalImg)} alt={modalAd.title} className="w-full max-h-[60vh] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
               <button onClick={() => setModalAd(null)} className="absolute top-2 right-2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"><X className="w-4 h-4" /></button>
               <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-amber-500/80 text-white text-[10px] font-bold rounded uppercase">Ad</span>
+              {modalImages.length > 1 && (
+                <div className="absolute bottom-0 inset-x-0 flex justify-center gap-2 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                  {modalImages.map((url, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setModalImg(url)}
+                      className={`w-14 h-10 rounded-md overflow-hidden border-2 transition-colors ${url === modalImg ? 'border-green-400' : 'border-white/40 hover:border-white'}`}
+                    >
+                      <img src={proxyImageUrl(url)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="p-5">
               <h3 className="text-lg font-bold text-gray-900 mb-1">{modalAd.title}</h3>
@@ -106,3 +239,5 @@ const AdBanner: React.FC = () => {
 };
 
 export default AdBanner;
+
+

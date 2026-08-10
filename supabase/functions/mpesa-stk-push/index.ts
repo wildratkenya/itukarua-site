@@ -1,10 +1,76 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 
 const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  registration: 'Account Registration',
+  contact_access: 'Contact Access',
+  job_posting: 'Job Posting',
+  job_payment: 'Job Payment',
+  advert: 'Advertisement',
+  featured_boost: 'Featured Boost',
+}
+
+async function sendPaymentReceipt(supabase: any, payment: any, mpesaRef: string) {
+  try {
+    if (!payment?.user_id) return
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', payment.user_id)
+      .maybeSingle()
+    const recipient = profile?.email
+    if (!recipient) return
+
+    const label = PAYMENT_TYPE_LABELS[payment.payment_type] || 'Payment'
+    const amount = Number(payment.amount || 0).toLocaleString()
+    const ref = mpesaRef || payment.mpesa_ref || 'Pending'
+    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    const html = `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;background:#ffffff">
+  <tr><td style="background:linear-gradient(135deg,#059669,#047857);padding:24px;text-align:center">
+    <h1 style="color:#fff;font-size:20px;margin:0">Payment Received ✅</h1>
+    <p style="color:#d1fae5;font-size:13px;margin:6px 0 0">${dateStr}</p>
+  </td></tr>
+  <tr><td style="padding:24px">
+    <p style="margin:0 0 4px;color:#374151;font-size:14px">Hello ${escapeHtml(profile?.full_name || 'there')},</p>
+    <p style="margin:0 0 16px;color:#374151;font-size:14px">Thank you! Your payment for <strong>${escapeHtml(label)}</strong> has been received successfully.</p>
+    <table style="width:100%;border:1px solid #e5e7eb;border-radius:10px;border-collapse:collapse">
+      <tr><td style="padding:12px;background:#f9fafb;font-weight:600;width:45%">Amount Paid</td><td style="padding:12px">KES ${amount}</td></tr>
+      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Payment Type</td><td style="padding:12px">${escapeHtml(label)}</td></tr>
+      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">M-Pesa Reference</td><td style="padding:12px">${escapeHtml(ref)}</td></tr>
+      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Account Reference</td><td style="padding:12px">${escapeHtml(payment.description || payment.checkout_request_id || 'ITUKARUA')}</td></tr>
+    </table>
+    <a href="${SITE_URL}" style="display:inline-block;margin-top:20px;padding:10px 24px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Continue on Itukarua →</a>
+  </td></tr>
+  <tr><td style="background:#f3f4f6;padding:20px 24px;text-align:center;border-top:1px solid #e5e7eb">
+    <p style="color:#9ca3af;font-size:11px;margin:0">This is a receipt for a payment made on <a href="${SITE_URL}" style="color:#059669;text-decoration:none">Itukarua Classifieds</a>.</p>
+  </td></tr>
+</table>
+</body>
+</html>`
+
+    const smtp = await loadSmtpConfig(supabase)
+    const transport = createFreshTransport(smtp)
+    await transport.sendMail({
+      from: smtp.from,
+      to: recipient,
+      subject: `Itukarua — Payment Received: ${label}`,
+      text: `Hello, thank you! Your payment for ${label} (KES ${amount}, Ref ${ref}) has been received.`,
+      html,
+    })
+  } catch (err) {
+    console.error('[STK Push] Receipt email failed:', err.message)
+  }
 }
 
 const CONSUMER_KEY = Deno.env.get('MPESA_CONSUMER_KEY')!
@@ -48,9 +114,10 @@ async function getOAuthToken(): Promise<string> {
 }
 
 async function completePayment(supabase: any, payment: any) {
+  const mpesaRef = `MPE${Date.now().toString().slice(-8)}`
   await supabase.from('payments').update({
     status: 'completed',
-    mpesa_ref: `MPE${Date.now().toString().slice(-8)}`,
+    mpesa_ref: mpesaRef,
   }).eq('id', payment.id)
 
   if (payment.payment_type === 'registration') {
@@ -62,6 +129,8 @@ async function completePayment(supabase: any, payment: any) {
   } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
     await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
   }
+
+  await sendPaymentReceipt(supabase, payment, mpesaRef)
 }
 
 Deno.serve(async (req) => {
@@ -225,6 +294,8 @@ Deno.serve(async (req) => {
           } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
             await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
           }
+
+          await sendPaymentReceipt(supabase, payment, mpesaRef)
         }
       }
 

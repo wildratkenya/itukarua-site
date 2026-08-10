@@ -146,6 +146,22 @@ export const PRICING_PLANS = {
       ],
     },
   ],
+  homepageAdvert: {
+    name: 'Homepage Advert',
+    price: 100,
+    period: 'per week',
+    features: [
+      'Prime banner placement at the very top of the homepage',
+      'Your advert photo shown to every homepage visitor, 24/7',
+      'Up to 5 images — a full-size popup opens when clicked',
+      'Catchy advert title & description',
+      '"Chat on WhatsApp" button so customers contact you instantly',
+      'Optional button linking to your website or listing',
+      'Advert displays in the rotating carousel with other ads',
+      'Clicks & views tracked in your analytics',
+      'Live for 7 full days (KES 100 per week)',
+    ],
+  },
   employerAccess: {
     name: 'Contact Access Fee',
     price: 50,
