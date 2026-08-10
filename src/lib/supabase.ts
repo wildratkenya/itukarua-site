@@ -109,7 +109,7 @@ export async function restoreSession(): Promise<void> {
 
 // ─── Image Optimization ─────────────────────────────────────────────────────
 
-export const FALLBACK_IMAGE = 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg';
+export const FALLBACK_IMAGE = '/images/services-fallback.jpg';
 
 const STORAGE_PREFIX = `${supabaseUrl}/storage/v1/object/public/`;
 

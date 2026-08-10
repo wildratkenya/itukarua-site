@@ -1,6 +1,6 @@
 ﻿// Image URLs
 export const IMAGES = {
-  hero: 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055506194_45521c8f.jpg',
+  hero: '/images/hero.jpg',
   workers: [
     'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055519790_6d9a2247.jpg',
     'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055526394_2dbf1477.png',
@@ -10,7 +10,7 @@ export const IMAGES = {
     'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055530036_9defd78c.png',
   ],
   services: [
-    'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg',
+    '/images/services-fallback.jpg',
     'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055546340_aa068d91.jpg',
     'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055546937_9e0b2de7.jpg',
     'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055547177_6b7ccd97.jpg',
