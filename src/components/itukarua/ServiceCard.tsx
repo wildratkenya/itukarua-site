@@ -50,7 +50,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
   };
 
   if (compact) {
-    const imgSrc = allImages.length > 0 ? optimizeImageUrl(allImages[0], 200, 150) : 'https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg';
+    const imgSrc = allImages.length > 0 ? optimizeImageUrl(allImages[0], 200, 150) : '/images/services-fallback.jpg';
     return (
       <div
         onClick={onClick}
@@ -167,7 +167,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
           </>
         ) : (
           <img
-            src='https://d64gsuwffb70l.cloudfront.net/699028ea57858e2969bc2466_1771055543861_b8e656f2.jpg'
+            src='/images/services-fallback.jpg'
             alt={service.businessName}
             loading="lazy"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

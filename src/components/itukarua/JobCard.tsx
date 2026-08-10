@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, AlertTriangle, Camera } from 'lucide-react';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { IMAGES } from '@/data/siteData';
 
 interface Job {
   id: string; title: string; description: string; location: string; county?: string; subcounty?: string; budgetMin: number; budgetMax: number;
@@ -37,7 +36,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
   };
 
   if (compact) {
-    const imgSrc = images.length > 0 ? optimizeImageUrl(images[0], 200, 150) : IMAGES.services[0];
+    const imgSrc = images.length > 0 ? optimizeImageUrl(images[0], 200, 150) : '/images/services-fallback.jpg';
     return (
       <div
         onClick={() => onViewJob(job.id)}
@@ -154,7 +153,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
           </>
         ) : (
           <img
-            src={IMAGES.services[0]}
+            src='/images/services-fallback.jpg'
             alt={job.title}
             loading="lazy"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

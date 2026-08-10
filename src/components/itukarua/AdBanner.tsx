@@ -96,6 +96,7 @@ const AdBanner: React.FC = () => {
             alt={ad.title}
             className="absolute inset-0 w-full h-full object-cover group-hover/item:scale-105 transition-transform duration-300"
             loading="lazy"
+            decoding="async"
             onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
           />
           <div className="absolute inset-0 bg-black/0 group-hover/item:bg-black/25 transition-colors" />
