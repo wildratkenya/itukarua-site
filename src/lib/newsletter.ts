@@ -1,4 +1,4 @@
-export const SITE_URL = 'https://www.itukarua.co.ke';
+export const SITE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://www.itukarua.co.ke';
 
 export function newsletterEscapeHtml(s: any): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

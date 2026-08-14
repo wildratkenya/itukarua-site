@@ -10,21 +10,21 @@ export const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || SUPABASE_AN
 
 const originalFetch = globalThis.fetch.bind(globalThis);
 
-// Writes (INSERT/UPDATE/DELETE to the REST API, plus storage uploads/deletes)
-// are routed through the same-origin /supabase reverse-proxy (Vercel rewrite)
-// instead of hitting supabase.co directly. The browser-to-supabase.co HTTP/3
-// (QUIC) connection can silently die between writes, hanging the 2nd+ save and
-// storage uploads while GETs (auto-retried by the browser) keep working.
-// Reads, auth and realtime stay direct.
+// REST reads, writes and storage operations are routed through the same-origin
+// /supabase reverse-proxy (Vite dev proxy / Vercel rewrite) instead of hitting
+// supabase.co directly. Direct browser-to-supabase.co connections can die
+// silently (ERR_CONNECTION_CLOSED / hanging HTTP3 writes), while the same-origin
+// proxy is stable. Realtime stays direct.
 function routedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const method = ((init?.method) || (typeof input !== 'string' && !(input instanceof URL) ? input.method : undefined) || 'GET').toUpperCase();
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
-  const isProxiedWrite =
-    method !== 'GET' &&
-    (url.startsWith(`${supabaseUrl}/rest/v1/`) || url.startsWith(`${supabaseUrl}/storage/v1/object/`));
+  const isSupabaseRest =
+    url.startsWith(`${supabaseUrl}/rest/v1/`) ||
+    url.startsWith(`${supabaseUrl}/auth/v1/`) ||
+    url.startsWith(`${supabaseUrl}/storage/v1/object/`);
 
-  if (isProxiedWrite && typeof window !== 'undefined') {
+  if (isSupabaseRest && typeof window !== 'undefined') {
     const target = `${window.location.origin}/supabase${url.slice(supabaseUrl.length)}`;
     console.log('[supabase-proxy]', method, '->', target);
     let result: Promise<Response>;
@@ -90,20 +90,47 @@ export function saveSession(session: any) {
 
 export async function restoreSession(): Promise<void> {
   let raw: string | null = null;
-  try { raw = localStorage.getItem(SESSION_KEY); } catch { /* ignore */ }
+  try { raw = localStorage.getItem(SESSION_KEY); } catch { return; }
   if (!raw) return;
-  try {
-    const saved = JSON.parse(raw);
-    if (!saved?.access_token || !saved?.refresh_token) { localStorage.removeItem(SESSION_KEY); return; }
-    // setSession only refreshes over the network when the access token is already expired;
-    // guard it with a timeout so a stalled refresh can never block startup.
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('session-restore-timeout')), 5000));
-    await Promise.race([supabase.auth.setSession({
-      access_token: saved.access_token,
-      refresh_token: saved.refresh_token,
-    }), timeout]);
-  } catch {
+  let saved: any;
+  try { saved = JSON.parse(raw); } catch { try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ } return; }
+  if (!saved?.access_token || !saved?.refresh_token) {
     try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+    return;
+  }
+
+  // setSession only refreshes over the network when the access token is already
+  // expired; otherwise it just validates and restores the stored session. Guard
+  // it with a generous timeout so a stalled auth call can never block startup —
+  // but NEVER wipe the stored credentials on a transient timeout or network
+  // error, or every refresh that hiccups would force the user to re-login.
+  const timeout = new Promise<{ error: any }>((resolve) =>
+    setTimeout(() => resolve({ error: new Error('session-restore-timeout') }), 8000)
+  );
+
+  try {
+    const result: any = await Promise.race([
+      supabase.auth.setSession({
+        access_token: saved.access_token,
+        refresh_token: saved.refresh_token,
+      }),
+      timeout,
+    ]);
+    // Only drop the stored session when the server definitively rejects the
+    // tokens (revoked/expired/invalid). Transient failures keep the saved
+    // credentials so the next refresh can retry.
+    const err = result?.error;
+    if (err) {
+      const msg = String(err?.message || err?.code || '');
+      const status = err?.status || err?.code;
+      const permanent = status === 401 || status === 403 ||
+        /invalid_grant|revoked|session not found|user not found|jwt expired|no user/i.test(msg);
+      if (permanent) {
+        try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+      }
+    }
+  } catch {
+    // Unexpected throw — keep credentials for the next attempt.
   }
 }
 

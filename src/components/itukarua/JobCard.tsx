@@ -74,7 +74,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
               onClick={(e) => { e.stopPropagation(); onViewJob(job.id); }}
               className="ml-auto px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold rounded-lg transition-colors"
             >
-              Details
+              Bid
             </button>
           </div>
         </div>
@@ -233,7 +233,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
               }}
               className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
             >
-              More Details
+              Bid
             </button>
           </div>
         </div>

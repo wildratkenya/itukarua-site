@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification } from '@/lib/database';
 
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -22,6 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
+import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -207,10 +208,19 @@ const AdminPage: React.FC = () => {
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true });
   const [advUploading, setAdvUploading] = useState(false);
   const [advUploadKey, setAdvUploadKey] = useState(0);
   const [advUrlInput, setAdvUrlInput] = useState('');
+  const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
+  const [billingLogs, setBillingLogs] = useState<BillingNotification[]>([]);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingFilter, setBillingFilter] = useState<'due' | 'expired' | 'all'>('due');
+  const [billingSendingId, setBillingSendingId] = useState<string | null>(null);
+  const [billingMsg, setBillingMsg] = useState('');
+  const [billingPreviewItem, setBillingPreviewItem] = useState<BillingItem | null>(null);
+  const [billingPreviewHtml, setBillingPreviewHtml] = useState('');
+  const [billingPreviewText, setBillingPreviewText] = useState('');
   const [carouselSettings, setCarouselSettings] = useState<AdCarouselSettings>({ scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' });
   const [carouselSaving, setCarouselSaving] = useState(false);
   const [emailProviders, setEmailProviders] = useState<DbEmailProvider[]>([]);
@@ -219,6 +229,13 @@ const AdminPage: React.FC = () => {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
   const [emailMsgType, setEmailMsgType] = useState<'ok' | 'err'>('ok');
+  const [testimonials, setTestimonials] = useState<DbTestimonial[]>([]);
+  const [testimonialForm, setTestimonialForm] = useState<{ client_name: string; company: string; comment: string; rating: number }>({ client_name: '', company: '', comment: '', rating: 5 });
+  const [testimonialMsg, setTestimonialMsg] = useState('');
+  const [testimonialMsgType, setTestimonialMsgType] = useState<'ok' | 'err'>('ok');
+  const [testimonialSaving, setTestimonialSaving] = useState(false);
+  const [webCarouselSettings, setWebCarouselSettings] = useState<WebsitesCarouselSettings>({ scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' });
+  const [webCarouselSaving, setWebCarouselSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -234,9 +251,117 @@ const AdminPage: React.FC = () => {
     setAdverts(data || []);
   };
 
+  const loadBilling = async () => {
+    setBillingLoading(true);
+    try {
+      const [items, logs] = await Promise.all([getBillingItems(), getBillingNotifications()]);
+      setBillingItems(items);
+      setBillingLogs(logs);
+    } catch (err: any) {
+      setBillingMsg(`Failed to load billing: ${err.message}`);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const openBillingPreview = (item: BillingItem) => {
+    if (!item.owner_email) {
+      toast({ title: 'No email', description: `${item.business_name} has no advertiser email on record. Add one to the ${item.item_type === 'advert' ? 'Adverts' : 'Ads'} tab first.`, variant: 'destructive' });
+      return;
+    }
+    const opts = {
+      business_name: item.business_name,
+      item_type: item.item_type,
+      billing_cycle: item.billing_cycle,
+      billing_end: item.billing_end,
+      amount: item.amount,
+      accountRef: billingAccountRef(item.id),
+      note: billingNote(item.billing_end),
+    };
+    setBillingPreviewItem(item);
+    setBillingPreviewHtml(buildBillingInvoiceHtml(opts));
+    setBillingPreviewText(buildBillingInvoiceText(opts));
+  };
+
+  const sendBillingInvoice = async (item: BillingItem) => {
+    if (!item.owner_email) {
+      toast({ title: 'No email', description: `${item.business_name} has no advertiser email on record. Add one to the ${item.item_type === 'advert' ? 'Adverts' : 'Ads'} tab first.`, variant: 'destructive' });
+      return;
+    }
+    setBillingSendingId(`${item.item_type}:${item.id}`);
+    setBillingMsg('');
+    try {
+      const html = billingPreviewItem?.id === item.id && billingPreviewItem?.item_type === item.item_type
+        ? billingPreviewHtml
+        : buildBillingInvoiceHtml({
+            business_name: item.business_name,
+            item_type: item.item_type,
+            billing_cycle: item.billing_cycle,
+            billing_end: item.billing_end,
+            amount: item.amount,
+            accountRef: billingAccountRef(item.id),
+            note: billingNote(item.billing_end),
+          });
+      const text = billingPreviewItem?.id === item.id && billingPreviewItem?.item_type === item.item_type
+        ? billingPreviewText
+        : buildBillingInvoiceText({
+            business_name: item.business_name,
+            item_type: item.item_type,
+            billing_cycle: item.billing_cycle,
+            billing_end: item.billing_end,
+            amount: item.amount,
+            accountRef: billingAccountRef(item.id),
+            note: billingNote(item.billing_end),
+          });
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-billing-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+        body: JSON.stringify({
+          item_type: item.item_type,
+          item_id: item.id,
+          recipient_email: item.owner_email,
+          business_name: item.business_name,
+          amount: item.amount,
+          billing_cycle: item.billing_cycle,
+          billing_end: item.billing_end,
+          html,
+          text,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast({ title: 'Invoice sent', description: `Billing alert & invoice emailed to ${item.owner_email}` });
+      setBillingPreviewItem(null);
+      loadBilling();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to send invoice', variant: 'destructive' });
+    } finally {
+      setBillingSendingId(null);
+    }
+  };
+
   const loadEmailProviders = async () => {
     const providers = await getEmailProviders();
     setEmailProviders(providers);
+  };
+
+  const loadTestimonials = async () => {
+    const list = await getTestimonials();
+    setTestimonials(list);
+  };
+
+  const saveWebCarouselSettings = async () => {
+    setWebCarouselSaving(true);
+    try {
+      await updateWebsitesCarouselSetting('web_scroll_interval_seconds', String(webCarouselSettings.scrollIntervalSeconds));
+      await updateWebsitesCarouselSetting('web_transition_duration_seconds', String(webCarouselSettings.transitionDurationSeconds));
+      await updateWebsitesCarouselSetting('web_effect', webCarouselSettings.effect);
+      setTestimonialMsg('Websites carousel settings updated.');
+      setTestimonialMsgType('ok');
+    } catch {
+      setTestimonialMsg('Failed to save websites carousel settings.');
+      setTestimonialMsgType('err');
+    } finally { setWebCarouselSaving(false); }
   };
 
   const uploadAdImages = async (files: FileList | null) => {
@@ -330,6 +455,9 @@ const AdminPage: React.FC = () => {
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
         loadEmailProviders(),
+        loadTestimonials(),
+        getWebsitesCarouselSettings().then(setWebCarouselSettings),
+        loadBilling(),
       ]);
 
       // Use individual category lists for modals
@@ -965,6 +1093,7 @@ const AdminPage: React.FC = () => {
       contact_person: formData.get('contact_person') || editingAd?.contact_person || '',
       contact: formData.get('contact') || editingAd?.contact,
       owner_id: formData.get('owner_id') || editingAd?.owner_id || null,
+      owner_email: formData.get('owner_email') || editingAd?.owner_email || null,
       plan: formData.get('plan') || editingAd?.plan || '30-day',
       featured: formData.get('featured') === 'true',
       payment_confirmed: formData.get('payment_confirmed') === 'true',
@@ -1022,8 +1151,12 @@ const AdminPage: React.FC = () => {
         adData.image = editingAd.image;
       }
 
+      adData.billing_cycle = adData.plan === '10-day' ? '10 days' : adData.plan === '20-day' ? '20 days' : '30 days';
+      adData.billing_start = adData.billing_start || editingAd?.billing_start || new Date().toISOString();
+
       if (editingAd?.id) {
-        console.log('ðŸ“ Updating existing ad:', editingAd.id, adData);
+        console.log('ðŸ" Updating existing ad:', editingAd.id, adData);
+        adData.billing_end = adData.expiry_date ? new Date(`${adData.expiry_date}T00:00:00`).toISOString() : editingAd?.billing_end;
         const { error } = await supabase.from('service_ads').update(adData).eq('id', editingAd.id);
         if (error) throw error;
         toast({ title: 'Success', description: 'Ad updated successfully' });
@@ -1033,6 +1166,7 @@ const AdminPage: React.FC = () => {
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + days);
         adData.expiry_date = expiryDate.toISOString().split('T')[0];
+        adData.billing_end = new Date(`${adData.expiry_date}T00:00:00`).toISOString();
         
         const { error } = await supabase.from('service_ads').insert(adData);
         if (error) throw error;
@@ -1167,10 +1301,12 @@ const AdminPage: React.FC = () => {
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
                 { id: 'ads', label: 'Ads', icon: <Newspaper className="w-4 h-4" /> },
                 { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
+                { id: 'billing', label: 'Billing', icon: <Receipt className="w-4 h-4" /> },
                 { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
+                { id: 'testimonials', label: 'Testimonials', icon: <MessageSquare className="w-4 h-4" /> },
                 { id: 'adverts', label: 'Adverts', icon: <MonitorPlay className="w-4 h-4" /> },
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -1543,6 +1679,133 @@ const AdminPage: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
+          )}
+
+          {activeTab === 'billing' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
+                  <CardTitle>Billing — Due & Expired Adverts</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {(['due', 'expired', 'all'] as const).map(f => (
+                      <button key={f} onClick={() => setBillingFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${billingFilter === f ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        {f === 'due' ? 'Due Soon' : f === 'expired' ? 'Expired' : 'All'}
+                      </button>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={loadBilling} disabled={billingLoading}>Refresh</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {billingMsg && <p className="text-sm text-amber-600 mb-3">{billingMsg}</p>}
+                  {billingLoading ? (
+                    <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-green-600" /></div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Business</TableHead>
+                            <TableHead>Advertiser Email</TableHead>
+                            <TableHead>Cycle</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Due / Expired</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Last Invoice</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {billingItems
+                            .filter(it => billingFilter === 'all' || it.status === billingFilter)
+                            .map((item) => (
+                              <TableRow key={`${item.item_type}:${item.id}`}>
+                                <TableCell>
+                                  <Badge variant={item.item_type === 'advert' ? 'default' : 'secondary'}>
+                                    {item.item_type === 'advert' ? 'Banner Advert' : 'Business Ad'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div>{item.business_name}</div>
+                                  <div className="text-xs text-gray-500">{item.featured ? 'Featured' : 'Regular'}{!item.active ? ' • Inactive' : ''}</div>
+                                </TableCell>
+                                <TableCell>{item.owner_email || <span className="text-xs text-red-500">No email</span>}</TableCell>
+                                <TableCell>{item.billing_cycle}</TableCell>
+                                <TableCell>KES {item.amount}</TableCell>
+                                <TableCell>{item.billing_end ? new Date(item.billing_end).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</TableCell>
+                                <TableCell>
+                                  <Badge variant={item.status === 'expired' ? 'destructive' : 'secondary'}>{item.status === 'expired' ? 'Expired' : 'Due'}</Badge>
+                                </TableCell>
+                                <TableCell>{item.last_invoice_at ? new Date(item.last_invoice_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never'}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openBillingPreview(item)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    Preview
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => sendBillingInvoice(item)}
+                                    disabled={billingSendingId === `${item.item_type}:${item.id}`}
+                                  >
+                                    {billingSendingId === `${item.item_type}:${item.id}` ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+                                    Send Alert & Invoice
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          {billingItems.filter(it => billingFilter === 'all' || it.status === billingFilter).length === 0 && (
+                            <TableRow><TableCell colSpan={9} className="text-center text-gray-400 py-8">No {billingFilter === 'all' ? 'billing items' : billingFilter === 'due' ? 'due-soon adverts' : 'expired adverts'} right now.</TableCell></TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Billing Log ({billingLogs.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Business</TableHead>
+                          <TableHead>Recipient</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {billingLogs.map(log => (
+                          <TableRow key={log.id}>
+                            <TableCell>{new Date(log.created_at).toLocaleString('en-KE', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</TableCell>
+                            <TableCell>{log.item_type === 'advert' ? 'Banner Advert' : 'Business Ad'}</TableCell>
+                            <TableCell>{log.business_name || '—'}</TableCell>
+                            <TableCell>{log.recipient_email}</TableCell>
+                            <TableCell>{log.amount != null ? `KES ${log.amount}` : '—'}</TableCell>
+                            <TableCell>
+                              <Badge variant={log.status === 'sent' ? 'default' : 'destructive'}>{log.status}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {billingLogs.length === 0 && (
+                          <TableRow><TableCell colSpan={6} className="text-center text-gray-400 py-8">No invoices sent yet.</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeTab === 'messages' && (<>
@@ -2064,6 +2327,138 @@ const AdminPage: React.FC = () => {
             </Card>
           )}
 
+          {activeTab === 'testimonials' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Client Testimonials</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-sm">
+                  These appear in the "What Clients Say" section on the homepage, below the websites scroller.
+                </div>
+
+                <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-5">
+                  <h3 className="font-semibold text-gray-900 mb-4">Websites Carousel Settings</h3>
+                  <p className="text-sm text-gray-500 mb-4">The homepage "Websites We Build" scroller shows up to 5 websites per slide. Choose how it transitions and how long each slide stays on screen.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <Label>Effect / Style</Label>
+                      <select value={webCarouselSettings.effect} onChange={e => setWebCarouselSettings(s => ({ ...s, effect: e.target.value as 'slide' | 'fade' | 'zoom' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="slide">Slide (horizontal)</option>
+                        <option value="fade">Fade</option>
+                        <option value="zoom">Zoom (scale in)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Oscillation Seconds</Label>
+                      <Input type="number" min={1} max={60} step={1} value={webCarouselSettings.scrollIntervalSeconds} onChange={e => setWebCarouselSettings(s => ({ ...s, scrollIntervalSeconds: Math.max(1, Number(e.target.value) || 1) }))} />
+                      <p className="text-xs text-gray-400 mt-1">Seconds per slide before rotating</p>
+                    </div>
+                    <div>
+                      <Label>Transition Duration (s)</Label>
+                      <Input type="number" min={0} max={5} step={0.1} value={webCarouselSettings.transitionDurationSeconds} onChange={e => setWebCarouselSettings(s => ({ ...s, transitionDurationSeconds: Math.max(0, Number(e.target.value) || 0) }))} />
+                      <p className="text-xs text-gray-400 mt-1">Length of the transition animation</p>
+                    </div>
+                  </div>
+                  <Button onClick={saveWebCarouselSettings} disabled={webCarouselSaving} className="bg-green-600 hover:bg-green-700">
+                    {webCarouselSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Save Websites Carousel Settings
+                  </Button>
+                </div>
+
+                {testimonialMsg && (
+                  <div className={`mb-4 p-3 rounded-lg text-sm ${testimonialMsgType === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {testimonialMsg}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Add testimonial */}
+                  <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                    <h3 className="font-semibold text-gray-900 mb-4">Add Testimonial</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Client Name</Label>
+                        <Input value={testimonialForm.client_name} onChange={e => setTestimonialForm(f => ({ ...f, client_name: e.target.value }))} placeholder="e.g. Jane Wanjiku" />
+                      </div>
+                      <div>
+                        <Label>Company / Website (optional)</Label>
+                        <Input value={testimonialForm.company} onChange={e => setTestimonialForm(f => ({ ...f, company: e.target.value }))} placeholder="e.g. Prefetch Systems" />
+                      </div>
+                      <div>
+                        <Label>Comment</Label>
+                        <Textarea value={testimonialForm.comment} onChange={e => setTestimonialForm(f => ({ ...f, comment: e.target.value }))} placeholder="What did the client say?" rows={4} />
+                      </div>
+                      <div>
+                        <Label>Rating (1-5)</Label>
+                        <div className="flex items-center gap-1">
+                          {[1,2,3,4,5].map(star => (
+                            <button key={star} type="button" onClick={() => setTestimonialForm(f => ({ ...f, rating: star }))} className={`text-2xl transition-colors ${star <= testimonialForm.rating ? 'text-amber-400' : 'text-gray-300 hover:text-amber-200'}`}>
+                              ★
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button disabled={testimonialSaving || !testimonialForm.client_name.trim() || !testimonialForm.comment.trim()} onClick={async () => {
+                          setTestimonialSaving(true);
+                          setTestimonialMsg('');
+                          const result = await addTestimonial(testimonialForm);
+                          if (result.error) {
+                            setTestimonialMsg(result.error);
+                            setTestimonialMsgType('err');
+                          } else {
+                            setTestimonialMsg('Testimonial added.');
+                            setTestimonialMsgType('ok');
+                            setTestimonialForm({ client_name: '', company: '', comment: '', rating: 5 });
+                            loadTestimonials();
+                          }
+                          setTestimonialSaving(false);
+                        }} className="flex items-center gap-2">
+                          {testimonialSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                          Add Testimonial
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Testimonial list */}
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">Saved Testimonials ({testimonials.length})</h3>
+                    {testimonials.length === 0 ? (
+                      <p className="text-sm text-gray-400">No testimonials yet. Add one on the left.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {testimonials.map(t => (
+                          <div key={t.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold text-gray-900 truncate">{t.client_name}</p>
+                                  <span className="flex items-center gap-0.5 text-amber-400 text-xs">
+                                    {[1,2,3,4,5].map(s => <span key={s} className={s <= t.rating ? '' : 'text-gray-200'}>{'★'}</span>)}
+                                  </span>
+                                </div>
+                                {t.company && <p className="text-xs text-gray-500 mt-0.5">{t.company}</p>}
+                                <p className="text-sm text-gray-600 mt-2">{t.comment}</p>
+                              </div>
+                              <button onClick={async () => {
+                                if (!confirm(`Delete testimonial from "${t.client_name}"?`)) return;
+                                const result = await deleteTestimonial(t.id);
+                                if (result.error) { setTestimonialMsg(result.error); setTestimonialMsgType('err'); }
+                                else loadTestimonials();
+                              }} className="text-xs text-red-600 hover:text-red-800 font-medium flex-shrink-0">Delete</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {activeTab === 'adverts' && (
             <Card className="mb-6">
               <CardHeader>
@@ -2102,7 +2497,7 @@ const AdminPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisements ({adverts.length})</CardTitle>
-                <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
+                <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '' }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -2146,12 +2541,20 @@ const AdminPage: React.FC = () => {
                       <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
                         <label className="flex items-center gap-2 text-sm text-gray-700">
                           <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
                           Affiliate
                         </label>
                       </div>
+                      <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input type="checkbox" checked={adForm.featured} onChange={e => setAdForm({ ...adForm, featured: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                          Featured <span className="text-xs text-gray-400">(shows on homepage carousel and side rail)</span>
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing runs in 7-day cycles (KES {adForm.featured ? '500' : '100'}/week). Renewal alerts & invoices are sent from the Billing tab.</p>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={async () => {
@@ -2180,9 +2583,17 @@ const AdminPage: React.FC = () => {
                           }
                         };
                         try {
+                          const nowIso = new Date().toISOString();
+                          const weekEndIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
                           if (adForm.id) {
                             const { id, image_url, images: _oldImages, ...updateData } = adForm;
-                            const { error } = await withTimeout(supabase.from('advertisements').update({ ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null }).eq('id', adForm.id), 30000, 'Update');
+                            const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null };
+                            if (!adForm.is_affiliate) {
+                              patch.billing_cycle = '7 days';
+                              if (!patch.billing_start) patch.billing_start = nowIso;
+                              if (!patch.billing_end) patch.billing_end = weekEndIso;
+                            }
+                            const { error } = await withTimeout(supabase.from('advertisements').update(patch).eq('id', adForm.id), 30000, 'Update');
                             if (error) throw error;
                           } else {
                             const { id, image_url, images: _oldImages, ...insertData } = adForm;
@@ -2191,7 +2602,13 @@ const AdminPage: React.FC = () => {
                               finishSaved();
                               return;
                             }
-                            const { error } = await withTimeout(supabase.from('advertisements').insert({ ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null }), 30000, 'Save');
+                            const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null };
+                            if (!insertData.is_affiliate) {
+                              insert.billing_cycle = '7 days';
+                              insert.billing_start = nowIso;
+                              insert.billing_end = weekEndIso;
+                            }
+                            const { error } = await withTimeout(supabase.from('advertisements').insert(insert), 30000, 'Save');
                             if (error) throw error;
                           }
                           finishSaved();
@@ -2228,6 +2645,7 @@ const AdminPage: React.FC = () => {
                           <th className="text-left py-2 px-3 font-medium text-gray-600">Title</th>
                           <th className="text-left py-2 px-3 font-medium text-gray-600">Destination</th>
                           <th className="text-center py-2 px-3 font-medium text-gray-600">Type</th>
+                          <th className="text-center py-2 px-3 font-medium text-gray-600">Featured</th>
                           <th className="text-center py-2 px-3 font-medium text-gray-600">Clicks</th>
                           <th className="text-center py-2 px-3 font-medium text-gray-600">Impr.</th>
                           <th className="text-center py-2 px-3 font-medium text-gray-600">Active</th>
@@ -2243,6 +2661,19 @@ const AdminPage: React.FC = () => {
                             <td className="py-2 px-3 text-gray-800 font-medium">{ad.title}</td>
                             <td className="py-2 px-3 text-gray-500 truncate max-w-[140px]">{ad.destination_url}</td>
                             <td className="py-2 px-3 text-center">{ad.is_affiliate ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded">Affiliate</span> : <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded">Managed</span>}</td>
+                            <td className="py-2 px-3 text-center">
+                              <button onClick={async () => {
+                                try {
+                                  const { error } = await withTimeout(supabase.from('advertisements').update({ featured: !(ad.featured ?? false) }).eq('id', ad.id), 30000, 'Update');
+                                  if (error) throw error;
+                                  loadAdverts();
+                                } catch (err: any) {
+                                  toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                                }
+                              }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                              </button>
+                            </td>
                             <td className="py-2 px-3 text-center text-gray-600 text-xs font-mono">{ad.clicks || 0}</td>
                             <td className="py-2 px-3 text-center text-gray-600 text-xs font-mono">{ad.display_count || 0}</td>
                             <td className="py-2 px-3 text-center">
@@ -2254,7 +2685,7 @@ const AdminPage: React.FC = () => {
                               </button>
                             </td>
                             <td className="py-2 px-3 text-right">
-                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setAdvUrlInput(''); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
+                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '' }); setAdvUrlInput(''); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
                               <button onClick={async () => {
                                 if (!window.confirm(`Delete "${ad.title}"?`)) return;
                                 try {
@@ -2531,6 +2962,11 @@ const AdminPage: React.FC = () => {
                 </Select>
                 <input type="hidden" id="ad_owner_hidden" name="owner_id" defaultValue={editingAd?.owner_id} />
               </div>
+            </div>
+            <div>
+              <Label>Advertiser Email (for billing invoices)</Label>
+              <Input name="owner_email" type="email" defaultValue={editingAd?.owner_email || ''} placeholder="e.g. advertiser@example.com" />
+              <p className="text-[11px] text-gray-400 mt-1">Used to send renewal alerts & invoices. Billing cycle follows the plan ({editingAd?.plan === '10-day' ? 'KES 300' : editingAd?.plan === '20-day' ? 'KES 500' : 'KES 800'}).</p>
             </div>
             {/* Image Upload for Ads */}
             <div>
@@ -3056,6 +3492,40 @@ const AdminPage: React.FC = () => {
             <Button disabled={sendingNewsletter} onClick={sendComposedNewsletter} className="bg-purple-600 hover:bg-purple-700">
               {sendingNewsletter ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               {sendingNewsletter ? 'Sending...' : 'Send to Subscribers'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Billing Invoice Preview Dialog */}
+      <Dialog open={!!billingPreviewItem} onOpenChange={(open) => { if (!open) setBillingPreviewItem(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Alert & Invoice Preview</DialogTitle>
+          </DialogHeader>
+          {billingPreviewItem && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-600 mb-3 px-1">
+              <span>To: <strong className="text-gray-900">{billingPreviewItem.owner_email}</strong></span>
+              <span>Business: <strong className="text-gray-900">{billingPreviewItem.business_name}</strong></span>
+              <span>Amount: <strong className="text-gray-900">KES {billingPreviewItem.amount}</strong></span>
+              <span>Cycle: <strong className="text-gray-900">{billingPreviewItem.billing_cycle}</strong></span>
+              {billingPreviewItem.billing_end && <span>Due: <strong className="text-gray-900">{new Date(billingPreviewItem.billing_end).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>}
+            </div>
+          )}
+          <iframe
+            title="Billing invoice preview"
+            srcDoc={billingPreviewHtml}
+            className="w-full h-[62vh] bg-white border border-gray-200 rounded-lg"
+          />
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+            <Button variant="outline" onClick={() => setBillingPreviewItem(null)}>Cancel</Button>
+            <Button
+              onClick={() => billingPreviewItem && sendBillingInvoice(billingPreviewItem)}
+              disabled={!billingPreviewItem || (billingPreviewItem && billingSendingId === `${billingPreviewItem.item_type}:${billingPreviewItem.id}`)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {billingPreviewItem && billingSendingId === `${billingPreviewItem.item_type}:${billingPreviewItem.id}` ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+              {billingPreviewItem && billingSendingId === `${billingPreviewItem.item_type}:${billingPreviewItem.id}` ? 'Sending...' : `Send Invoice to ${billingPreviewItem?.owner_email || ''}`}
             </Button>
           </div>
         </DialogContent>

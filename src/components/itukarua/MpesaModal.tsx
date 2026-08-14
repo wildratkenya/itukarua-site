@@ -163,7 +163,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           <div className="text-center">
             <p className="text-sm text-green-700 font-medium">Amount to Pay</p>
             <p className="text-3xl font-bold text-green-800">KES {amount.toLocaleString()}</p>
-            <p className="text-xs text-green-600 mt-1">Account: {accountRef}</p>
+            <p className="text-xs text-green-600 mt-1">Till No: 1600149</p>
           </div>
         </div>
 
@@ -184,30 +184,20 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                     <span className="text-gray-600">2. Select <strong>Lipa na M-Pesa</strong></span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600">3. Choose <strong>PayBill</strong></span>
+                    <span className="text-gray-600">3. Choose <strong>Buy Goods and Services</strong> (Till)</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600">4. Business No:</span>
+                    <span className="text-gray-600">4. Enter Till No:</span>
                     <button
-                      onClick={() => copyToClipboard('247247', 'paybill')}
+                      onClick={() => copyToClipboard('1600149', 'till')}
                       className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 hover:bg-gray-100 transition-colors"
                     >
-                      <span className="font-mono font-bold text-green-700">247247</span>
-                      {copied === 'paybill' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
+                      <span className="font-mono font-bold text-green-700">1600149</span>
+                      {copied === 'till' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
                     </button>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600">5. Account No:</span>
-                    <button
-                      onClick={() => copyToClipboard(accountRef, 'account')}
-                      className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="font-mono font-bold text-green-700">{accountRef}</span>
-                      {copied === 'account' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
-                    </button>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">6. Amount:</span>
+                    <span className="text-gray-600">5. Amount:</span>
                     <button
                       onClick={() => copyToClipboard(amount.toString(), 'amount')}
                       className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 hover:bg-gray-100 transition-colors"
@@ -216,7 +206,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                       {copied === 'amount' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
                     </button>
                   </div>
-                  <div className="text-gray-600">7. Enter your <strong>M-Pesa PIN</strong> and confirm</div>
+                  <div className="text-gray-600">6. Enter your <strong>M-Pesa PIN</strong> and confirm</div>
                 </div>
               </div>
 
