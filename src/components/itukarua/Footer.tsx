@@ -168,7 +168,7 @@ const Footer: React.FC<FooterProps> = ({
             </ul>
             <div className="mt-4 p-3 bg-gray-800 rounded-lg">
               <p className="text-xs text-gray-400">
-                <span className="text-green-400 font-semibold">M-Pesa PayBill:</span> 247247
+                <span className="text-green-400 font-semibold">M-Pesa Till No:</span> 1600149
               </p>
               <p className="text-xs text-gray-400 mt-1">
                 <span className="text-green-400 font-semibold">Business Name:</span> ITUKARUA Solutions

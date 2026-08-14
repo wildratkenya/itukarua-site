@@ -94,6 +94,11 @@ export interface DbServiceAd {
   rating: number;
   reviews_count: number;
   owner_id: string;
+  owner_email?: string | null;
+  billing_cycle?: string | null;
+  billing_start?: string | null;
+  billing_end?: string | null;
+  last_invoice_at?: string | null;
   payment_confirmed: boolean;
   created_at: string;
   updated_at: string;
@@ -462,12 +467,16 @@ export async function createServiceAd(ad: {
   const days = ad.plan === '10-day' ? 10 : ad.plan === '20-day' ? 20 : 30;
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + days);
+  const billingCycle = ad.plan === '10-day' ? '10 days' : ad.plan === '20-day' ? '20 days' : '30 days';
 
   const { data, error } = await supabase
     .from('service_ads')
     .insert({
       ...ad,
       expiry_date: expiryDate.toISOString().split('T')[0],
+      billing_cycle: billingCycle,
+      billing_start: new Date().toISOString(),
+      billing_end: expiryDate.toISOString(),
     })
     .select()
     .single();
@@ -1114,6 +1123,36 @@ export async function updateAdCarouselSetting(key: string, value: string): Promi
   if (error) throw error;
 }
 
+// ─── Website Carousel Settings ──────────────────────────────────────────────
+
+export interface WebsitesCarouselSettings {
+  scrollIntervalSeconds: number;
+  transitionDurationSeconds: number;
+  effect: 'slide' | 'fade' | 'zoom';
+}
+
+export async function getWebsitesCarouselSettings(): Promise<WebsitesCarouselSettings> {
+  const { data, error } = await supabase
+    .from('ad_carousel_settings')
+    .select('key, value');
+  if (error && error.name !== 'AbortError') { console.error('getWebsitesCarouselSettings error:', error); return { scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' }; }
+  const map: Record<string, string> = {};
+  (data || []).forEach((s: any) => { map[s.key] = s.value; });
+  const effect = map['web_effect'];
+  return {
+    scrollIntervalSeconds: parseFloat(map['web_scroll_interval_seconds']) || 5,
+    transitionDurationSeconds: parseFloat(map['web_transition_duration_seconds']) || 0.8,
+    effect: (effect === 'fade' || effect === 'zoom') ? effect : 'slide',
+  };
+}
+
+export async function updateWebsitesCarouselSetting(key: 'web_scroll_interval_seconds' | 'web_transition_duration_seconds' | 'web_effect', value: string): Promise<void> {
+  const { error } = await supabase
+    .from('ad_carousel_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 // ─── Profile Views ─────────────────────────────────────────────────────────
 
 export async function incrementProfileViews(profileId: string): Promise<void> {
@@ -1243,12 +1282,15 @@ export async function deleteCustomCategory(name: string, type: 'job' | 'service'
 
 // ─── Advertisements ──────────────────────────────────────────────────────────
 
-export async function getActiveAds() {
-  const { data, error } = await supabase
+export async function getActiveAds(featured?: boolean) {
+  let query = supabase
     .from('advertisements')
     .select('*')
-    .eq('active', true)
-    .order('sort_order');
+    .eq('active', true);
+  if (typeof featured === 'boolean') {
+    query = query.eq('featured', featured);
+  }
+  const { data, error } = await query.order('sort_order');
   if (error) throw error;
   return data || [];
 }
@@ -1262,17 +1304,24 @@ export async function getAllAds() {
   return data || [];
 }
 
-export async function createAd(ad: { title: string; image_url: string; images?: string[]; destination_url: string; is_affiliate?: boolean; sort_order?: number }) {
+export async function createAd(ad: { title: string; image_url: string; images?: string[]; destination_url: string; is_affiliate?: boolean; sort_order?: number; featured?: boolean }) {
+  const nowIso = new Date().toISOString();
+  const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('advertisements')
-    .insert(ad)
+    .insert({
+      ...ad,
+      billing_cycle: '7 days',
+      billing_start: nowIso,
+      billing_end: billingEnd,
+    })
     .select('id')
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function updateAd(id: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string; is_affiliate: boolean; active: boolean; sort_order: number }>) {
+export async function updateAd(id: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string; is_affiliate: boolean; active: boolean; sort_order: number; featured: boolean }>) {
   const { error } = await supabase
     .from('advertisements')
     .update(updates)
@@ -1309,8 +1358,14 @@ export interface DbAdvertisement {
   whatsapp_number?: string | null;
   is_affiliate: boolean;
   active: boolean;
+  featured: boolean;
   sort_order: number;
   owner_id?: string | null;
+  owner_email?: string | null;
+  billing_cycle?: string | null;
+  billing_start?: string | null;
+  billing_end?: string | null;
+  last_invoice_at?: string | null;
   clicks?: number;
   displays?: number;
   created_at: string;
@@ -1327,9 +1382,11 @@ export async function getMyAds(userId: string): Promise<DbAdvertisement[]> {
 }
 
 export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean }) {
+  const nowIso = new Date().toISOString();
+  const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('advertisements')
-    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null })
+    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd })
     .select('id')
     .single();
   if (error) throw error;
@@ -1352,6 +1409,128 @@ export async function deleteMyAd(id: string, userId: string) {
     .eq('id', id)
     .eq('owner_id', userId);
   if (error) throw error;
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+export interface BillingItem {
+  id: string;
+  item_type: 'advert' | 'service_ad';
+  title: string;
+  business_name: string;
+  owner_id: string | null;
+  owner_email: string | null;
+  billing_cycle: string;
+  amount: number;
+  billing_start: string | null;
+  billing_end: string | null;
+  last_invoice_at: string | null;
+  featured: boolean;
+  active: boolean;
+  status: 'due' | 'expired' | 'ok';
+}
+
+const SERVICE_PLAN_PRICE: Record<string, number> = { '10-day': 300, '20-day': 500, '30-day': 800 };
+const DUE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // alert within 7 days of expiry
+
+export async function getBillingItems(): Promise<BillingItem[]> {
+  const [advRes, adRes, profilesRes] = await Promise.all([
+    supabase.from('advertisements').select('*').order('created_at', { ascending: false }),
+    supabase.from('service_ads').select('*').order('created_at', { ascending: false }),
+    supabase.from('profiles').select('id,email'),
+  ]);
+  if (advRes.error) console.error('getBillingItems advertisements error:', advRes.error);
+  if (adRes.error) console.error('getBillingItems service_ads error:', adRes.error);
+  if (profilesRes.error) console.error('getBillingItems profiles error:', profilesRes.error);
+
+  const emailByOwner = new Map<string, string | null>();
+  (profilesRes.data || []).forEach((p: any) => emailByOwner.set(p.id, p.email || null));
+
+  const now = Date.now();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const statusOf = (endMs: number | null): BillingItem['status'] => {
+    if (endMs == null) return 'ok';
+    if (endMs < now) return 'expired';
+    if (endMs - now <= DUE_WINDOW_MS) return 'due';
+    return 'ok';
+  };
+
+  const items: BillingItem[] = [];
+
+  (advRes.data || []).forEach((ad: any) => {
+    if (ad.is_affiliate) return; // partnership banners are not billed
+    const end = ad.billing_end ? new Date(ad.billing_end).getTime() : null;
+    const ownerEmail = (ad.owner_email || (ad.owner_id ? emailByOwner.get(ad.owner_id) : null) || null) as string | null;
+    items.push({
+      id: ad.id,
+      item_type: 'advert',
+      title: ad.title || 'Advert',
+      business_name: ad.title || 'Advert',
+      owner_id: ad.owner_id || null,
+      owner_email: ownerEmail,
+      billing_cycle: ad.billing_cycle || '7 days',
+      amount: ad.featured ? 500 : 100,
+      billing_start: ad.billing_start || null,
+      billing_end: ad.billing_end || null,
+      last_invoice_at: ad.last_invoice_at || null,
+      featured: !!ad.featured,
+      active: !!ad.active,
+      status: statusOf(end),
+    });
+  });
+
+  (adRes.data || []).forEach((ad: any) => {
+    const end = ad.billing_end
+      ? new Date(ad.billing_end).getTime()
+      : ad.expiry_date ? new Date(`${ad.expiry_date}T00:00:00`).getTime() : null;
+    const ownerEmail = (ad.owner_email || (ad.owner_id ? emailByOwner.get(ad.owner_id) : null) || null) as string | null;
+    items.push({
+      id: ad.id,
+      item_type: 'service_ad',
+      title: ad.business_name || ad.title || 'Business Advert',
+      business_name: ad.business_name || ad.title || 'Business Advert',
+      owner_id: ad.owner_id || null,
+      owner_email: ownerEmail,
+      billing_cycle: ad.billing_cycle || (ad.plan === '10-day' ? '10 days' : ad.plan === '20-day' ? '20 days' : '30 days'),
+      amount: SERVICE_PLAN_PRICE[ad.plan] || 800,
+      billing_start: ad.billing_start || null,
+      billing_end: ad.billing_end || null,
+      last_invoice_at: ad.last_invoice_at || null,
+      featured: !!ad.featured,
+      active: !!ad.expiry_date && ad.expiry_date >= todayStr,
+      status: statusOf(end),
+    });
+  });
+
+  return items.sort((a, b) => {
+    const aMs = a.billing_end ? new Date(a.billing_end).getTime() : 0;
+    const bMs = b.billing_end ? new Date(b.billing_end).getTime() : 0;
+    return aMs - bMs;
+  });
+}
+
+export interface BillingNotification {
+  id: string;
+  item_type: string;
+  item_id: string;
+  business_name: string | null;
+  recipient_email: string;
+  subject: string | null;
+  amount: number | null;
+  due_date: string | null;
+  status: string;
+  error: string | null;
+  created_at: string;
+}
+
+export async function getBillingNotifications(limit = 100): Promise<BillingNotification[]> {
+  const { data, error } = await supabase
+    .from('billing_notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) { console.error('getBillingNotifications error:', error); return []; }
+  return (data || []) as BillingNotification[];
 }
 
 export async function adminResetPassword(userId: string, newPassword: string): Promise<{ error?: string }> {
@@ -1389,10 +1568,11 @@ export async function getEmailProviders(): Promise<DbEmailProvider[]> {
 export async function saveEmailProvider(provider: Partial<DbEmailProvider>): Promise<{ error?: string }> {
   if (provider.is_active) {
     // Only one provider may be active at a time.
-    const { error: resetError } = await supabase
-      .from('email_providers')
-      .update({ is_active: false })
-      .neq('id', provider.id || '');
+    let query = supabase.from('email_providers').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000');
+    if (provider.id) {
+      query = query.neq('id', provider.id);
+    }
+    const { error: resetError } = await query;
     if (resetError) return { error: resetError.message };
   }
   const { id, password, ...rest } = provider;
@@ -1411,6 +1591,82 @@ export async function saveEmailProvider(provider: Partial<DbEmailProvider>): Pro
 
 export async function deleteEmailProvider(id: string): Promise<{ error?: string }> {
   const { error } = await supabase.from('email_providers').delete().eq('id', id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// ─── Testimonials ────────────────────────────────────────────────────────────
+
+export interface DbTestimonial {
+  id: string;
+  client_name: string;
+  company?: string;
+  comment: string;
+  rating: number;
+  created_at: string;
+}
+
+export async function getTestimonials(): Promise<DbTestimonial[]> {
+  const { data, error } = await supabase
+    .from('testimonials')
+    .select('id, client_name, company, comment, rating, created_at')
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getTestimonials error:', error); return []; }
+  return (data || []) as DbTestimonial[];
+}
+
+export async function addTestimonial(input: { client_name: string; company?: string; comment: string; rating: number }): Promise<{ error?: string }> {
+  const { error } = await supabase.from('testimonials').insert({
+    client_name: input.client_name,
+    company: input.company || null,
+    comment: input.comment,
+    rating: Math.min(5, Math.max(1, Math.round(input.rating) || 5)),
+  });
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function deleteTestimonial(id: string): Promise<{ error?: string }> {
+  const { error } = await supabase.from('testimonials').delete().eq('id', id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// ─── Portfolio Sites ─────────────────────────────────────────────────────────
+
+export interface DbPortfolioSite {
+  id: string;
+  title: string;
+  description?: string;
+  url?: string;
+  image_url?: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export async function getPortfolioSites(): Promise<DbPortfolioSite[]> {
+  const { data, error } = await supabase
+    .from('portfolio_sites')
+    .select('id, title, description, url, image_url, sort_order, created_at')
+    .order('sort_order', { ascending: true });
+  if (error) { console.error('getPortfolioSites error:', error); return []; }
+  return (data || []) as DbPortfolioSite[];
+}
+
+export async function savePortfolioSite(input: Partial<DbPortfolioSite> & { title: string }): Promise<{ error?: string }> {
+  const { id, ...rest } = input;
+  if (id) {
+    const { error } = await supabase.from('portfolio_sites').update(rest).eq('id', id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from('portfolio_sites').insert(rest);
+    if (error) return { error: error.message };
+  }
+  return {};
+}
+
+export async function deletePortfolioSite(id: string): Promise<{ error?: string }> {
+  const { error } = await supabase.from('portfolio_sites').delete().eq('id', id);
   if (error) return { error: error.message };
   return {};
 }

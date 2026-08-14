@@ -119,32 +119,41 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
         <div className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">For Jobseekers</h2>
           <p className="text-gray-500 text-center mb-8">Monthly subscription — bid on unlimited jobs, message employers, and more</p>
-          <div className="max-w-md mx-auto bg-white rounded-2xl border-2 border-green-500 shadow-xl overflow-hidden">
-            <div className="bg-green-600 px-6 py-4 text-center">
-              <p className="text-green-100 text-sm font-medium">30-Day Subscription</p>
-              <div className="flex items-baseline justify-center gap-1 mt-1">
-                <span className="text-4xl font-bold text-white">KES {PRICING_PLANS.jobseeker.price}<span className="text-lg text-green-200 font-normal">/mo</span></span>
+          <div className="max-w-5xl mx-auto bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 rounded-3xl shadow-2xl overflow-hidden">
+            <div className="grid md:grid-cols-5">
+              <div className="md:col-span-3 p-8">
+                <div className="inline-flex items-center gap-1.5 bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide mb-3">
+                  <Zap className="w-3 h-3" /> Most Popular — 30-Day Subscription
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-1">{PRICING_PLANS.jobseeker.name}</h3>
+                <p className="text-green-100 text-sm mb-5">Everything you need to land work — bid on unlimited jobs and connect with employers near you.</p>
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                  {PRICING_PLANS.jobseeker.features.map((f, j) => (
+                    <li key={j} className="flex items-start gap-2 text-white/95 text-xs">
+                      <Check className="w-3.5 h-3.5 text-white flex-shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
-            <div className="p-6">
-              <ul className="space-y-3 mb-6">
-                {PRICING_PLANS.jobseeker.features.map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-gray-600">
-                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handlePay(PRICING_PLANS.jobseeker.price, 'Jobseeker Registration', 'REG-NEW')}
-                disabled={!alreadyAccepted}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <Phone className="w-4 h-4" />
-                Pay with M-Pesa
-              </button>
-              {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
-              <p className="text-[10px] text-gray-400 text-center mt-2">30-day subscription • renews monthly</p>
+              <div className="md:col-span-2 bg-white/10 backdrop-blur border-t md:border-t-0 md:border-l border-white/20 p-8 flex flex-col justify-center text-center">
+                <p className="text-white/80 text-sm mb-1">Monthly price</p>
+                <p className="text-5xl font-extrabold text-white mb-1">
+                  KES {PRICING_PLANS.jobseeker.price}<span className="text-lg text-green-200">/mo</span>
+                </p>
+                <p className="text-green-100 text-xs mb-6">30-day subscription • renews monthly</p>
+                <button
+                  onClick={() => handlePay(PRICING_PLANS.jobseeker.price, 'Jobseeker Registration', 'REG-NEW')}
+                  disabled={!alreadyAccepted}
+                  className={`w-full py-3.5 bg-white hover:bg-green-50 text-green-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
+                    alreadyAccepted ? '' : 'opacity-60 cursor-not-allowed'
+                  }`}
+                >
+                  <Phone className="w-4 h-4" />
+                  Pay with M-Pesa
+                </button>
+                {!alreadyAccepted && <p className="text-xs text-white/80 text-center mt-3">Accept Terms & Conditions above to proceed</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -153,31 +162,33 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
         <div className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Business Advertising Plans</h2>
           <p className="text-gray-500 text-center mb-8">Promote your business to the local community</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {PRICING_PLANS.advertPlans.map((plan, i) => (
               <div
                 key={i}
-                className={`bg-white rounded-2xl border-2 overflow-hidden transition-all hover:shadow-xl ${
-                  plan.popular ? 'border-green-500 shadow-xl scale-105' : 'border-gray-200'
+                className={`relative bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 flex flex-col ${
+                  plan.popular ? 'border-green-500 shadow-xl ring-4 ring-green-100' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 {plan.popular && (
-                  <div className="bg-green-600 text-center py-1.5">
-                    <span className="text-xs font-semibold text-white flex items-center justify-center gap-1">
-                      <Zap className="w-3 h-3" /> Most Popular
-                    </span>
-                  </div>
+                  <span className="absolute top-0 right-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-bl-xl z-10 tracking-wide">
+                    MOST POPULAR
+                  </span>
                 )}
-                <div className="p-6">
-                  <h3 className="font-semibold text-gray-900 mb-1">{plan.name}</h3>
-                  <p className="text-xs text-gray-500 mb-4">{plan.duration} listing</p>
-                  <div className="flex items-baseline gap-1 mb-6">
-                    <span className="text-3xl font-bold text-gray-900">KES {plan.price}</span>
+                <div className={`px-6 py-6 text-center ${plan.popular ? 'bg-gradient-to-r from-green-600 to-emerald-500' : 'bg-gradient-to-b from-gray-100 to-gray-50'}`}>
+                  <h3 className={`font-bold text-lg ${plan.popular ? 'text-white' : 'text-gray-900'}`}>{plan.name}</h3>
+                  <p className={`text-xs mt-1 ${plan.popular ? 'text-green-100' : 'text-gray-500'}`}>{plan.duration} listing</p>
+                  <div className={`flex items-baseline justify-center gap-1 mt-2 ${plan.popular ? 'text-white' : 'text-gray-900'}`}>
+                    <span className="text-3xl font-extrabold">KES {plan.price}</span>
                   </div>
-                  <ul className="space-y-2.5 mb-6">
+                </div>
+                <div className="p-5 flex flex-col flex-1 bg-white">
+                  <ul className="space-y-2.5 mb-6 flex-1">
                     {plan.features.map((f, j) => (
-                      <li key={j} className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <li key={j} className="flex items-start gap-2 text-sm text-gray-600">
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center mt-0.5 flex-shrink-0 ${plan.popular ? 'bg-green-100' : 'bg-gray-100'}`}>
+                          <Check className={`w-2.5 h-2.5 ${plan.popular ? 'text-green-700' : 'text-gray-500'}`} />
+                        </span>
                         {f}
                       </li>
                     ))}
@@ -185,54 +196,63 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
                   <button
                     onClick={() => handlePay(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`)}
                     disabled={!alreadyAccepted}
-                    className={`w-full py-3 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                    className={`w-full py-3 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${
                       !alreadyAccepted
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         : plan.popular
-                          ? 'bg-green-600 hover:bg-green-700 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                          ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200'
+                          : 'bg-gray-900 hover:bg-gray-800 text-white'
                     }`}
                   >
                     <Phone className="w-4 h-4" />
                     Pay with M-Pesa
                   </button>
-                  {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
+                  {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-3">Accept Terms & Conditions above to proceed</p>}
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Homepage Advert */}
+        {/* Homepage/Banners Advert */}
         <div className="mb-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Homepage Adverts</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Homepage/Banners Advert</h2>
           <p className="text-gray-500 text-center mb-8">Get your business in front of every visitor — prime banner placement on the homepage carousel</p>
-          <div className="max-w-md mx-auto bg-white rounded-2xl border-2 border-amber-400 shadow-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-center">
-              <p className="text-amber-100 text-sm font-medium">{PRICING_PLANS.homepageAdvert.name}</p>
-              <div className="flex items-baseline justify-center gap-1 mt-1">
-                <span className="text-4xl font-bold text-white">KES {PRICING_PLANS.homepageAdvert.price}<span className="text-lg text-amber-200 font-normal">/week</span></span>
+          <div className="max-w-5xl mx-auto bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-3xl shadow-2xl overflow-hidden">
+            <div className="grid md:grid-cols-5">
+              <div className="md:col-span-3 p-8">
+                <div className="inline-flex items-center gap-1.5 bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide mb-3">
+                  <Zap className="w-3 h-3" /> Homepage Banner
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-1">{PRICING_PLANS.homepageAdvert.name}</h3>
+                <p className="text-amber-100 text-sm mb-5">Prime banner placement on the homepage carousel — seen by every visitor, 24/7.</p>
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                  {PRICING_PLANS.homepageAdvert.features.map((f, j) => (
+                    <li key={j} className="flex items-start gap-2 text-white/95 text-xs">
+                      <Check className="w-3.5 h-3.5 text-white flex-shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
-            <div className="p-6">
-              <ul className="space-y-3 mb-6">
-                {PRICING_PLANS.homepageAdvert.features.map((f, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
-                    <Check className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handlePay(PRICING_PLANS.homepageAdvert.price, 'Homepage Advert (1 week)', 'ADV-HP-WEEK')}
-                disabled={!alreadyAccepted}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <Phone className="w-4 h-4" />
-                Pay with M-Pesa
-              </button>
-              {!alreadyAccepted && <p className="text-xs text-amber-600 text-center mt-2">Accept Terms & Conditions above to proceed</p>}
-              <p className="text-[10px] text-gray-400 text-center mt-2">Homepage carousel advert • renews weekly • 5 ads shown at once</p>
+              <div className="md:col-span-2 bg-white/10 backdrop-blur border-t md:border-t-0 md:border-l border-white/20 p-8 flex flex-col justify-center text-center">
+                <p className="text-white/80 text-sm mb-1">Weekly price</p>
+                <p className="text-5xl font-extrabold text-white mb-1">
+                  KES {PRICING_PLANS.homepageAdvert.price}<span className="text-lg text-amber-200">/wk</span>
+                </p>
+                <p className="text-amber-100 text-xs mb-6">Live for 7 full days • renews weekly • 5 ads shown at once</p>
+                <button
+                  onClick={() => handlePay(PRICING_PLANS.homepageAdvert.price, 'Homepage Advert (1 week)', 'ADV-HP-WEEK')}
+                  disabled={!alreadyAccepted}
+                  className={`w-full py-3.5 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
+                    alreadyAccepted ? '' : 'opacity-60 cursor-not-allowed'
+                  }`}
+                >
+                  <Phone className="w-4 h-4" />
+                  Pay with M-Pesa
+                </button>
+                {!alreadyAccepted && <p className="text-xs text-white/80 text-center mt-3">Accept Terms & Conditions above to proceed</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -275,12 +295,11 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
           <Phone className="w-10 h-10 text-green-600 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-green-800 mb-2">All Payments via M-Pesa</h3>
           <p className="text-sm text-green-700 mb-4">
-            We use M-Pesa for all transactions to ensure security and convenience. You can pay using PayBill or our instant STK Push.
+            We use M-Pesa for all transactions to ensure security and convenience. You can pay using our Till Number or our instant STK Push.
           </p>
           <div className="bg-white rounded-xl p-4 text-left text-sm space-y-1">
-            <p className="text-gray-600"><span className="font-semibold text-gray-900">PayBill Number:</span> 247247</p>
+            <p className="text-gray-600"><span className="font-semibold text-gray-900">M-Pesa Till Number:</span> 1600149</p>
             <p className="text-gray-600"><span className="font-semibold text-gray-900">Business Name:</span> ITUKARUA Solutions</p>
-            <p className="text-gray-600"><span className="font-semibold text-gray-900">Account Number:</span> Your User ID or Reference</p>
           </div>
         </div>
       </div>

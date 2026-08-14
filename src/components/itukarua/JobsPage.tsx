@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
+import VerticalAdRail from './VerticalAdRail';
 import { JOB_CATEGORIES, LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
 import { useJobs } from '@/hooks/useQueries';
 import { getCustomCategories } from '@/lib/database';
@@ -160,36 +161,43 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-sm text-gray-500">Showing <span className="font-semibold text-gray-900">{jobs.length}</span> jobs</p>
-        </div>
+        <div className="flex gap-6 items-start">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-gray-500">Showing <span className="font-semibold text-gray-900">{jobs.length}</span> jobs</p>
+            </div>
 
-        {isLoading ? (
-          <div className="flex flex-col gap-3">
-            {[1,2,3,4,5].map(i => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex gap-3">
-                <div className="w-36 h-28 rounded-lg bg-gray-200 flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-1/4" />
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded w-full" />
-                  <div className="h-3 bg-gray-200 rounded w-1/3" />
-                </div>
+            {isLoading ? (
+              <div className="flex flex-col gap-3">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex gap-3">
+                    <div className="w-36 h-28 rounded-lg bg-gray-200 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 bg-gray-200 rounded w-1/4" />
+                      <div className="h-4 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-200 rounded w-full" />
+                      <div className="h-3 bg-gray-200 rounded w-1/3" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : jobs.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {jobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} compact />)}
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><Search className="w-7 h-7 text-gray-400" /></div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No jobs found</h3>
+                <p className="text-sm text-gray-500 mb-4">Try adjusting your search or filters</p>
+                <button onClick={clearFilters} className="px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">Clear Filters</button>
+              </div>
+            )}
           </div>
-        ) : jobs.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            {jobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} compact />)}
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><Search className="w-7 h-7 text-gray-400" /></div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No jobs found</h3>
-            <p className="text-sm text-gray-500 mb-4">Try adjusting your search or filters</p>
-            <button onClick={clearFilters} className="px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">Clear Filters</button>
-          </div>
-        )}
+          <aside className="hidden lg:block w-64 xl:w-72 flex-shrink-0 sticky top-6">
+            <VerticalAdRail />
+          </aside>
+        </div>
       </div>
     </div>
   );
