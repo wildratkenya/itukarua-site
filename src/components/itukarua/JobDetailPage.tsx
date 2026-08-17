@@ -14,7 +14,7 @@ interface JobDetailPageProps {
   onBack: () => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
 }
 
 const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack, user, onOpenAuth, onOpenMpesa }) => {

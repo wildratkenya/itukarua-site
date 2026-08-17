@@ -18,7 +18,7 @@ interface DashboardPageProps {
   user: UserState;
   onNavigate: (page: Page) => void;
   onViewJob: (jobId: string) => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa }) => {
@@ -507,7 +507,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     </div>
                   </div>
                   {(!subscriptionActive || subscriptionDays <= 7) && (
-                    <button onClick={() => onOpenMpesa(100, 'Jobseeker subscription renewal', user.id)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    <button onClick={() => onOpenMpesa(100, 'Jobseeker subscription renewal', user.id, 'job_payment')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
                       Renew KES 100
                     </button>
                   )}
@@ -538,7 +538,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     </div>
                   </div>
                   {(!subscriptionActive || subscriptionDays <= 7) && (
-                    <button onClick={() => onOpenMpesa(100, 'Advertiser subscription renewal', user.id)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    <button onClick={() => onOpenMpesa(100, 'Advertiser subscription renewal', user.id, 'advert')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
                       {subscriptionActive ? 'Renew KES 100' : 'Subscribe KES 100'}
                     </button>
                   )}
@@ -736,7 +736,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
                 <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 100</strong> (7-day banner ad).</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
                     Pay Now — KES 100
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
@@ -762,6 +762,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div className="flex flex-col items-end gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
                   <div className="flex gap-2">
+                    {!ad.active && <button onClick={() => onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
                     <button onClick={() => { setAdvError(''); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
                     <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
                     <button onClick={() => handleDeleteAd(ad)} className="text-xs text-red-600 hover:text-red-700">Delete</button>

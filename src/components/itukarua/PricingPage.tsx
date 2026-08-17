@@ -7,7 +7,7 @@ import { acceptTerms, checkTermsAccepted } from '@/lib/database';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 
 interface PricingPageProps {
-  onOpenMpesa: (amount: number, description: string, accountRef: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
 }
 
 const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {

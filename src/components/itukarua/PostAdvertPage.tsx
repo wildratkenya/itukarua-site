@@ -11,7 +11,7 @@ interface PostAdvertPageProps {
   onNavigate: (page: Page) => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
 }
 
 const MAX_IMAGES = 3;
@@ -119,7 +119,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
           description: `${selectedPlan.name} - ${formData.businessName}`,
           related_ad_id: ad.id,
         });
-        onOpenMpesa(selectedPlan.price, `${selectedPlan.name} - ${formData.businessName}`, `ADV-${ad.id.slice(0, 8)}`);
+        onOpenMpesa(selectedPlan.price, `${selectedPlan.name} - ${formData.businessName}`, `ADV-${ad.id.slice(0, 8)}`, 'advert', ad.id);
       }
       setSubmitted(true);
     } catch (err: any) {
