@@ -15,6 +15,11 @@ const originalFetch = globalThis.fetch.bind(globalThis);
 // supabase.co directly. Direct browser-to-supabase.co connections can die
 // silently (ERR_CONNECTION_CLOSED / hanging HTTP3 writes), while the same-origin
 // proxy is stable. Realtime stays direct.
+//
+// We override globalThis.fetch directly (rather than passing global.fetch to
+// createClient) so every internal HTTP call — PostgREST, Auth, Storage — goes
+// through the proxy. Passing the custom fetch via the Supabase client options
+// only reliably intercepts auth calls; PostgREST calls bypass it.
 function routedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const method = ((init?.method) || (typeof input !== 'string' && !(input instanceof URL) ? input.method : undefined) || 'GET').toUpperCase();
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -26,7 +31,6 @@ function routedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Resp
 
   if (isSupabaseRest && typeof window !== 'undefined') {
     const target = `${window.location.origin}/supabase${url.slice(supabaseUrl.length)}`;
-    console.log('[supabase-proxy]', method, '->', target);
     let result: Promise<Response>;
     if (typeof input === 'string') {
       result = originalFetch(target, init);
@@ -45,12 +49,18 @@ function routedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Resp
       });
     }
     result.then(
-      (res) => console.log(`[supabase-proxy] <- ${method} ${target} -> ${res.status}`),
-      (err) => console.error(`[supabase-proxy] <! ${method} ${target}`, err?.name, err?.message)
+      undefined,
+      (err) => console.error(`[supabase-proxy] error ${method} ${target}`, err?.name, err?.message)
     );
     return result;
   }
   return originalFetch(input, init);
+}
+
+// Override globalThis.fetch so ALL supabase internal calls (PostgREST, Auth,
+// Storage) are routed through the proxy.
+if (typeof window !== 'undefined') {
+  globalThis.fetch = routedFetch as typeof globalThis.fetch;
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
