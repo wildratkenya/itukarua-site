@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { supabase, saveSession, restoreSession } from '@/lib/supabase';
-import { getProfile, type DbProfile } from '@/lib/database';
+import { getProfile, boostAd, type DbProfile } from '@/lib/database';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
 import HomePage from './itukarua/HomePage';
@@ -284,7 +284,7 @@ const AppLayout: React.FC = () => {
         case 'services':
           return <ServicesPage onNavigate={handleNavigate} />;
         case 'pricing':
-          return <PricingPage onOpenMpesa={handleOpenMpesa} />;
+          return <PricingPage onOpenMpesa={handleOpenMpesa} onNavigate={handleNavigate} />;
         case 'about':
           return <AboutPage />;
         case 'contact':
@@ -414,6 +414,11 @@ const AppLayout: React.FC = () => {
         user={user}
         onPaymentComplete={() => {
           handleCloseMpesa();
+          if (mpesaModal.paymentType === 'featured_boost' && mpesaModal.relatedAdId) {
+            boostAd('advertisements', mpesaModal.relatedAdId).catch(() => {
+              boostAd('service_ads', mpesaModal.relatedAdId!).catch(() => {});
+            });
+          }
           if (user) getProfile(user.id).then(p => {
             if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
           });

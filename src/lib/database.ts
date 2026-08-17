@@ -91,6 +91,7 @@ export interface DbServiceAd {
   plan: '10-day' | '20-day' | '30-day';
   expiry_date: string;
   featured: boolean;
+  boost_until?: string | null;
   rating: number;
   reviews_count: number;
   owner_id: string;
@@ -447,7 +448,16 @@ export async function getServiceAds(filters?: {
     console.error('getServiceAds error:', error); 
     return []; 
   }
-  return data as DbServiceAd[];
+  // Auto-expire boosts: un-feature ads whose boost_until has passed
+  const now = new Date().toISOString();
+  const results = (data || []) as DbServiceAd[];
+  const expired = results.filter(ad => ad.featured && ad.boost_until && ad.boost_until < now);
+  if (expired.length > 0) {
+    expired.forEach(ad => {
+      supabase.from('service_ads').update({ featured: false, boost_until: null }).eq('id', ad.id).then(() => {}).catch(() => {});
+    });
+  }
+  return results.filter(ad => !ad.boost_until || ad.boost_until >= now || !ad.featured);
 }
 
 export async function createServiceAd(ad: {
@@ -1292,7 +1302,15 @@ export async function getActiveAds(featured?: boolean) {
   }
   const { data, error } = await query.order('featured', { ascending: false }).order('sort_order');
   if (error) throw error;
-  return data || [];
+  // Auto-expire boosts: un-feature ads whose boost_until has passed
+  const now = new Date().toISOString();
+  const expired = (data || []).filter(ad => ad.featured && ad.boost_until && ad.boost_until < now);
+  if (expired.length > 0) {
+    expired.forEach(ad => {
+      supabase.from('advertisements').update({ featured: false, boost_until: null }).eq('id', ad.id).then(() => {}).catch(() => {});
+    });
+  }
+  return (data || []).filter(ad => !ad.boost_until || ad.boost_until >= now || !ad.featured);
 }
 
 export async function getAllAds() {
@@ -1408,6 +1426,7 @@ export interface DbAdvertisement {
   is_affiliate: boolean;
   active: boolean;
   featured: boolean;
+  boost_until?: string | null;
   sort_order: number;
   owner_id?: string | null;
   owner_email?: string | null;
@@ -1457,6 +1476,15 @@ export async function deleteMyAd(id: string, userId: string) {
     .delete()
     .eq('id', id)
     .eq('owner_id', userId);
+  if (error) throw error;
+}
+
+export async function boostAd(table: 'advertisements' | 'service_ads', adId: string) {
+  const boostUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from(table)
+    .update({ featured: true, boost_until: boostUntil })
+    .eq('id', adId);
   if (error) throw error;
 }
 
