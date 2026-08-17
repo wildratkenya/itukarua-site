@@ -38,6 +38,8 @@ const AppLayout: React.FC = () => {
     amount: number;
     description: string;
     accountRef: string;
+    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost';
+    relatedAdId?: string;
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -241,8 +243,8 @@ const AppLayout: React.FC = () => {
     setCurrentPage('jobs');
   }, []);
 
-  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string) => {
-    setMpesaModal({ open: true, amount, description, accountRef });
+  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => {
+    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId });
   }, []);
 
   const handleCloseMpesa = useCallback(() => {
@@ -407,6 +409,8 @@ const AppLayout: React.FC = () => {
         amount={mpesaModal.amount}
         description={mpesaModal.description}
         accountRef={mpesaModal.accountRef}
+        paymentType={mpesaModal.paymentType}
+        relatedAdId={mpesaModal.relatedAdId}
         user={user}
         onPaymentComplete={() => {
           handleCloseMpesa();
