@@ -59,6 +59,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [adAnalytics, setAdAnalytics] = useState<AdAnalyticsPoint[]>([]);
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [lastCreatedAdId, setLastCreatedAdId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMessage, setPwMessage] = useState('');
 
   const isAdmin = user.role === 'admin' || user.role === 'super_admin';
   const isJobseeker = user.role === 'jobseeker';
@@ -188,6 +192,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setCertFiles([]);
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setPwMessage('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwMessage('Passwords do not match.');
+      return;
+    }
+    setPwSaving(true);
+    setPwMessage('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setPwMessage('Password updated successfully.');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPwMessage(err.message || 'Failed to update password.');
+    } finally {
+      setPwSaving(false);
+    }
   };
 
   const tabs = isAdmin
@@ -784,84 +812,123 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <h3 className="font-semibold text-gray-900 mb-6">Profile Settings</h3>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo</label>
-                  <div className="flex items-center gap-3">
-                    {profilePhotoFile ? (
-                      <img src={URL.createObjectURL(profilePhotoFile)} alt="Preview" className="w-16 h-16 rounded-full object-cover border-2 border-green-200" />
-                    ) : profileForm.profile_image ? (
-                      <img src={profileForm.profile_image} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-green-200" />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
-                        <Camera className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                    <input type="file" accept="image/*" onChange={e => { if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]); }} className="flex-1 text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                  <input type="text" value={profileForm.full_name} onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" value={profileForm.email} disabled className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <input type="text" value={profileForm.location} onChange={e => setProfileForm({ ...profileForm, location: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
-                  <select value={profileForm.county} onChange={e => setProfileForm({ ...profileForm, county: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
-                    <option value="">Select county</option>
-                    {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
-                  <input type="text" value={profileForm.subcounty} onChange={e => setProfileForm({ ...profileForm, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Kikuyu" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
-                  <input type="text" value={profileForm.skills} onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Painting, Plumbing, Carpentry" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Qualifications</label>
-                  <input type="text" value={profileForm.qualifications} onChange={e => setProfileForm({ ...profileForm, qualifications: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Diploma in Electrical Engineering" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
-                  <input type="text" value={profileForm.experience} onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. 5 years in construction" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Professional Resume</label>
-                  <textarea value={profileForm.resume} onChange={e => setProfileForm({ ...profileForm, resume: e.target.value })} rows={4} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none resize-none text-sm" placeholder="Paste your resume here..." />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Certificates / Referral Letters</label>
-                  <input type="file" multiple accept=".pdf,image/png,image/jpeg" onChange={e => { if (e.target.files) setCertFiles(Array.from(e.target.files)); }} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
-                  {certFiles.length > 0 && <p className="text-xs text-green-600 mt-1">{certFiles.length} file(s) selected</p>}
-                  {(user.profile?.certificates?.length || 0) > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {user.profile?.certificates?.slice(0, 3).map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">Certificate {i + 1}</a>
-                      ))}
-                      {(user.profile?.certificates?.length || 0) > 3 && <span className="text-xs text-gray-400">+{(user.profile?.certificates?.length || 0) - 3} more</span>}
+                {isAdvertiser ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                      <input type="text" value={profileForm.full_name} onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                  <label htmlFor="ratings_enabled" className="text-sm text-gray-700">Enable ratings & reviews on my profile</label>
-                </div>
-                <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
-                </button>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input type="email" value={profileForm.email} disabled className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                      <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                    </div>
+                    <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+                    </button>
+                    <div className="pt-4 mt-4 border-t border-gray-200">
+                      <h4 className="font-semibold text-gray-900 mb-4">Update Password</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 6 characters" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                          <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter password" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                        </div>
+                        {pwMessage && <p className={`text-sm ${pwMessage.includes('success') ? 'text-green-600' : 'text-red-600'}`}>{pwMessage}</p>}
+                        <button onClick={handleChangePassword} disabled={pwSaving || !newPassword || !confirmPassword} className="px-6 py-2.5 bg-gray-800 hover:bg-gray-900 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                          {pwSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update Password'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo</label>
+                      <div className="flex items-center gap-3">
+                        {profilePhotoFile ? (
+                          <img src={URL.createObjectURL(profilePhotoFile)} alt="Preview" className="w-16 h-16 rounded-full object-cover border-2 border-green-200" />
+                        ) : profileForm.profile_image ? (
+                          <img src={profileForm.profile_image} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-green-200" />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                            <Camera className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                        <input type="file" accept="image/*" onChange={e => { if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]); }} className="flex-1 text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                      <input type="text" value={profileForm.full_name} onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input type="email" value={profileForm.email} disabled className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                      <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                      <input type="text" value={profileForm.location} onChange={e => setProfileForm({ ...profileForm, location: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                      <select value={profileForm.county} onChange={e => setProfileForm({ ...profileForm, county: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="">Select county</option>
+                        {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
+                      <input type="text" value={profileForm.subcounty} onChange={e => setProfileForm({ ...profileForm, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Kikuyu" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
+                      <input type="text" value={profileForm.skills} onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Painting, Plumbing, Carpentry" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Qualifications</label>
+                      <input type="text" value={profileForm.qualifications} onChange={e => setProfileForm({ ...profileForm, qualifications: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Diploma in Electrical Engineering" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                      <input type="text" value={profileForm.experience} onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. 5 years in construction" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Professional Resume</label>
+                      <textarea value={profileForm.resume} onChange={e => setProfileForm({ ...profileForm, resume: e.target.value })} rows={4} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none resize-none text-sm" placeholder="Paste your resume here..." />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Certificates / Referral Letters</label>
+                      <input type="file" multiple accept=".pdf,image/png,image/jpeg" onChange={e => { if (e.target.files) setCertFiles(Array.from(e.target.files)); }} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                      {certFiles.length > 0 && <p className="text-xs text-green-600 mt-1">{certFiles.length} file(s) selected</p>}
+                      {(user.profile?.certificates?.length || 0) > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {user.profile?.certificates?.slice(0, 3).map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">Certificate {i + 1}</a>
+                          ))}
+                          {(user.profile?.certificates?.length || 0) > 3 && <span className="text-xs text-gray-400">+{(user.profile?.certificates?.length || 0) - 3} more</span>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                      <label htmlFor="ratings_enabled" className="text-sm text-gray-700">Enable ratings & reviews on my profile</label>
+                    </div>
+                    <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
