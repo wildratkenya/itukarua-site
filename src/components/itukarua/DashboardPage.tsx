@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick } from 'lucide-react';
-import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalytics, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement } from '@/lib/database';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalytics, boostAd, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -59,6 +59,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [adAnalytics, setAdAnalytics] = useState<AdAnalyticsPoint[]>([]);
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [lastCreatedAdId, setLastCreatedAdId] = useState<string | null>(null);
+  const [boostInfoAdId, setBoostInfoAdId] = useState<string | null>(null);
+  const [boostingAdId, setBoostingAdId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
@@ -746,13 +748,20 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               </div>
             )}
 
-            {myAds.length > 0 ? myAds.map(ad => (
-              <div key={ad.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                <div className="w-20 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+            {myAds.length > 0 ? myAds.map(ad => {
+              const isBoosted = ad.featured && ad.boost_until && new Date(ad.boost_until) > new Date();
+              const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+              return (
+              <div key={ad.id} className={`bg-white rounded-xl p-4 border flex items-center gap-4 transition-all ${isBoosted ? 'border-amber-300 shadow-md shadow-amber-100' : 'border-gray-100'}`}>
+                <div className="w-20 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 relative">
                   <img src={proxyImageUrl(ad.image_url)} alt={ad.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  {isBoosted && <span className="absolute top-0 left-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[7px] font-bold px-1 py-0.5 rounded-br-md flex items-center gap-0.5"><Zap className="w-2 h-2" /> HOT</span>}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 truncate">{ad.title}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-gray-900 truncate">{ad.title}</h4>
+                    {isBoosted && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">⚡ {boostDaysLeft}d left</span>}
+                  </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                     <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {ad.displays || 0}</span>
                     <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> {ad.clicks || 0}</span>
@@ -761,15 +770,31 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     {!ad.active && <button onClick={() => onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
+                    {ad.active && !isBoosted && (
+                      <button onClick={() => onOpenMpesa(500, 'Boost — 7 days homepage carousel', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Boost
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Homepage carousel for 7 days</span>
+                      </button>
+                    )}
+                    {isBoosted && (
+                      <div className="flex items-center gap-1">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                        <span className="text-[10px] text-amber-600 font-semibold">Live</span>
+                      </div>
+                    )}
                     <button onClick={() => { setAdvError(''); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
                     <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
                     <button onClick={() => handleDeleteAd(ad)} className="text-xs text-red-600 hover:text-red-700">Delete</button>
                   </div>
                 </div>
               </div>
-            )) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet. Create your first banner advert!</p>}
+              );
+            }) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet. Create your first banner advert!</p>}
           </div>
         )}
 
@@ -779,20 +804,45 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               <h3 className="font-semibold text-gray-900">{isAdmin ? 'All Adverts' : 'My Adverts'}</h3>
               <button onClick={() => onNavigate('post-advert')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">Post New Advert</button>
             </div>
-            {ads.length > 0 ? ads.map(ad => (
-              <div key={ad.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                <img src={optimizeImageUrl(ad.image || IMAGES.services[0], 100, 100)} alt={ad.business_name} className="w-16 h-16 rounded-lg object-cover" />
+            {ads.length > 0 ? ads.map(ad => {
+              const isBoosted = ad.featured && ad.boost_until && new Date(ad.boost_until) > new Date();
+              const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+              return (
+              <div key={ad.id} className={`bg-white rounded-xl p-4 border flex items-center gap-4 transition-all ${isBoosted ? 'border-amber-300 shadow-md shadow-amber-100' : 'border-gray-100'}`}>
+                <div className="relative">
+                  <img src={optimizeImageUrl(ad.image || IMAGES.services[0], 100, 100)} alt={ad.business_name} className="w-16 h-16 rounded-lg object-cover" />
+                  {isBoosted && <span className="absolute -top-1 -left-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[7px] font-bold px-1 py-0.5 rounded-md flex items-center gap-0.5"><Zap className="w-2 h-2" /> HOT</span>}
+                </div>
                 <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{ad.business_name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-gray-900">{ad.business_name}</h4>
+                    {isBoosted && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">⚡ {boostDaysLeft}d left</span>}
+                  </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                     <span>{ad.category}</span><span>{ad.location}</span><span>{ad.plan}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  {ad.featured && <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Featured</span>}
-                  <p className="text-xs text-gray-400 mt-1">Expires: {ad.expiry_date}</p>
+                <div className="flex flex-col items-end gap-2">
+                  {isBoosted && (
+                    <div className="flex items-center gap-1">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                      <span className="text-[10px] text-amber-600 font-semibold">Live</span>
+                    </div>
+                  )}
+                  {!isBoosted && (
+                    <button onClick={() => onOpenMpesa(500, `Boost — ${ad.business_name} — 7 days`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Boost
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Homepage + search top</span>
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400">Expires: {ad.expiry_date}</p>
                 </div>
               </div>
+              );
+            }) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet.</p>}
             )) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet.</p>}
           </div>
         )}

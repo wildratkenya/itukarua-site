@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Check, Zap, Shield, Phone } from 'lucide-react';
+import { Check, Zap, Shield, Phone, CheckCircle } from 'lucide-react';
 import { PRICING_PLANS } from '@/data/siteData';
 import { supabase } from '@/lib/supabase';
 import { acceptTerms, checkTermsAccepted } from '@/lib/database';
@@ -8,9 +8,10 @@ import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 
 interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
+  onNavigate?: (page: string) => void;
 }
 
-const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
+const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) => {
   const [user, setUser] = useState<any>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [dataSharingConsent, setDataSharingConsent] = useState(false);
@@ -274,18 +275,29 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa }) => {
               <p className="text-2xl font-bold text-gray-900 mb-2">KES {PRICING_PLANS.employerAccess.price}</p>
               <p className="text-sm text-gray-500">{PRICING_PLANS.employerAccess.description}</p>
             </div>
-            <div className="bg-white rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border-2 border-amber-300 shadow-lg shadow-amber-100 relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">POPULAR</div>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-amber-600" />
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                  <Zap className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{PRICING_PLANS.featuredBoost.name}</h3>
-                  <p className="text-sm text-gray-500">{PRICING_PLANS.featuredBoost.period}</p>
+                  <h3 className="font-bold text-gray-900 text-lg">{PRICING_PLANS.featuredBoost.name}</h3>
+                  <p className="text-sm text-amber-600 font-medium">{PRICING_PLANS.featuredBoost.period}</p>
                 </div>
               </div>
-              <p className="text-2xl font-bold text-gray-900 mb-2">KES {PRICING_PLANS.featuredBoost.price}</p>
-              <p className="text-sm text-gray-500">{PRICING_PLANS.featuredBoost.description}</p>
+              <p className="text-3xl font-extrabold text-gray-900 mb-3">KES {PRICING_PLANS.featuredBoost.price}</p>
+              <p className="text-sm text-gray-600 mb-4">{PRICING_PLANS.featuredBoost.description}</p>
+              <ul className="space-y-2 mb-5">
+                <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> Prime homepage carousel — seen by every visitor</li>
+                <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> Top of search results for 7 days</li>
+                <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> Up to 5 images with full-size popup</li>
+                <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> WhatsApp chat + website link buttons</li>
+                <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> Clicks & views tracked in your analytics</li>
+              </ul>
+              <button onClick={() => onNavigate('dashboard')} className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center justify-center gap-2">
+                <Zap className="w-4 h-4" /> Boost My Ad Now
+              </button>
             </div>
           </div>
         </div>
