@@ -843,7 +843,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               </div>
               );
             }) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet.</p>}
-            )) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet.</p>}
           </div>
         )}
 
