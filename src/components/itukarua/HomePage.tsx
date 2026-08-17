@@ -106,15 +106,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ limit: 4 });
   const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 4, ratings_enabled: true });
 
-  useEffect(() => {
-    console.log('HomePage Data Check:', { 
-      jobs: jobsData.length, 
-      services: servicesData.length, 
-      loading: { jobsLoading, servicesLoading, workersLoading },
-      errors: { jobsError, servicesError, workersError }
-    });
-  }, [jobsData, servicesData, jobsLoading, servicesLoading, workersLoading, jobsError, servicesError, workersError]);
-
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setTimedOut(true), 3000);

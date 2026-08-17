@@ -4,18 +4,32 @@ import { getActiveAds, incrementAdClick, incrementAdDisplay, getAdCarouselSettin
 import { proxyImageUrl } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
-const PAGE_SIZE = 5;
+const DESKTOP_PAGE_SIZE = 5;
+const MOBILE_PAGE_SIZE = 1;
 const DEFAULT_SETTINGS: AdCarouselSettings = {
   scrollIntervalSeconds: 5,
   transitionDurationSeconds: 0.8,
   effect: 'slide',
 };
 
+function useMobile() {
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches);
+    mq.addEventListener('change', handler);
+    setMobile(mq.matches);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
+
 const AdBanner: React.FC = () => {
   const [affiliateAds, setAffiliateAds] = useState<any[]>([]);
   const [settings, setSettings] = useState<AdCarouselSettings>(DEFAULT_SETTINGS);
   const [currentPage, setCurrentPage] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const isMobile = useMobile();
   const [modalAd, setModalAd] = useState<any>(null);
   const [modalImg, setModalImg] = useState('');
   const displayedAds = useRef<Set<string>>(new Set());
@@ -29,6 +43,8 @@ const AdBanner: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalAd]);
 
+  const PAGE_SIZE = isMobile ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
+
   const pageCount = Math.max(1, Math.ceil(affiliateAds.length / PAGE_SIZE));
 
   const pages = useMemo(() => {
@@ -37,7 +53,7 @@ const AdBanner: React.FC = () => {
       groups.push(affiliateAds.slice(i, i + PAGE_SIZE));
     }
     return groups;
-  }, [affiliateAds]);
+  }, [affiliateAds, PAGE_SIZE]);
 
   const goToPage = useCallback((index: number) => {
     setCurrentPage(((index % pageCount) + pageCount) % pageCount);
@@ -84,7 +100,7 @@ const AdBanner: React.FC = () => {
   const isFade = settings.effect === 'fade';
 
   const renderPage = (pageAds: any[]) => (
-    <div className="w-full h-full grid grid-cols-5 gap-2 sm:gap-3 p-2 sm:p-3">
+    <div className="w-full h-full grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-3 p-2 sm:p-3">
       {pageAds.map(ad => (
         <button
           key={ad.id}
