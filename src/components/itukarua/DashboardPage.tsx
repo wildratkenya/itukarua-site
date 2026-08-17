@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick } from 'lucide-react';
-import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement } from '@/lib/database';
+import { getJobs, getBidsByUser, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalytics, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -11,6 +11,8 @@ import MpesaModal from './MpesaModal';
 import ProfileViewsChart from './ProfileViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
+import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
+import type { AdAnalyticsPoint } from '@/lib/database';
 
 interface DashboardPageProps {
   user: UserState;
@@ -54,6 +56,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [advUrlInput, setAdvUrlInput] = useState('');
   const [advSaving, setAdvSaving] = useState(false);
   const [advError, setAdvError] = useState('');
+  const [adAnalytics, setAdAnalytics] = useState<AdAnalyticsPoint[]>([]);
+  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
+  const [lastCreatedAdId, setLastCreatedAdId] = useState<string | null>(null);
 
   const isAdmin = user.role === 'admin' || user.role === 'super_admin';
   const isJobseeker = user.role === 'jobseeker';
@@ -72,7 +77,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         } else if (isJobseeker) {
           promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id));
         } else if (isAdvertiser) {
-          promises.push(getMyAds(user.id));
+          promises.push(getMyAds(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id));
         } else {
           promises.push(getJobs({ postedBy: user.id }));
         }
@@ -99,6 +104,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setSubscriptionDays(results[offset + 2] || 0);
         } else if (isAdvertiser) {
           setMyAds(results[offset] || []);
+          setSubscriptionActive(results[offset + 1] || false);
+          setSubscriptionDays(results[offset + 2] || 0);
+          getAdAnalytics(user.id, 30).then(setAdAnalytics);
         } else {
           setJobs(results[offset] || []);
         }
@@ -221,6 +229,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const reloadMyAds = async () => {
     const data = await getMyAds(user.id);
     setMyAds(data || []);
+    const analytics = await getAdAnalytics(user.id, 30);
+    setAdAnalytics(analytics);
   };
 
   const addAdvFiles = (list: FileList | null) => {
@@ -292,7 +302,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       if (adForm.id) {
         await updateMyAd(adForm.id, user.id, payload);
       } else {
-        await createAdForUser(user.id, payload);
+        const created = await createAdForUser(user.id, payload);
+        setLastCreatedAdId(created.id);
+        setShowPaymentPrompt(true);
       }
       setShowAdForm(false);
       setAdvImageFiles([]);
@@ -475,8 +487,46 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               </div>
             )}
 
+            {isAdvertiser && (
+              <div className={`rounded-xl p-5 border ${subscriptionActive && subscriptionDays <= 7 ? 'border-amber-200 bg-amber-50' : subscriptionActive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {subscriptionActive ? (
+                      subscriptionDays <= 7 ? <AlertCircle className="w-6 h-6 text-amber-600" /> : <RefreshCw className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {subscriptionActive
+                          ? `Subscription active — ${subscriptionDays} day${subscriptionDays === 1 ? '' : 's'} remaining`
+                          : 'No active subscription'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {subscriptionActive
+                          ? subscriptionDays <= 7 ? 'Your subscription is expiring soon. Renew to keep your adverts live.' : 'Your 30-day subscription is active.'
+                          : 'Subscribe to publish and run banner adverts on the homepage.'}
+                      </p>
+                    </div>
+                  </div>
+                  {(!subscriptionActive || subscriptionDays <= 7) && (
+                    <button onClick={() => onOpenMpesa(100, 'Advertiser subscription renewal', user.id)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
+                      {subscriptionActive ? 'Renew KES 100' : 'Subscribe KES 100'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Analytics Section */}
             <div className="space-y-4">
+              {isAdvertiser && adAnalytics.length > 0 && (
+                <AdvertiserAnalyticsChart
+                  data={adAnalytics}
+                  totalClicks={myAds.reduce((sum, a) => sum + (a.clicks || 0), 0)}
+                  totalImpressions={myAds.reduce((sum, a) => sum + (a.displays || 0), 0)}
+                />
+              )}
               {profileViewHistory.length > 0 && (
                 <ProfileViewsChart data={profileViewHistory} total={user.profile?.profile_views || 0} />
               )}
@@ -638,6 +688,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     {advSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : adForm.id ? 'Save Changes' : 'Create Advert'}
                   </button>
                   <button onClick={() => { setShowAdForm(false); setAdvImageFiles([]); setAdvUrlInput(''); }} className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {showPaymentPrompt && lastCreatedAdId && (
+              <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
+                <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 100</strong> (7-day banner ad).</p>
+                <div className="flex gap-3">
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES 100
+                  </button>
+                  <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                    Pay Later
+                  </button>
                 </div>
               </div>
             )}
