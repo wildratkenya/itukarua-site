@@ -1290,7 +1290,7 @@ export async function getActiveAds(featured?: boolean) {
   if (typeof featured === 'boolean') {
     query = query.eq('featured', featured);
   }
-  const { data, error } = await query.order('sort_order');
+  const { data, error } = await query.order('featured', { ascending: false }).order('sort_order');
   if (error) throw error;
   return data || [];
 }

@@ -68,7 +68,7 @@ const AdBanner: React.FC = () => {
   }, [pageCount]);
 
   useEffect(() => {
-    getActiveAds(true).then(ads => {
+    getActiveAds().then(ads => {
       if (ads && ads.length > 0) setAffiliateAds(ads);
     }).catch(() => {});
     getAdCarouselSettings().then(setSettings).catch(() => {});
