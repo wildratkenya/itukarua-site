@@ -93,7 +93,6 @@ data: {
               subcounty: formData.subcounty || null,
               skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
               resume: formData.resume || null,
-              email_confirmed: true,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             }, { onConflict: 'id' });
