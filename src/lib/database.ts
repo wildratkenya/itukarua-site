@@ -1340,11 +1340,60 @@ export async function deleteAd(id: string) {
 export async function incrementAdClick(adId: string) {
   const { error } = await supabase.rpc('increment_ad_click', { ad_id: adId });
   if (error) console.error('[Ad] click increment failed:', error);
+  await logAdEvent(adId, 'click');
 }
 
 export async function incrementAdDisplay(adId: string) {
   const { error } = await supabase.rpc('increment_ad_display', { ad_id: adId });
   if (error) console.error('[Ad] display increment failed:', error);
+  await logAdEvent(adId, 'impression');
+}
+
+// ─── Advert Analytics ──────────────────────────────────────────────────────
+
+export async function logAdEvent(adId: string, eventType: 'click' | 'impression') {
+  const { error } = await supabase.from('advert_analytics').insert({ ad_id: adId, event_type: eventType });
+  if (error) console.error('[Ad] analytics log failed:', error);
+}
+
+export interface AdAnalyticsPoint {
+  date: string;
+  clicks: number;
+  impressions: number;
+}
+
+export async function getAdAnalytics(userId: string, days: number = 30): Promise<AdAnalyticsPoint[]> {
+  const ads = await getMyAds(userId);
+  if (ads.length === 0) return [];
+  const adIds = ads.map(a => a.id);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from('advert_analytics')
+    .select('event_type, created_at')
+    .in('ad_id', adIds)
+    .gte('created_at', since)
+    .order('created_at', { ascending: true });
+
+  if (error) { console.error('getAdAnalytics error:', error); return []; }
+
+  const byDate: Record<string, { clicks: number; impressions: number }> = {};
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    byDate[key] = { clicks: 0, impressions: 0 };
+  }
+
+  for (const row of data || []) {
+    const key = row.created_at.slice(0, 10);
+    if (!byDate[key]) byDate[key] = { clicks: 0, impressions: 0 };
+    if (row.event_type === 'click') byDate[key].clicks++;
+    else byDate[key].impressions++;
+  }
+
+  return Object.entries(byDate).map(([date, v]) => ({ date, ...v }));
 }
 
 export interface DbAdvertisement {
