@@ -55,8 +55,31 @@ const AppLayout: React.FC = () => {
         if (sessionError) throw sessionError;
         
         if (session?.user) {
-          const profile = await getProfile(session.user.id);
+          let profile = await getProfile(session.user.id);
           if (!mounted) return;
+
+          // If no profile exists yet (email confirmation was required),
+          // create it from the signup metadata stored on the auth user.
+          if (!profile && session.user.user_metadata) {
+            const meta = session.user.user_metadata;
+            const now = new Date().toISOString();
+            const { error: upsertErr } = await supabase.from('profiles').upsert({
+            id: session.user.id,
+            full_name: meta.full_name || session.user.email?.split('@')[0] || '',
+            email: session.user.email || '',
+            phone: meta.phone || '',
+            role: meta.role || 'employer',
+            location: meta.location || null,
+            county: meta.county || null,
+            subcounty: meta.subcounty || null,
+            skills: meta.skills || [],
+            created_at: now,
+            updated_at: now,
+          }, { onConflict: 'id' });
+            if (upsertErr) console.error('[Auth] profile creation from metadata failed:', upsertErr);
+            profile = await getProfile(session.user.id);
+            if (!mounted) return;
+          }
 
           if (profile?.suspended) {
             await supabase.auth.signOut();
@@ -93,11 +116,46 @@ const AppLayout: React.FC = () => {
       else if (event === 'SIGNED_OUT') saveSession(null);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        // Check if user just confirmed their email
-        const justConfirmed = session.user.email_confirmed_at && 
-          (Date.now() - new Date(session.user.email_confirmed_at).getTime()) < 60000; // Within last minute
         const profile = await getProfile(session.user.id);
         if (!mounted) return;
+
+        // If no profile exists yet (email confirmation was required),
+        // create it from the signup metadata stored on the auth user.
+        if (!profile && session.user.user_metadata) {
+          const meta = session.user.user_metadata;
+          const now = new Date().toISOString();
+          const { error: upsertErr } = await supabase.from('profiles').upsert({
+            id: session.user.id,
+            full_name: meta.full_name || session.user.email?.split('@')[0] || '',
+            email: session.user.email || '',
+            phone: meta.phone || '',
+            role: meta.role || 'employer',
+            location: meta.location || null,
+            county: meta.county || null,
+            subcounty: meta.subcounty || null,
+            skills: meta.skills || [],
+            created_at: now,
+            updated_at: now,
+          }, { onConflict: 'id' });
+          if (upsertErr) console.error('[Auth] profile creation from metadata failed:', upsertErr);
+
+          // Retry fetching the profile
+          const refreshedProfile = await getProfile(session.user.id);
+          if (!mounted) return;
+          if (refreshedProfile?.suspended) {
+            await supabase.auth.signOut();
+            setUser(null);
+          } else {
+            setUser({
+              id: session.user.id,
+              name: refreshedProfile?.full_name || session.user.email?.split('@')[0] || '',
+              email: session.user.email || '',
+              role: refreshedProfile?.role || meta.role || 'employer',
+              profile: refreshedProfile,
+            });
+          }
+          return;
+        }
 
         if (profile?.suspended) {
           await supabase.auth.signOut();
@@ -110,13 +168,6 @@ const AppLayout: React.FC = () => {
             role: profile?.role || 'employer',
             profile,
           });
-          // Update profile with email confirmation status
-          if (justConfirmed && session.user.confirmed_at) {
-            await supabase.from('profiles').update({ 
-              email_confirmed: true,
-              updated_at: new Date().toISOString()
-            }).eq('id', session.user.id);
-          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
