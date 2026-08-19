@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
-import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
 import { subscribeNewsletter } from '@/lib/database';
 interface FooterProps {
   onNavigate: (page: Page) => void;
@@ -78,7 +78,7 @@ const Footer: React.FC<FooterProps> = ({
               <h2 className="text-lg font-bold text-gray-900">Privacy Policy</h2>
               <button onClick={() => setShowPrivacy(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{TERMS_AND_CONDITIONS}</div>
+            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{PRIVACY_POLICY}</div>
           </div>
         </div>
       )}
@@ -171,7 +171,7 @@ const Footer: React.FC<FooterProps> = ({
                 <span className="text-green-400 font-semibold">M-Pesa Till No:</span> 1600149
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                <span className="text-green-400 font-semibold">Business Name:</span> ITUKARUA Solutions
+                <span className="text-green-400 font-semibold">Business Name:</span> ITUKARUA KENYA
               </p>
             </div>
           </div>
@@ -182,7 +182,7 @@ const Footer: React.FC<FooterProps> = ({
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-500" data-mixed-content="true">
-            &copy; {new Date().getFullYear()} ITUKARUA Solutions. All rights reserved. | www.itukarua.co.ke
+            &copy; {new Date().getFullYear()} ITUKARUA KENYA. All rights reserved. | www.itukarua.co.ke
           </p>
           <div className="flex gap-4">
             <button onClick={() => setShowTerms(true)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms</button>

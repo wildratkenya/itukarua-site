@@ -92,7 +92,7 @@ export const PRICING_PLANS = {
   jobseeker: {
     name: 'Jobseeker Registration',
     price: 100,
-    period: '/mo • 30-day subscription',
+    period: '/wk • 7-day subscription',
     features: [
       'Create professional profile',
       'Bid on unlimited jobs',
@@ -102,6 +102,10 @@ export const PRICING_PLANS = {
       'Profile visibility to all employers',
     ],
   },
+  subscriptionPackages: [
+    { id: 'weekly', name: 'Weekly', price: 100, days: 7, description: '7 days access', popular: true },
+    { id: 'monthly', name: 'Monthly', price: 400, days: 30, description: '30 days access (save 14%)' },
+  ],
   advertPlans: [
     {
       name: '10-Day Advert',

@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Key } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification } from '@/lib/database';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription } from '@/lib/database';
 
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -109,7 +109,11 @@ interface Payment {
   status: string;
   payment_type: string;
   mpesa_ref?: string;
+  mpesa_phone?: string;
   description?: string;
+  user_id?: string;
+  token?: string;
+  related_profile_id?: string;
   created_at: string;
 }
 
@@ -203,6 +207,7 @@ const AdminPage: React.FC = () => {
   const [searchJobs, setSearchJobs] = useState('');
   const [searchAds, setSearchAds] = useState('');
   const [searchPayments, setSearchPayments] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed' | 'refunded'>('all');
   const [searchMessages, setSearchMessages] = useState('');
   const [searchCategories, setSearchCategories] = useState('');
   const [searchSubscribers, setSearchSubscribers] = useState('');
@@ -447,8 +452,8 @@ const AdminPage: React.FC = () => {
         }),
         loadJobs(),
         loadAds(),
-        supabase.from('payments').select('*').order('created_at', { ascending: false }).then(({data}) => setPayments(data || [])),
-        supabase.from('messages').select('*').order('created_at', { ascending: false }).then(({data}) => setMessages(data || [])),
+        proxyRequest('/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setPayments(Array.isArray(data) ? data : [])),
+        proxyRequest('/messages?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setMessages(Array.isArray(data) ? data : [])),
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
         getAdCarouselSettings().then(setCarouselSettings),
@@ -553,11 +558,7 @@ const AdminPage: React.FC = () => {
 
   const updateUserRole = async (userId: string, newRole: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId);
-
+      const { error } = await proxyTable('profiles').update({ role: newRole }, 'id', userId);
       if (error) throw error;
 
       setUsers(users.map(user =>
@@ -581,10 +582,7 @@ const AdminPage: React.FC = () => {
   const toggleUserVerification = async (userId: string, currentVerified: boolean) => {
     const newVerified = !currentVerified;
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ verified: newVerified, suspended: !newVerified })
-        .eq('id', userId);
+      const { error } = await proxyTable('profiles').update({ verified: newVerified, suspended: !newVerified }, 'id', userId);
 
       if (error) throw error;
 
@@ -608,10 +606,7 @@ const AdminPage: React.FC = () => {
 
   const toggleUserSuspension = async (userId: string, currentSuspended: boolean) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ suspended: !currentSuspended })
-        .eq('id', userId);
+      const { error } = await proxyTable('profiles').update({ suspended: !currentSuspended }, 'id', userId);
 
       if (error) throw error;
 
@@ -630,6 +625,16 @@ const AdminPage: React.FC = () => {
         description: 'Failed to update user suspension status',
         variant: 'destructive',
       });
+    }
+  };
+
+  const extendUserSubscription = async (userId: string, days: number, userName: string) => {
+    try {
+      await extendSubscription(userId, days);
+      toast({ title: 'Success', description: `Extended ${userName}'s subscription by ${days} day${days !== 1 ? 's' : ''}.` });
+    } catch (error) {
+      console.error('Error extending subscription:', error);
+      toast({ title: 'Error', description: 'Failed to extend subscription', variant: 'destructive' });
     }
   };
 
@@ -732,7 +737,7 @@ const AdminPage: React.FC = () => {
 
       // Update profile with photo URL
       if (profileImageUrl) {
-        await supabase.from('profiles').update({ profile_image: profileImageUrl }).eq('id', result.user_id);
+        await proxyTable('profiles').update({ profile_image: profileImageUrl }, 'id', result.user_id);
       }
 
       // Upload certificates if jobseeker
@@ -754,7 +759,7 @@ const AdminPage: React.FC = () => {
 
       // Update profile with certificates if uploaded
       if (certUrls.length > 0) {
-        await supabase.from('profiles').update({ certificates: certUrls }).eq('id', result.user_id);
+        await proxyTable('profiles').update({ certificates: certUrls }, 'id', result.user_id);
       }
 
       if (subscribeToNewsletter) {
@@ -784,13 +789,13 @@ const AdminPage: React.FC = () => {
   };
 
   const trashUser = async (userId: string) => {
-    await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', userId);
+    await proxyTable('profiles').update({ deleted_at: new Date().toISOString() }, 'id', userId);
     await reloadUsers();
     toast({ title: 'Success', description: 'User moved to trash' });
   };
 
   const restoreUser = async (userId: string) => {
-    await supabase.from('profiles').update({ deleted_at: null }).eq('id', userId);
+    await proxyTable('profiles').update({ deleted_at: null }, 'id', userId);
     await reloadUsers();
     toast({ title: 'Success', description: 'User restored from trash' });
   };
@@ -821,7 +826,7 @@ const AdminPage: React.FC = () => {
     if (ids.length === 0) return;
     if (!confirm(`Move ${ids.length} user(s) to trash?`)) return;
     for (const id of ids) {
-      await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      await proxyTable('profiles').update({ deleted_at: new Date().toISOString() }, 'id', id);
     }
     setSelectedUsers(new Set());
     await loadData();
@@ -833,7 +838,7 @@ const AdminPage: React.FC = () => {
     if (ids.length === 0) return;
     if (!confirm(`Restore ${ids.length} user(s) from trash?`)) return;
     for (const id of ids) {
-      await supabase.from('profiles').update({ deleted_at: null }).eq('id', id);
+      await proxyTable('profiles').update({ deleted_at: null }, 'id', id);
     }
     setSelectedUsers(new Set());
     await loadData();
@@ -887,7 +892,7 @@ const AdminPage: React.FC = () => {
         }
       }
 
-      const { error: rpcError } = await supabase.rpc('create_user_profile', {
+      const { error: rpcError } = await proxyRpc('create_user_profile', {
         p_id: editingUser.id,
         p_full_name: fullName,
         p_email: email,
@@ -915,10 +920,7 @@ const AdminPage: React.FC = () => {
 
   const updateJobStatus = async (jobId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .update({ status: newStatus })
-        .eq('id', jobId);
+      const { error } = await proxyTable('jobs').update({ status: newStatus }, 'id', jobId);
 
       if (error) throw error;
 
@@ -989,12 +991,12 @@ const AdminPage: React.FC = () => {
   const deleteJob = async (jobId: string) => {
     if (!window.confirm('Are you sure you want to delete this job?')) return;
     try {
-      const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+      const { error } = await proxyTable('jobs').delete('id', jobId);
       if (error) throw error;
       setJobs(jobs.filter(job => job.id !== jobId));
       toast({ title: 'Success', description: 'Job deleted successfully' });
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to delete job', variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: `Failed to delete job: ${error?.message || error}`, variant: 'destructive' });
     }
   };
 
@@ -1046,11 +1048,11 @@ const AdminPage: React.FC = () => {
       jobData.images = currentImages;
 
       if (editingJob?.id) {
-        const { error } = await supabase.from('jobs').update(jobData).eq('id', editingJob.id);
+        const { error } = await proxyTable('jobs').update(jobData, 'id', editingJob.id);
         if (error) throw error;
         toast({ title: 'Success', description: 'Job updated successfully' });
       } else {
-        const { error } = await supabase.from('jobs').insert(jobData);
+        const { error } = await proxyTable('jobs').insert(jobData);
         if (error) throw error;
         toast({ title: 'Success', description: 'Job created successfully' });
       }
@@ -1067,12 +1069,12 @@ const AdminPage: React.FC = () => {
   const deleteAd = async (adId: string) => {
     if (!window.confirm('Are you sure you want to delete this ad?')) return;
     try {
-      const { error } = await supabase.from('service_ads').delete().eq('id', adId);
+      const { error } = await proxyTable('service_ads').delete('id', adId);
       if (error) throw error;
       setAds(ads.filter(ad => ad.id !== adId));
       toast({ title: 'Success', description: 'Ad deleted successfully' });
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to delete ad', variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: `Failed to delete ad: ${error?.message || error}`, variant: 'destructive' });
     }
   };
 
@@ -1157,7 +1159,7 @@ const AdminPage: React.FC = () => {
       if (editingAd?.id) {
         console.log('ðŸ" Updating existing ad:', editingAd.id, adData);
         adData.billing_end = adData.expiry_date ? new Date(`${adData.expiry_date}T00:00:00`).toISOString() : editingAd?.billing_end;
-        const { error } = await supabase.from('service_ads').update(adData).eq('id', editingAd.id);
+        const { error } = await proxyTable('service_ads').update(adData, 'id', editingAd.id);
         if (error) throw error;
         toast({ title: 'Success', description: 'Ad updated successfully' });
       } else {
@@ -1168,7 +1170,7 @@ const AdminPage: React.FC = () => {
         adData.expiry_date = expiryDate.toISOString().split('T')[0];
         adData.billing_end = new Date(`${adData.expiry_date}T00:00:00`).toISOString();
         
-        const { error } = await supabase.from('service_ads').insert(adData);
+        const { error } = await proxyTable('service_ads').insert(adData);
         if (error) throw error;
         toast({ title: 'Success', description: 'Ad created successfully' });
       }
@@ -1186,7 +1188,7 @@ const AdminPage: React.FC = () => {
 
   const updateAdPaymentStatus = async (adId: string, payment_confirmed: boolean) => {
     try {
-      const { error } = await supabase.from('service_ads').update({ payment_confirmed }).eq('id', adId);
+      const { error } = await proxyTable('service_ads').update({ payment_confirmed }, 'id', adId);
       if (error) throw error;
       setAds(ads.map(ad => ad.id === adId ? { ...ad, payment_confirmed } : ad));
       toast({ title: 'Success', description: 'Ad payment status updated' });
@@ -1197,7 +1199,7 @@ const AdminPage: React.FC = () => {
 
   const updatePaymentStatus = async (paymentId: string, status: string) => {
     try {
-      const { error } = await supabase.from('payments').update({ status }).eq('id', paymentId);
+      const { error } = await proxyTable('payments').update({ status }, 'id', paymentId);
       if (error) throw error;
       setPayments(payments.map(p => p.id === paymentId ? { ...p, status } : p));
       toast({ title: 'Success', description: 'Payment status updated' });
@@ -1301,6 +1303,7 @@ const AdminPage: React.FC = () => {
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
                 { id: 'ads', label: 'Ads', icon: <Newspaper className="w-4 h-4" /> },
                 { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
+                { id: 'guest-tokens', label: 'Guest Tokens', icon: <Key className="w-4 h-4" /> },
                 { id: 'billing', label: 'Billing', icon: <Receipt className="w-4 h-4" /> },
                 { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
@@ -1442,6 +1445,9 @@ const AdminPage: React.FC = () => {
                                   Set PW
                                 </Button>
                               </div>
+                              <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
+                                +1 Day
+                              </Button>
                               <Button variant="outline" size="sm" onClick={() => {
                                 setEditingUser(user);
                                 setRatingsEnabled(!!user.ratings_enabled);
@@ -1622,7 +1628,21 @@ const AdminPage: React.FC = () => {
           {activeTab === 'payments' && (
             <Card>
               <CardHeader>
-                <CardTitle>Payment Management (M-Pesa)</CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <CardTitle>Payment Management (M-Pesa)</CardTitle>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {payments.filter(p => p.status === 'pending').length} pending &middot; {payments.filter(p => p.status === 'completed').length} completed &middot; {payments.filter(p => p.status === 'failed').length} failed
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {(['all', 'pending', 'completed', 'failed', 'refunded'] as const).map(f => (
+                      <button key={f} onClick={() => setPaymentStatusFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${paymentStatusFilter === f ? f === 'pending' ? 'bg-amber-100 text-amber-700' : f === 'completed' ? 'bg-green-100 text-green-700' : f === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        {f === 'all' ? `All (${payments.length})` : f === 'pending' ? `Pending (${payments.filter(p => p.status === 'pending').length})` : f === 'completed' ? `Completed (${payments.filter(p => p.status === 'completed').length})` : f === 'failed' ? `Failed (${payments.filter(p => p.status === 'failed').length})` : `Refunded (${payments.filter(p => p.status === 'refunded').length})`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -1642,7 +1662,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.filter(p => !searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase())).map((payment) => (
+                    {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter) && (!searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell>KSh {payment.amount}</TableCell>
                         <TableCell>{payment.payment_type}</TableCell>
@@ -1677,6 +1697,61 @@ const AdminPage: React.FC = () => {
                     ))}
                   </TableBody>
                 </Table>
+                {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter) && (!searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
+                  <p className="text-center text-gray-500 text-sm py-8">No payments match the current filter.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'guest-tokens' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Guest Contact Access Tokens</CardTitle>
+                <p className="text-sm text-gray-500 mt-1">
+                  Payments from unauthenticated users (anonymous). Each token grants access to one worker contact.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="text" value={searchPayments} onChange={e => setSearchPayments(e.target.value)} placeholder="Search by token, phone, or description..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Token</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Worker</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>M-Pesa Ref</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.filter(p => p.user_id === 'anonymous' && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell>
+                          <span className="font-mono text-sm font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded">{payment.token || 'N/A'}</span>
+                        </TableCell>
+                        <TableCell>KSh {payment.amount}</TableCell>
+                        <TableCell className="text-xs">{payment.description?.replace('Unlock contact for ', '') || 'N/A'}</TableCell>
+                        <TableCell className="text-xs">{payment.mpesa_phone || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={payment.status === 'completed' ? 'default' : payment.status === 'pending' ? 'secondary' : 'destructive'}>
+                            {payment.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{payment.mpesa_ref || 'N/A'}</TableCell>
+                        <TableCell className="text-xs">{new Date(payment.created_at).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {payments.filter(p => p.user_id === 'anonymous' && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
+                  <p className="text-center text-gray-500 text-sm py-8">No guest transactions found.</p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -1938,7 +2013,7 @@ const AdminPage: React.FC = () => {
                             try {
                               const cid = selectedMessage.conversation_id || crypto.randomUUID();
                               if (!selectedMessage.conversation_id) {
-                                await supabase.from('messages').update({ conversation_id: cid }).eq('id', selectedMessage.id);
+                                await proxyTable('messages').update({ conversation_id: cid }, 'id', selectedMessage.id);
                               }
                               const { data: { user } } = await supabase.auth.getUser();
                               await createChatMessage({
@@ -1948,7 +2023,7 @@ const AdminPage: React.FC = () => {
                                 message: replyText.trim(),
                                 role: 'admin',
                               });
-                              await supabase.from('messages').update({ status: 'replied' }).eq('id', selectedMessage.id);
+                              await proxyTable('messages').update({ status: 'replied' }, 'id', selectedMessage.id);
                               setMessages(prev => prev.map(m => m.id === selectedMessage.id ? { ...m, status: 'replied', conversation_id: cid } : m));
                               const updated = await getChatConversation(cid);
                               setConversationThread(updated);
@@ -1967,7 +2042,7 @@ const AdminPage: React.FC = () => {
                         </Button>
                         <Button variant="outline" onClick={async () => {
                           if (!selectedMessage) return;
-                          await supabase.from('messages').update({ status: 'read' }).eq('id', selectedMessage.id);
+                          await proxyTable('messages').update({ status: 'read' }, 'id', selectedMessage.id);
                           setMessages(prev => prev.map(m => m.id === selectedMessage.id ? { ...m, status: 'read' } : m));
                           setIsMessageModalOpen(false);
                         }}>Mark as Read</Button>
@@ -2593,7 +2668,7 @@ const AdminPage: React.FC = () => {
                               if (!patch.billing_start) patch.billing_start = nowIso;
                               if (!patch.billing_end) patch.billing_end = weekEndIso;
                             }
-                            const { error } = await withTimeout(supabase.from('advertisements').update(patch).eq('id', adForm.id), 30000, 'Update');
+                            const { error } = await proxyTable('advertisements').update(patch, 'id', adForm.id);
                             if (error) throw error;
                           } else {
                             const { id, image_url, images: _oldImages, ...insertData } = adForm;
@@ -2608,7 +2683,7 @@ const AdminPage: React.FC = () => {
                               insert.billing_start = nowIso;
                               insert.billing_end = weekEndIso;
                             }
-                            const { error } = await withTimeout(supabase.from('advertisements').insert(insert), 30000, 'Save');
+                            const { error } = await proxyTable('advertisements').insert(insert);
                             if (error) throw error;
                           }
                           finishSaved();
@@ -2664,7 +2739,7 @@ const AdminPage: React.FC = () => {
                             <td className="py-2 px-3 text-center">
                               <button onClick={async () => {
                                 try {
-                                  const { error } = await withTimeout(supabase.from('advertisements').update({ featured: !(ad.featured ?? false) }).eq('id', ad.id), 30000, 'Update');
+                                  const { error } = await proxyTable('advertisements').update({ featured: !(ad.featured ?? false) }, 'id', ad.id);
                                   if (error) throw error;
                                   loadAdverts();
                                 } catch (err: any) {
@@ -2678,7 +2753,7 @@ const AdminPage: React.FC = () => {
                             <td className="py-2 px-3 text-center text-gray-600 text-xs font-mono">{ad.display_count || 0}</td>
                             <td className="py-2 px-3 text-center">
                               <button onClick={async () => {
-                                await withTimeout(supabase.from('advertisements').update({ active: !ad.active }).eq('id', ad.id), 30000, 'Update');
+                                await proxyTable('advertisements').update({ active: !ad.active }, 'id', ad.id);
                                 loadAdverts();
                               }} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
                                 <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
@@ -2689,7 +2764,7 @@ const AdminPage: React.FC = () => {
                               <button onClick={async () => {
                                 if (!window.confirm(`Delete "${ad.title}"?`)) return;
                                 try {
-                                  const { error } = await withTimeout(supabase.from('advertisements').delete().eq('id', ad.id), 30000, 'Delete');
+                                  const { error } = await proxyTable('advertisements').delete('id', ad.id);
                                   if (error) throw error;
                                   setAdverts(prev => prev.filter(a => a.id !== ad.id));
                                   toast({ title: 'Deleted', description: `"${ad.title}" removed` });

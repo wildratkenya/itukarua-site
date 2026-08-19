@@ -124,7 +124,7 @@ async function completePayment(supabase: any, payment: any) {
     const { data: profile } = await supabase.from('profiles').select('subscription_expires_at').eq('id', payment.user_id).maybeSingle()
     const base = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date()
     if (base.getTime() < Date.now()) base.setTime(Date.now())
-    base.setDate(base.getDate() + 30)
+    base.setDate(base.getDate() + 7)
     await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', payment.user_id)
   } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
     await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
   try {
     // ─── Initiate STK Push ──────────────────────────────────────────
     if (req.method === 'POST' && (path === '/' || path === '')) {
-      const { phone, amount, accountRef, description, user_id, payment_type, related_job_id, related_ad_id, related_profile_id } = await req.json()
+      const { phone, amount, accountRef, description, user_id, payment_type, related_job_id, related_ad_id, related_profile_id, token } = await req.json()
 
       if (!phone || !amount) {
         return new Response(
@@ -169,6 +169,7 @@ Deno.serve(async (req) => {
         related_job_id: related_job_id || null,
         related_ad_id: related_ad_id || null,
         related_profile_id: related_profile_id || null,
+        token: token || null,
       }).select('id').single()
 
       if (insertErr) {
@@ -288,7 +289,7 @@ Deno.serve(async (req) => {
             const { data: profile } = await supabase.from('profiles').select('subscription_expires_at').eq('id', payment.user_id).maybeSingle()
             const base = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date()
             if (base.getTime() < Date.now()) base.setTime(Date.now())
-            base.setDate(base.getDate() + 30)
+            base.setDate(base.getDate() + 7)
             await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', payment.user_id)
           } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
             await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)

@@ -7,7 +7,7 @@ import { acceptTerms, checkTermsAccepted } from '@/lib/database';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 
 interface PricingPageProps {
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
   onNavigate?: (page: string) => void;
 }
 
@@ -45,9 +45,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
     setSaving(false);
   };
 
-  const handlePay = (amount: number, description: string, accountRef: string) => {
+  const handlePay = (amount: number, description: string, accountRef: string, paymentType?: string) => {
     if (!alreadyAccepted) { handleAccept(); return; }
-    onOpenMpesa(amount, description, accountRef);
+    onOpenMpesa(amount, description, accountRef, paymentType);
   };
 
   return (
@@ -119,12 +119,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
         {/* Jobseeker Registration */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">For Jobseekers</h2>
-          <p className="text-gray-500 text-center mb-8">Monthly subscription — bid on unlimited jobs, message employers, and more</p>
+          <p className="text-gray-500 text-center mb-8">Weekly subscription — bid on unlimited jobs, message employers, and more</p>
           <div className="max-w-5xl mx-auto bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 rounded-3xl shadow-2xl overflow-hidden">
             <div className="grid md:grid-cols-5">
               <div className="md:col-span-3 p-8">
                 <div className="inline-flex items-center gap-1.5 bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide mb-3">
-                  <Zap className="w-3 h-3" /> Most Popular — 30-Day Subscription
+                  <Zap className="w-3 h-3" /> Most Popular — 7-Day Subscription
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-1">{PRICING_PLANS.jobseeker.name}</h3>
                 <p className="text-green-100 text-sm mb-5">Everything you need to land work — bid on unlimited jobs and connect with employers near you.</p>
@@ -138,13 +138,13 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
                 </ul>
               </div>
               <div className="md:col-span-2 bg-white/10 backdrop-blur border-t md:border-t-0 md:border-l border-white/20 p-8 flex flex-col justify-center text-center">
-                <p className="text-white/80 text-sm mb-1">Monthly price</p>
+                <p className="text-white/80 text-sm mb-1">Weekly price</p>
                 <p className="text-5xl font-extrabold text-white mb-1">
-                  KES {PRICING_PLANS.jobseeker.price}<span className="text-lg text-green-200">/mo</span>
+                  KES {PRICING_PLANS.jobseeker.price}<span className="text-lg text-green-200">/wk</span>
                 </p>
-                <p className="text-green-100 text-xs mb-6">30-day subscription • renews monthly</p>
+                <p className="text-green-100 text-xs mb-6">7-day subscription • renews weekly</p>
                 <button
-                  onClick={() => handlePay(PRICING_PLANS.jobseeker.price, 'Jobseeker Registration', 'REG-NEW')}
+                  onClick={() => handlePay(PRICING_PLANS.jobseeker.price, 'Jobseeker Registration', 'REG-NEW', 'registration')}
                   disabled={!alreadyAccepted}
                   className={`w-full py-3.5 bg-white hover:bg-green-50 text-green-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
                     alreadyAccepted ? '' : 'opacity-60 cursor-not-allowed'
@@ -195,7 +195,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
                     ))}
                   </ul>
                   <button
-                    onClick={() => handlePay(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`)}
+                    onClick={() => handlePay(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`, 'advert')}
                     disabled={!alreadyAccepted}
                     className={`w-full py-3 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${
                       !alreadyAccepted
@@ -243,7 +243,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
                 </p>
                 <p className="text-amber-100 text-xs mb-6">Live for 7 full days • renews weekly • 5 ads shown at once</p>
                 <button
-                  onClick={() => handlePay(PRICING_PLANS.homepageAdvert.price, 'Homepage Advert (1 week)', 'ADV-HP-WEEK')}
+                  onClick={() => handlePay(PRICING_PLANS.homepageAdvert.price, 'Homepage Advert (1 week)', 'ADV-HP-WEEK', 'advert')}
                   disabled={!alreadyAccepted}
                   className={`w-full py-3.5 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
                     alreadyAccepted ? '' : 'opacity-60 cursor-not-allowed'
@@ -303,15 +303,17 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
         </div>
 
         {/* M-Pesa Info */}
-        <div className="max-w-2xl mx-auto mt-16 bg-green-50 rounded-2xl p-8 border border-green-100 text-center">
-          <Phone className="w-10 h-10 text-green-600 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-green-800 mb-2">All Payments via M-Pesa</h3>
+        <div className="max-w-2xl mx-auto mt-16 bg-green-50 rounded-2xl p-8 border border-green-100">
+          <div className="flex items-center gap-2 mb-4">
+            <img src="/images/mpesa.png" alt="M-Pesa" className="w-72 h-36 flex-shrink-0" />
+            <h3 className="text-xl font-bold text-green-800">All Payments via M-Pesa</h3>
+          </div>
           <p className="text-sm text-green-700 mb-4">
             We use M-Pesa for all transactions to ensure security and convenience. You can pay using our Till Number or our instant STK Push.
           </p>
-          <div className="bg-white rounded-xl p-4 text-left text-sm space-y-1">
-            <p className="text-gray-600"><span className="font-semibold text-gray-900">M-Pesa Till Number:</span> 1600149</p>
-            <p className="text-gray-600"><span className="font-semibold text-gray-900">Business Name:</span> ITUKARUA Solutions</p>
+          <div className="bg-white rounded-xl p-4 text-center text-sm space-y-1">
+            <p className="text-gray-600 font-semibold"><span className="font-bold text-gray-900">M-Pesa Till Number:</span> 1600149</p>
+            <p className="text-gray-600 font-semibold"><span className="font-bold text-gray-900">Business Name:</span> ITUKARUA KENYA</p>
           </div>
         </div>
       </div>

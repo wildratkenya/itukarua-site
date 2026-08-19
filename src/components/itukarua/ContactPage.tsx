@@ -129,7 +129,7 @@ const ContactPage: React.FC = () => {
               <p className="text-sm text-green-700 mb-3">Having issues with M-Pesa payments? Contact our support team for immediate assistance.</p>
               <div className="bg-white rounded-lg p-3 text-sm space-y-1">
                 <p className="text-gray-600"><span className="font-semibold">M-Pesa Till No:</span> 1600149</p>
-                <p className="text-gray-600"><span className="font-semibold">Business Name:</span> ITUKARUA Solutions</p>
+                <p className="text-gray-600"><span className="font-semibold">Business Name:</span> ITUKARUA KENYA</p>
                 <p className="text-gray-600"><span className="font-semibold">Support:</span> +254 721 219 359</p>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp } from 'lucide-react';
-import { getProfiles, getCustomCategories, trackProfileView } from '@/lib/database';
+import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key } from 'lucide-react';
+import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
 import MpesaModal from './MpesaModal';
@@ -8,9 +8,10 @@ import MpesaModal from './MpesaModal';
 interface WorkerSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenAuth?: (tab: 'login' | 'signup') => void;
 }
 
-const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }) => {
+const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth }) => {
   const [query, setQuery] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
   const [location, setLocation] = useState('');
@@ -43,6 +44,24 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
       setAllSkills(all);
     });
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !user || workers.length === 0) return;
+    workers.forEach(async (w) => {
+      try {
+        const hasAccess = await checkContactAccess(user.id, w.id);
+        if (hasAccess) {
+          setUnlockedIds(prev => new Set(prev).add(w.id));
+          setWorkerDetails(prev => {
+            if (prev.has(w.id)) return prev;
+            const next = new Map(prev);
+            next.set(w.id, w);
+            return next;
+          });
+        }
+      } catch {}
+    });
+  }, [workers, user, isOpen]);
 
   useEffect(() => {
     console.log('[WorkerSearch] isOpen changed to', isOpen);
@@ -89,12 +108,57 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
   };
 
   const [unlockMsg, setUnlockMsg] = useState('');
+  const [showGuestPrompt, setShowGuestPrompt] = useState(false);
+  const [guestWorker, setGuestWorker] = useState<any>(null);
+  const [showRedeemInput, setShowRedeemInput] = useState(false);
+  const [redeemTokenValue, setRedeemTokenValue] = useState('');
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState('');
 
   const handleUnlock = (worker: any) => {
-    if (!user) { setUnlockMsg('Please sign in first'); setTimeout(() => setUnlockMsg(''), 2500); return; }
+    if (!user) {
+      setGuestWorker(worker);
+      setShowGuestPrompt(true);
+      return;
+    }
     setUnlockMsg('');
     setPaymentWorker(worker);
     setShowPaymentModal(true);
+  };
+
+  const handleGuestPay = () => {
+    setShowGuestPrompt(false);
+    setPaymentWorker(guestWorker);
+    setShowPaymentModal(true);
+  };
+
+  const handleGuestSignIn = () => {
+    setShowGuestPrompt(false);
+    setGuestWorker(null);
+    onClose();
+    onOpenAuth?.('login');
+  };
+
+  const handleRedeemToken = async () => {
+    const token = redeemTokenValue.trim().toUpperCase();
+    if (!token || token.length < 8) { setRedeemMsg('Enter a valid token (e.g. ITK-XXXXXXXX)'); return; }
+    setRedeemLoading(true);
+    setRedeemMsg('');
+    try {
+      const result = await redeemToken(token);
+      if (!result) { setRedeemMsg('Invalid or expired token.'); setRedeemLoading(false); return; }
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', result.profileId).single();
+      if (error || !data) { setRedeemMsg('Could not load worker profile.'); setRedeemLoading(false); return; }
+      setUnlockedIds(prev => new Set(prev).add(data.id));
+      setWorkerDetails(prev => new Map(prev).set(data.id, data));
+      setRedeemMsg('');
+      setShowRedeemInput(false);
+      setRedeemTokenValue('');
+    } catch {
+      setRedeemMsg('Something went wrong. Try again.');
+    } finally {
+      setRedeemLoading(false);
+    }
   };
 
   const handlePaymentComplete = async () => {
@@ -106,7 +170,9 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
       return;
     }
     console.log('[WorkerSearch] Profile fetched:', { id: data.id, hasResume: !!data.resume, resumeLength: data.resume?.length, hasCertificates: !!data.certificates });
-    trackProfileView(paymentWorker.id, user?.id).then(() => console.log('[WorkerSearch] Profile view tracked'));
+    if (user) {
+      trackProfileView(paymentWorker.id, user.id).then(() => console.log('[WorkerSearch] Profile view tracked'));
+    }
     if (data) {
       setUnlockedIds(prev => new Set(prev).add(paymentWorker.id));
       setWorkerDetails(prev => new Map(prev).set(paymentWorker.id, data));
@@ -128,8 +194,34 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
             <h2 className="text-lg font-bold text-gray-900">Find a Worker</h2>
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowRedeemInput(!showRedeemInput)} className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 font-medium transition-colors">
+                <Key className="w-3.5 h-3.5" />
+                Have a token?
+              </button>
+              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
           </div>
+
+          {showRedeemInput && (
+            <div className="px-4 py-3 border-b border-gray-100 bg-green-50">
+              <p className="text-xs text-green-700 mb-2 font-medium">Enter your access token to unlock a previously paid contact:</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={redeemTokenValue}
+                  onChange={e => setRedeemTokenValue(e.target.value.toUpperCase())}
+                  placeholder="ITK-XXXXXXXX"
+                  className="flex-1 px-3 py-2 border border-green-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500 outline-none bg-white"
+                />
+                <button onClick={handleRedeemToken} disabled={redeemLoading} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1">
+                  {redeemLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+                  Redeem
+                </button>
+              </div>
+              {redeemMsg && <p className="text-xs text-red-500 mt-1.5">{redeemMsg}</p>}
+            </div>
+          )}
 
           <div className="p-4 border-b border-gray-100 space-y-2">
             <div className="relative">
@@ -238,7 +330,6 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
                               <Lock className="w-3 h-3" />
                               KES 50
                             </button>
-                            {unlockMsg && <p className="text-[10px] text-red-500 whitespace-nowrap">{unlockMsg}</p>}
                           </div>
                         ) : null}
                       </div>
@@ -288,6 +379,27 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose }
           </div>
         </div>
       </div>
+
+      {showGuestPrompt && guestWorker && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowGuestPrompt(false); setGuestWorker(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Unlock Contact</h3>
+            <p className="text-sm text-gray-600 mb-1">Access <span className="font-semibold">{guestWorker.full_name}</span>'s phone number and details.</p>
+            <p className="text-sm text-gray-500 mb-5">Choose how you'd like to continue:</p>
+            <div className="space-y-3">
+              <button onClick={handleGuestPay} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                <Phone className="w-4 h-4" /> Pay KES 50 with M-Pesa
+              </button>
+              <button onClick={handleGuestSignIn} className="w-full py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+                Sign In / Create Account
+              </button>
+              <button onClick={() => { setShowGuestPrompt(false); setGuestWorker(null); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPaymentModal && paymentWorker && (
         <MpesaModal

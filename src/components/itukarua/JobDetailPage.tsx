@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2 } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, createPayment, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, type DbJob, type DbBid, type DbRating } from '@/lib/database';
+import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, extendSubscription, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
-import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
@@ -14,7 +14,7 @@ interface JobDetailPageProps {
   onBack: () => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string) => void;
 }
 
 const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack, user, onOpenAuth, onOpenMpesa }) => {
@@ -41,6 +41,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [selectedBidderName, setSelectedBidderName] = useState('');
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null);
   const [subscriptionActive, setSubscriptionActive] = useState(true);
+  const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -210,11 +212,17 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
   const handleUnlockContact = async () => {
     if (!user) return;
+    const winningBid = bids.find(b => b.id === winnerId);
+    onOpenMpesa(50, `Contact access for ${winningBid?.bidder_name || 'bidder'} on job ${job.title}`, `JOB-${job.id.slice(0, 8)}`, 'contact_access', undefined, job.id, winningBid?.bidder_id, () => setContactUnlocked(true));
+  };
+
+  const handleViewBidderProfile = async (bidderId: string) => {
+    setLoadingProfile(true);
     try {
-      await createPayment({ user_id: user.id, payment_type: 'contact_access', amount: 100, description: `Contact access for job ${job.title}`, related_job_id: job.id });
-    } catch (err) { console.error(err); }
-    onOpenMpesa(100, 'Contact Access Fee', `JOB-${job.id.slice(0, 8)}`);
-    setTimeout(() => setContactUnlocked(true), 500);
+      const { data } = await supabase.from('profiles').select('*').eq('id', bidderId).single();
+      if (data) setViewingBidder(data);
+    } catch (err) { console.error('Failed to load profile:', err); }
+    setLoadingProfile(false);
   };
 
   return (
@@ -289,14 +297,17 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Bids ({sortedBids.length})</h2>
-                <select value={sortBids} onChange={e => setSortBids(e.target.value as any)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="rating">Highest Rating</option>
-                  <option value="price-low">Lowest Price</option>
-                  <option value="price-high">Highest Price</option>
-                </select>
+                {user && user.id === job.posted_by && sortedBids.length > 0 && (
+                  <select value={sortBids} onChange={e => setSortBids(e.target.value as any)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="rating">Highest Rating</option>
+                    <option value="price-low">Lowest Price</option>
+                    <option value="price-high">Highest Price</option>
+                  </select>
+                )}
               </div>
 
               {sortedBids.length > 0 ? (
+                user && user.id === job.posted_by ? (
                 <div className="space-y-4">
               {job.status === 'completed' && !hasRated && user && user.id === job.posted_by && (
                 <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
@@ -338,7 +349,9 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="font-semibold text-gray-900">{bid.bidder_name || 'Anonymous'}</h4>
+                              <h4 className={`font-semibold text-gray-900 ${contactUnlocked && winnerId === bid.id ? 'cursor-pointer hover:text-green-700 hover:underline' : ''}`} onClick={() => { if (contactUnlocked && winnerId === bid.id) handleViewBidderProfile(bid.bidder_id); }}>
+                                {bid.bidder_name || 'Anonymous'}
+                              </h4>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                                 <span className="text-sm font-medium text-gray-700">{bid.bidder_rating || 0}</span>
@@ -377,7 +390,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                               </div>
                             ) : (
                               <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 mt-2">
-                                <Phone className="w-4 h-4" /> Unlock Contact (KES 100)
+                                <Phone className="w-4 h-4" /> Unlock Contact (KES 50)
                               </button>
                             )
                           )}
@@ -386,6 +399,13 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     </div>
                   ))}
                 </div>
+                ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                  <p className="font-medium text-gray-700">{sortedBids.length} worker{sortedBids.length !== 1 ? 's have' : ' has'} placed a bid</p>
+                  <p className="text-sm text-gray-400 mt-1">Sign in as the job poster to view bid details.</p>
+                </div>
+                )
               ) : (
                 <div className="text-center py-8 text-gray-400">
                   <Users className="w-10 h-10 mx-auto mb-2" /><p className="font-medium">No bids yet</p><p className="text-sm">Be the first to bid on this job!</p>
@@ -396,7 +416,18 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
           <div className="space-y-6">
             <div className="bg-white rounded-xl p-6 border border-gray-100 sticky top-24">
-              <h3 className="font-semibold text-gray-900 mb-4">Place Your Bid</h3>
+              {user && user.id === job.posted_by ? (
+                <>
+                  <h3 className="font-semibold text-gray-900 mb-4">Your Job</h3>
+                  <div className="text-center py-4">
+                    <Briefcase className="w-10 h-10 text-blue-400 mx-auto mb-3" />
+                    <p className="font-semibold text-gray-900">You posted this job</p>
+                    <p className="text-sm text-gray-500 mt-1">Review bids from workers below and accept the best one.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-semibold text-gray-900 mb-4">Place Your Bid</h3>
               {bidSubmitted ? (
                 <div className="text-center py-6">
                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3"><Send className="w-6 h-6 text-green-600" /></div>
@@ -428,7 +459,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     <p className="font-semibold text-gray-900">Subscription Expired</p>
                     <p className="text-sm text-gray-500 mt-1">Renew your subscription for KES 100 to continue bidding.</p>
                   </div>
-                  <button onClick={() => onOpenMpesa(100, 'Jobseeker subscription renewal', user.id)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
+                  <button onClick={() => onOpenMpesa(100, 'Subscription renewal — Weekly (7 days)', user.id, 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 7))} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
                     Renew KES 100
                   </button>
                 </div>
@@ -440,6 +471,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   </button>
                   {!user && <p className="text-xs text-center text-gray-400 mt-2">You must be registered to bid</p>}
                 </div>
+              )}
+                </>
               )}
             </div>
             <div className="bg-green-50 rounded-xl p-5 border border-green-100">
@@ -504,6 +537,116 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           initialIndex={viewingImage.index}
           onClose={() => setViewingImage(null)}
         />
+      )}
+
+      {/* Bidder Profile Modal */}
+      {(viewingBidder || loadingProfile) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewingBidder(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-center justify-between z-10">
+              <h2 className="text-lg font-bold text-gray-900">Worker Profile</h2>
+              <button onClick={() => setViewingBidder(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            {loadingProfile ? (
+              <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-green-600 mx-auto" /></div>
+            ) : viewingBidder && (
+              <div className="p-5 space-y-4">
+                {/* Header */}
+                <div className="flex items-center gap-4">
+                  <img
+                    src={optimizeImageUrl(viewingBidder.profile_image || IMAGES.workers[0], 128, 128)}
+                    alt={viewingBidder.full_name}
+                    className="w-16 h-16 rounded-full object-cover ring-2 ring-green-200"
+                    onError={handleImageError}
+                  />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">{viewingBidder.full_name}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                      <span className="text-sm font-medium text-gray-700">{viewingBidder.rating || 0}</span>
+                      <span className="text-xs text-gray-400">({viewingBidder.reviews_count || 0} reviews)</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">{viewingBidder.jobs_completed || 0} jobs completed</p>
+                  </div>
+                </div>
+
+                {/* Contact */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                  {viewingBidder.phone && (
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <Phone className="w-4 h-4 text-green-600" />
+                      <a href={`tel:${viewingBidder.phone}`} className="hover:text-green-700">{viewingBidder.phone}</a>
+                    </div>
+                  )}
+                  {viewingBidder.email && (
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <Mail className="w-4 h-4 text-green-600" />
+                      <a href={`mailto:${viewingBidder.email}`} className="hover:text-green-700 truncate">{viewingBidder.email}</a>
+                    </div>
+                  )}
+                  {viewingBidder.location && (
+                    <div className="flex items-center gap-2 text-sm text-gray-700 col-span-1 sm:col-span-2">
+                      <MapPin className="w-4 h-4 text-green-600" />
+                      {viewingBidder.county ? `${viewingBidder.county}${viewingBidder.subcounty ? `, ${viewingBidder.subcounty}` : ''} - ${viewingBidder.location}` : viewingBidder.location}
+                    </div>
+                  )}
+                </div>
+
+                {/* Skills */}
+                {viewingBidder.skills && viewingBidder.skills.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewingBidder.skills.map((skill, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">{skill}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Qualifications */}
+                {viewingBidder.qualifications && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Qualifications</h4>
+                    <p className="text-sm text-gray-700">{viewingBidder.qualifications}</p>
+                  </div>
+                )}
+
+                {/* Experience */}
+                {viewingBidder.experience && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Experience</h4>
+                    <p className="text-sm text-gray-700">{viewingBidder.experience}</p>
+                  </div>
+                )}
+
+                {/* Certificates */}
+                {viewingBidder.certificates && viewingBidder.certificates.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5" /> Certifications
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {viewingBidder.certificates.map((cert, i) => (
+                        <a key={i} href={cert} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">Certificate {i + 1}</a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resume */}
+                {viewingBidder.resume && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5" /> Professional CV
+                    </h4>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-40 overflow-y-auto">{viewingBidder.resume}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

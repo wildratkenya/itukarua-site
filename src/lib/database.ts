@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, proxyRequest, proxyTable, proxyRpc } from './supabase';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -117,6 +117,8 @@ export interface DbPayment {
   related_job_id: string | null;
   related_ad_id: string | null;
   related_bid_id: string | null;
+  related_profile_id: string | null;
+  token: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -152,12 +154,11 @@ export interface PlatformStats {
 // ─── Profiles ───────────────────────────────────────────────────────────────
 
 export async function getProfile(userId: string): Promise<DbProfile | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
+  const { data, error } = await proxyRequest(
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=*&limit=1`,
+  );
   if (error) { console.error('getProfile error:', error); return null; }
+  if (Array.isArray(data)) return data[0] || null;
   return data;
 }
 
@@ -231,14 +232,12 @@ export async function getProfiles(filters?: {
     query = query.limit(filters.limit);
   }
 
-  console.log('[getProfiles] query built', filters);
   const { data, error } = await query;
   if (error) { 
     if (error.message?.includes('AbortError')) return [];
     console.error('[getProfiles] error:', error); 
     return []; 
   }
-  console.log('[getProfiles] success, rows:', data?.length);
   return data as DbProfile[];
 }
 
@@ -300,13 +299,14 @@ export async function getJobs(filters?: {
 }
 
 export async function getJobById(jobId: string): Promise<DbJob | null> {
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*')
-    .eq('id', jobId)
-    .single();
-  if (error) { console.error('getJobById error:', error); return null; }
-  return data;
+  try {
+    const result = await proxyRequest(`/rest/v1/jobs?select=*&id=eq.${jobId}`);
+    if (result.error || !result.data?.length) return null;
+    return result.data[0];
+  } catch (err) {
+    console.error('getJobById exception:', err);
+    return null;
+  }
 }
 
 export async function createJob(job: {
@@ -322,6 +322,7 @@ export async function createJob(job: {
   posted_by: string;
   posted_by_name: string;
   urgent?: boolean;
+  images?: string[];
 }): Promise<DbJob> {
   const { data, error } = await supabase
     .from('jobs')
@@ -362,12 +363,35 @@ export async function getBidsForJob(jobId: string): Promise<DbBid[]> {
 
 export async function getBidsByUser(userId: string): Promise<(DbBid & { job?: DbJob })[]> {
   const { data, error } = await supabase
-    .from('bids')
-    .select('*, jobs(*)')
+    .from('bids_with_bidder')
+    .select('*')
     .eq('bidder_id', userId)
     .order('created_at', { ascending: false });
   if (error) { console.error('getBidsByUser error:', error); return []; }
-  return (data || []).map((b: any) => ({ ...b, job: b.jobs }));
+  if (!data?.length) return [];
+  const jobIds = [...new Set(data.map(b => b.job_id))];
+  const { data: jobs } = await supabase.from('jobs').select('*').in('id', jobIds);
+  const jobMap = new Map((jobs || []).map(j => [j.id, j]));
+  return data.map(b => ({ ...b, job: jobMap.get(b.job_id) }));
+}
+
+export async function getBidsReceivedOnMyJobs(employerId: string): Promise<(DbBid & { job?: DbJob })[]> {
+  const { data: myJobs } = await supabase
+    .from('jobs')
+    .select('id')
+    .eq('posted_by', employerId);
+  if (!myJobs?.length) return [];
+  const jobIds = myJobs.map(j => j.id);
+  const { data, error } = await supabase
+    .from('bids_with_bidder')
+    .select('*')
+    .in('job_id', jobIds)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getBidsReceivedOnMyJobs error:', error); return []; }
+  if (!data?.length) return [];
+  const { data: jobs } = await supabase.from('jobs').select('*').in('id', jobIds);
+  const jobMap = new Map((jobs || []).map(j => [j.id, j]));
+  return data.map(b => ({ ...b, job: jobMap.get(b.job_id) }));
 }
 
 export async function createBid(bid: {
@@ -440,9 +464,7 @@ export async function getServiceAds(filters?: {
     query = query.limit(filters.limit);
   }
 
-  console.log('📡 getServiceAds: Fetching service ads with filters:', filters);
   const { data, error } = await query;
-  console.log('📡 getServiceAds result:', JSON.stringify({ count: data?.length, error: error ? { message: error.message, status: error.status, code: error.code } : null }, null, 2));
   if (error) { 
     if (error.message?.includes('AbortError')) return [];
     console.error('getServiceAds error:', error); 
@@ -542,6 +564,7 @@ export async function createPayment(payment: {
   related_job_id?: string;
   related_ad_id?: string;
   related_bid_id?: string;
+  related_profile_id?: string;
 }): Promise<DbPayment> {
   const { data, error } = await supabase
     .from('payments')
@@ -829,6 +852,18 @@ export async function checkContactAccess(userId: string, profileId: string): Pro
   return !!data;
 }
 
+export async function redeemToken(token: string): Promise<{ profileId: string } | null> {
+  const { data } = await supabase
+    .from('payments')
+    .select('related_profile_id')
+    .eq('token', token)
+    .eq('payment_type', 'contact_access')
+    .eq('status', 'completed')
+    .maybeSingle();
+  if (!data?.related_profile_id) return null;
+  return { profileId: data.related_profile_id };
+}
+
 // ─── Terms & Conditions ─────────────────────────────────────────────────────
 
 export async function acceptTerms(userId: string, dataSharingConsent: boolean): Promise<void> {
@@ -1085,6 +1120,18 @@ export async function getSubscriptionDaysRemaining(userId: string): Promise<numb
   if (!data?.subscription_expires_at) return 0;
   const diff = new Date(data.subscription_expires_at).getTime() - Date.now();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+export async function extendSubscription(userId: string, days: number): Promise<void> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('subscription_expires_at')
+    .eq('id', userId)
+    .maybeSingle();
+  const base = data?.subscription_expires_at ? new Date(data.subscription_expires_at) : new Date();
+  if (base.getTime() < Date.now()) base.setTime(Date.now());
+  base.setDate(base.getDate() + days);
+  await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', userId);
 }
 
 // ─── Platform Settings ──────────────────────────────────────────────────────
@@ -1378,6 +1425,64 @@ export interface AdAnalyticsPoint {
   date: string;
   clicks: number;
   impressions: number;
+}
+
+export interface AdAnalyticsByAd {
+  adId: string;
+  title: string;
+  active: boolean;
+  created_at: string;
+  data: AdAnalyticsPoint[];
+  totalClicks: number;
+  totalImpressions: number;
+}
+
+export async function getAdAnalyticsByAd(userId: string, days: number = 30): Promise<AdAnalyticsByAd[]> {
+  const ads = await getMyAds(userId);
+  if (ads.length === 0) return [];
+  const adIds = ads.map(a => a.id);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from('advert_analytics')
+    .select('ad_id, event_type, created_at')
+    .in('ad_id', adIds)
+    .gte('created_at', since)
+    .order('created_at', { ascending: true });
+
+  if (error) { console.error('getAdAnalyticsByAd error:', error); return []; }
+
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const dateKeys: string[] = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    dateKeys.push(d.toISOString().slice(0, 10));
+  }
+
+  const byAd: Record<string, Record<string, { clicks: number; impressions: number }>> = {};
+  for (const ad of ads) {
+    byAd[ad.id] = {};
+    for (const key of dateKeys) byAd[ad.id][key] = { clicks: 0, impressions: 0 };
+  }
+
+  for (const row of data || []) {
+    const key = row.created_at.slice(0, 10);
+    if (!byAd[row.ad_id]) byAd[row.ad_id] = {};
+    if (!byAd[row.ad_id][key]) byAd[row.ad_id][key] = { clicks: 0, impressions: 0 };
+    if (row.event_type === 'click') byAd[row.ad_id][key].clicks++;
+    else byAd[row.ad_id][key].impressions++;
+  }
+
+  return ads.map(ad => {
+    const byDate = byAd[ad.id] || {};
+    const analyticsData = Object.entries(byDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v }));
+    const totalClicks = analyticsData.reduce((s, p) => s + p.clicks, 0);
+    const totalImpressions = analyticsData.reduce((s, p) => s + p.impressions, 0);
+    return { adId: ad.id, title: ad.title, active: ad.active, created_at: ad.created_at, data: analyticsData, totalClicks, totalImpressions };
+  });
 }
 
 export async function getAdAnalytics(userId: string, days: number = 30): Promise<AdAnalyticsPoint[]> {
