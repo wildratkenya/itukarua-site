@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle } from 'lucide-react';
+import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key } from 'lucide-react';
 import { supabaseUrl } from '@/lib/supabase';
 import { createPayment } from '@/lib/database';
 
@@ -31,7 +31,15 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [manualConfirmLoading, setManualConfirmLoading] = useState(false);
   const [manualConfirmed, setManualConfirmed] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const generateToken = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let token = 'ITK-';
+    for (let i = 0; i < 8; i++) token += chars[Math.floor(Math.random() * chars.length)];
+    return token;
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -43,6 +51,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
       setCheckoutId(null);
       setManualConfirmLoading(false);
       setManualConfirmed(false);
+      setAccessToken('');
       if (pollingRef.current) clearInterval(pollingRef.current);
     }
     return () => {
@@ -67,6 +76,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
         description: `${description} — manual M-Pesa payment`,
         related_ad_id: relatedAdId || null,
         related_job_id: relatedJobId || null,
+        related_profile_id: relatedProfileId || null,
       });
       setManualConfirmed(true);
       setStep('manual_success');
@@ -121,6 +131,8 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     setPhoneError('');
     setStep('processing');
     setErrorMessage('');
+    const token = generateToken();
+    setAccessToken(token);
 
     try {
       const res = await fetch(`${supabaseUrl}/functions/v1/mpesa-stk-push`, {
@@ -136,6 +148,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           related_job_id: relatedJobId || null,
           related_ad_id: relatedAdId || null,
           related_profile_id: relatedProfileId || null,
+          token,
         }),
       });
 
@@ -317,7 +330,22 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
               <p className="text-sm text-gray-500 mb-1">KES {amount.toLocaleString()} has been received.</p>
-              <p className="text-xs text-gray-400 mb-6">Transaction ID: {transactionId}</p>
+              <p className="text-xs text-gray-400 mb-4">Transaction ID: {transactionId}</p>
+              {accessToken && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 mx-auto max-w-xs">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Key className="w-4 h-4 text-green-600" />
+                    <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Your Access Token</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-xl font-bold text-green-800 tracking-widest">{accessToken}</p>
+                    <button onClick={() => { navigator.clipboard.writeText(accessToken); setCopied('token'); setTimeout(() => setCopied(''), 2000); }} className="p-1 hover:bg-green-100 rounded transition-colors">
+                      {copied === 'token' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-green-600" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-green-600 mt-2">Save this token — use it to unlock this contact if you return later.</p>
+                </div>
+              )}
               <button
                 onClick={resetAndClose}
                 className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"

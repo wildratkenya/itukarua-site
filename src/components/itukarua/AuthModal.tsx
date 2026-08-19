@@ -1,9 +1,10 @@
-﻿import React, { useState } from 'react';
-import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera } from 'lucide-react';
+﻿import React, { useState, useRef, useCallback } from 'react';
+import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { subscribeNewsletter, updateProfile } from '@/lib/database';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -30,6 +31,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [certFiles, setCertFiles] = useState<FileList | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [termsScrolledToBottom, setTermsScrolledToBottom] = useState(false);
+  const [privacyScrolledToBottom, setPrivacyScrolledToBottom] = useState(false);
+  const termsScrollRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -45,6 +51,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
     if (!formData.password || formData.password.length < 6) errs.password = 'Min 6 characters';
     if (tab === 'signup' && !formData.phone.trim()) errs.phone = 'Phone is required';
+    if (tab === 'signup' && !termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
+    if (tab === 'signup' && !privacyAccepted) errs.privacy = 'You must accept the Privacy Policy';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -209,13 +217,13 @@ data: {
 
         <div className="flex border-b border-gray-100">
           <button
-            onClick={() => { setTab('login'); setServerError(''); }}
+            onClick={() => { setTab('login'); setServerError(''); setTermsAccepted(false); }}
             className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'login' ? 'text-green-700 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Sign In
           </button>
           <button
-            onClick={() => { setTab('signup'); setServerError(''); }}
+            onClick={() => { setTab('signup'); setServerError(''); setTermsAccepted(false); }}
             className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'signup' ? 'text-green-700 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Sign Up
@@ -246,7 +254,7 @@ data: {
               <button
                 type="button"
                 onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
-county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); setSubscribeToNewsletter(false); }}
+county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
                 Back to Sign In
@@ -434,6 +442,80 @@ county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); setSub
             <div className="flex items-start gap-2">
               <input type="checkbox" id="newsletter" checked={subscribeToNewsletter} onChange={e => setSubscribeToNewsletter(e.target.checked)} className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500" />
               <label htmlFor="newsletter" className="text-xs text-gray-600">Subscribe to our newsletter for the latest jobs, services, and community updates</label>
+            </div>
+          )}
+
+          {tab === 'signup' && !emailSent && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Legal Documents *</label>
+              <div
+                ref={termsScrollRef}
+                onScroll={() => {
+                  const el = termsScrollRef.current;
+                  if (!el) return;
+                  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
+                  if (atBottom) {
+                    if (!termsScrolledToBottom) setTermsScrolledToBottom(true);
+                    if (!privacyScrolledToBottom) setPrivacyScrolledToBottom(true);
+                  }
+                }}
+                className="h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 text-[11px] leading-relaxed text-gray-600 bg-gray-50 mb-3"
+              >
+                <pre className="whitespace-pre-wrap font-sans">{TERMS_AND_CONDITIONS}</pre>
+                <div className="border-t border-gray-200 my-4" />
+                <pre className="whitespace-pre-wrap font-sans">{PRIVACY_POLICY}</pre>
+              </div>
+
+              {/* Terms checkbox */}
+              <div className="flex items-start gap-2 mb-2">
+                <div className={`relative ${!termsScrolledToBottom && !termsAccepted ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    checked={termsAccepted}
+                    disabled={!termsScrolledToBottom && !termsAccepted}
+                    onChange={e => { if (termsScrolledToBottom || e.target.checked === false) setTermsAccepted(e.target.checked); }}
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                </div>
+                <label htmlFor="terms" className="text-xs text-gray-600">
+                  {termsScrolledToBottom ? (
+                    <>I have read and agree to the <strong>Terms & Conditions</strong></>
+                  ) : (
+                    <span className="text-gray-400">Scroll through the documents to accept</span>
+                  )}
+                </label>
+              </div>
+              {errors.terms && <p className="text-red-500 text-xs mb-2 ml-6">{errors.terms}</p>}
+
+              {/* Privacy checkbox */}
+              <div className="flex items-start gap-2 mb-1">
+                <div className={`relative ${!privacyScrolledToBottom && !privacyAccepted ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <input
+                    type="checkbox"
+                    id="privacy"
+                    checked={privacyAccepted}
+                    disabled={!privacyScrolledToBottom && !privacyAccepted}
+                    onChange={e => { if (privacyScrolledToBottom || e.target.checked === false) setPrivacyAccepted(e.target.checked); }}
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                </div>
+                <label htmlFor="privacy" className="text-xs text-gray-600">
+                  {privacyScrolledToBottom ? (
+                    <>I have read and agree to the <strong>Privacy Policy</strong></>
+                  ) : (
+                    <span className="text-gray-400">Scroll through the documents to accept</span>
+                  )}
+                </label>
+              </div>
+              {errors.privacy && <p className="text-red-500 text-xs mb-1 ml-6">{errors.privacy}</p>}
+
+              {!termsScrolledToBottom && !termsAccepted && (
+                <p className="text-[10px] text-amber-600 mt-1 ml-6 flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+                  Scroll to the bottom to accept both
+                </p>
+              )}
             </div>
           )}
           {!emailSent && (

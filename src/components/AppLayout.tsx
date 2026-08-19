@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { supabase, saveSession, restoreSession } from '@/lib/supabase';
+import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
 import { getProfile, boostAd, type DbProfile } from '@/lib/database';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
@@ -33,6 +33,7 @@ const AppLayout: React.FC = () => {
   const [user, setUser] = useState<UserState | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
+  const loginJustHappened = useRef(false);
   const [mpesaModal, setMpesaModal] = useState<{
     open: boolean;
     amount: number;
@@ -40,6 +41,9 @@ const AppLayout: React.FC = () => {
     accountRef: string;
     paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost';
     relatedAdId?: string;
+    relatedJobId?: string;
+    relatedProfileId?: string;
+    onComplete?: () => void;
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,19 +69,19 @@ const AppLayout: React.FC = () => {
           if (!profile && session.user.user_metadata) {
             const meta = session.user.user_metadata;
             const now = new Date().toISOString();
-            const { error: upsertErr } = await supabase.from('profiles').upsert({
-            id: session.user.id,
-            full_name: meta.full_name || session.user.email?.split('@')[0] || '',
-            email: session.user.email || '',
-            phone: meta.phone || '',
-            role: meta.role || 'employer',
-            location: meta.location || null,
-            county: meta.county || null,
-            subcounty: meta.subcounty || null,
-            skills: meta.skills || [],
-            created_at: now,
-            updated_at: now,
-          }, { onConflict: 'id' });
+            const { error: upsertErr } = await proxyRequest('/rest/v1/profiles', 'POST', {
+              id: session.user.id,
+              full_name: meta.full_name || session.user.email?.split('@')[0] || '',
+              email: session.user.email || '',
+              phone: meta.phone || '',
+              role: meta.role || 'employer',
+              location: meta.location || null,
+              county: meta.county || null,
+              subcounty: meta.subcounty || null,
+              skills: meta.skills || [],
+              created_at: now,
+              updated_at: now,
+            }, { Prefer: 'resolution=merge-duplicates' });
             if (upsertErr) console.error('[Auth] profile creation from metadata failed:', upsertErr);
             profile = await getProfile(session.user.id);
             if (!mounted) return;
@@ -126,7 +130,7 @@ const AppLayout: React.FC = () => {
         if (!profile && session.user.user_metadata) {
           const meta = session.user.user_metadata;
           const now = new Date().toISOString();
-          const { error: upsertErr } = await supabase.from('profiles').upsert({
+          const { error: upsertErr } = await proxyRequest('/rest/v1/profiles', 'POST', {
             id: session.user.id,
             full_name: meta.full_name || session.user.email?.split('@')[0] || '',
             email: session.user.email || '',
@@ -138,7 +142,7 @@ const AppLayout: React.FC = () => {
             skills: meta.skills || [],
             created_at: now,
             updated_at: now,
-          }, { onConflict: 'id' });
+          }, { Prefer: 'resolution=merge-duplicates' });
           if (upsertErr) console.error('[Auth] profile creation from metadata failed:', upsertErr);
 
           // Retry fetching the profile
@@ -155,6 +159,7 @@ const AppLayout: React.FC = () => {
               role: refreshedProfile?.role || meta.role || 'employer',
               profile: refreshedProfile,
             });
+            if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage('dashboard'); }
           }
           return;
         }
@@ -170,6 +175,7 @@ const AppLayout: React.FC = () => {
             role: profile?.role || 'employer',
             profile,
           });
+          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage('dashboard'); }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -224,7 +230,7 @@ const AppLayout: React.FC = () => {
   }, []);
 
   const handleAuthComplete = useCallback(() => {
-    // Auth state change listener will handle setting the user
+    loginJustHappened.current = true;
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -243,8 +249,8 @@ const AppLayout: React.FC = () => {
     setCurrentPage('jobs');
   }, []);
 
-  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => {
-    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId });
+  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => {
+    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete });
   }, []);
 
   const handleCloseMpesa = useCallback(() => {
@@ -257,7 +263,7 @@ const AppLayout: React.FC = () => {
   // Track page visits for site traffic analytics
   useEffect(() => {
     if (!currentPage) return;
-    supabase.from('site_visits_log').insert({
+    proxyRequest('/rest/v1/site_visits_log', 'POST', {
       user_id: user?.id || null,
       page_path: currentPage,
     }).then(() => {}).catch(() => {});
@@ -411,6 +417,8 @@ const AppLayout: React.FC = () => {
         accountRef={mpesaModal.accountRef}
         paymentType={mpesaModal.paymentType}
         relatedAdId={mpesaModal.relatedAdId}
+        relatedJobId={mpesaModal.relatedJobId}
+        relatedProfileId={mpesaModal.relatedProfileId}
         user={user}
         onPaymentComplete={() => {
           handleCloseMpesa();
@@ -422,6 +430,7 @@ const AppLayout: React.FC = () => {
           if (user) getProfile(user.id).then(p => {
             if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
           });
+          mpesaModal.onComplete?.();
         }}
       />
       <ChatBot />

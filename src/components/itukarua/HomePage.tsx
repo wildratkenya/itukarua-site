@@ -491,6 +491,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       <WorkerSearchModal
         isOpen={showWorkerSearch}
         onClose={() => setShowWorkerSearch(false)}
+        onOpenAuth={onOpenAuth}
       />
 
 
