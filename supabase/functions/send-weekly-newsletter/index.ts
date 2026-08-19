@@ -1,10 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 
-const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -15,14 +14,14 @@ function pickImage(item: any): string {
 
 function buildBannerGrid(banners: any[]): string {
   const cells = banners.map(b => {
-    const img = escapeHtml(pickImage(b))
+    const img = pickImage(b)
     const dest = b.destination_url || `${SITE_URL}/services`
     return `
-      <td style="padding:4px;width:50%;vertical-align:top">
+      <td style="padding:6px;width:50%;vertical-align:top">
         <a href="${dest}" style="display:block;text-decoration:none">
-          <img src="${img}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="100%" style="width:100%;border-radius:10px;display:block;border:1px solid #e5e7eb" />
-          ${b.cta_text ? `<span style="display:block;text-align:center;color:#059669;font-size:12px;font-weight:600;margin-top:6px">${escapeHtml(b.cta_text)} →</span>` : ''}
+          <img src="${img}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="240" style="width:240px;max-width:100%;height:auto;border-radius:10px;display:block;border:0" />
         </a>
+        ${b.cta_text ? `<p style="text-align:center;margin:6px 0 0"><a href="${dest}" style="color:#059669;font-size:12px;font-weight:600;text-decoration:none">${escapeHtml(b.cta_text)} →</a></p>` : ''}
       </td>`
   })
   let rows = ''
@@ -146,8 +145,15 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
 </html>`
 }
 
+function corsHeadersFor(req: Request) {
+  const origin = req.headers.get('origin') || ''
+  const allowed = ALLOW_ORIGINS.includes(origin) ? origin : ALLOW_ORIGINS[0]
+  return { ...corsHeaders, 'Access-Control-Allow-Origin': allowed }
+}
+
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const headers = corsHeadersFor(req)
+  if (req.method === 'OPTIONS') return new Response('ok', { headers })
 
   try {
     let body: any = {}
@@ -163,7 +169,7 @@ Deno.serve(async (req) => {
       if (rpcResult && rpcResult.length > 0) {
         subscribers = rpcResult
       } else {
-        return new Response(JSON.stringify({ sent: 0, failed: 0, message: 'No subscribers' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ sent: 0, failed: 0, message: 'No subscribers' }), { headers: { ...headers, 'Content-Type': 'application/json' } })
       }
     }
 
@@ -225,12 +231,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ sent, failed, total: subscribers.length, lastError }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
     })
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
     })
   }
 })
