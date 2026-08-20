@@ -1,5 +1,32 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
+import nodemailer from 'npm:nodemailer@6.9.16'
+
+const SITE_URL = Deno.env.get('SITE_URL') || 'https://www.itukarua.co.ke'
+
+function createFreshTransport(cfg: { host: string; port: number; secure: boolean; user: string; pass: string; from: string }) {
+  return nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, auth: { user: cfg.user, pass: cfg.pass } })
+}
+
+async function loadSmtpConfig(supabase?: any) {
+  const host = Deno.env.get('SMTP_HOST')
+  const user = Deno.env.get('SMTP_USER')
+  const pass = Deno.env.get('SMTP_PASS')
+  const port = parseInt(Deno.env.get('SMTP_PORT') || '465')
+  const fromName = Deno.env.get('SMTP_FROM_NAME') || 'Itukarua'
+  const fromEmail = Deno.env.get('SMTP_FROM_EMAIL') || user || 'noreply@itukarua.co.ke'
+  if (host && user && pass) return { host, port, secure: port === 465, user, pass, from: `${fromName} <${fromEmail}>` }
+  if (supabase) {
+    const { data: providers } = await supabase.from('email_providers').select('*').eq('is_active', true).limit(1)
+    const active = Array.isArray(providers) && providers.length > 0 ? providers[0] : null
+    if (active?.smtp_host && active?.username && active?.password) {
+      const dbPort = active.smtp_port || 465
+      return { host: active.smtp_host, port: dbPort, secure: dbPort === 465, user: active.username, pass: active.password, from: `${active.from_name || 'Itukarua'} <${active.from_email || active.username}>` }
+    }
+  }
+  throw new Error('SMTP not configured.')
+}
+
+function escapeHtml(s: any): string { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') }
 
 const ALLOWED_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
@@ -108,13 +135,18 @@ function formatPhone(phone: string): string {
 
 async function getOAuthToken(): Promise<string> {
   const auth = btoa(`${CONSUMER_KEY}:${CONSUMER_SECRET}`)
-  const res = await fetch(`${DARAJA_BASE}/oauth/v1/generate?grant_type=client_credentials`, {
+  const url = `${DARAJA_BASE}/oauth/v1/generate?grant_type=client_credentials`
+  console.log('[OAuth] Fetching token from:', url)
+  const res = await fetch(url, {
     headers: { Authorization: `Basic ${auth}`, 'User-Agent': 'Itukarua/1.0' },
   })
   const raw = await res.text()
+  console.log('[OAuth] Raw response:', raw)
   const data = JSON.parse(raw)
   if (!data.access_token) throw new Error('OAuth failed: ' + JSON.stringify(data))
-  return data.access_token.trim()
+  const token = data.access_token.trim()
+  console.log('[OAuth] Token obtained, length:', token.length)
+  return token
 }
 
 async function completePayment(supabase: any, payment: any) {
