@@ -3,6 +3,7 @@
     { "source": "/img/a/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/:match*" },
     { "source": "/img/:bucket/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:bucket/:match*" },
     { "source": "/supabase-storage/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:match*" },
+    { "source": "/mpesa/callback", "destination": "https://xahaxtbudiubelemewna.supabase.co/functions/v1/mpesa-stk-push/callback" },
     { "source": "/supabase/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/:match*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],

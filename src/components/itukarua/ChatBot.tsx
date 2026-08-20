@@ -12,7 +12,7 @@ interface ChatMessage {
 const FAQS = [
   { id: 'post-job', label: 'How to Post a Job', answer: 'Click "Post a Job" in the menu. Fill in the job details, set your budget, and submit. Employers can post jobs for free.' },
   { id: 'register', label: 'How to Register', answer: 'Click "Register" and choose your role (Advertiser, Employer, or Jobseeker). Jobseekers pay KES 100/mo for a subscription.' },
-  { id: 'payments', label: 'Payments & M-Pesa', answer: 'We use M-Pesa. Go to the Pricing page, click Pay, and follow the instructions. You can use STK Push or pay manually via Till Number 1600149.' },
+  { id: 'payments', label: 'Payments & M-Pesa', answer: 'We use M-Pesa. Go to the Pricing page, click Pay, and follow the instructions. You will receive an STK push prompt on your phone to enter your M-Pesa PIN.' },
   { id: 'bid', label: 'How to Bid', answer: 'Browse jobs and click "Bid on This Job". Enter your price and proposal. The employer will review your bid.' },
   { id: 'subscription', label: 'Subscription Plans', answer: 'Jobseeker membership is KES 100/mo — a 30-day subscription. You can renew from your Dashboard.' },
   { id: 'contact', label: 'Contact Support', answer: 'You can reach us at info@itukarua.co.ke or call +254 721 219 359.' },

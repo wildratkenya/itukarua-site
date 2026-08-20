@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key } from 'lucide-react';
 import { supabaseUrl } from '@/lib/supabase';
-import { createPayment } from '@/lib/database';
 
 interface MpesaModalProps {
   isOpen: boolean;
@@ -22,15 +21,13 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   user, onPaymentComplete, paymentType = 'registration',
   relatedJobId, relatedAdId, relatedProfileId,
 }) => {
-  const [step, setStep] = useState<'instructions' | 'stk' | 'processing' | 'success' | 'manual_success' | 'error'>('instructions');
+  const [step, setStep] = useState<'instructions' | 'processing' | 'success' | 'error'>('instructions');
   const [phone, setPhone] = useState('');
   const [copied, setCopied] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
-  const [manualConfirmLoading, setManualConfirmLoading] = useState(false);
-  const [manualConfirmed, setManualConfirmed] = useState(false);
   const [accessToken, setAccessToken] = useState('');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -49,8 +46,6 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
       setErrorMessage('');
       setTransactionId('');
       setCheckoutId(null);
-      setManualConfirmLoading(false);
-      setManualConfirmed(false);
       setAccessToken('');
       if (pollingRef.current) clearInterval(pollingRef.current);
     }
@@ -63,29 +58,6 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     navigator.clipboard.writeText(text).catch(() => {});
     setCopied(field);
     setTimeout(() => setCopied(''), 2000);
-  };
-
-  const handleManualConfirm = async () => {
-    if (!user?.id) return;
-    setManualConfirmLoading(true);
-    try {
-      await createPayment({
-        user_id: user.id,
-        payment_type: paymentType,
-        amount,
-        description: `${description} — manual M-Pesa payment`,
-        related_ad_id: relatedAdId || null,
-        related_job_id: relatedJobId || null,
-        related_profile_id: relatedProfileId || null,
-      });
-      setManualConfirmed(true);
-      setStep('manual_success');
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to record payment. Please try again.');
-      setStep('error');
-    } finally {
-      setManualConfirmLoading(false);
-    }
   };
 
   const startPolling = (checkoutRequestId: string) => {
@@ -143,7 +115,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           amount,
           accountRef: accountRef || 'ITUKARUA',
           description,
-          user_id: user?.id || 'anonymous',
+          user_id: user?.id || null,
           payment_type: paymentType,
           related_job_id: relatedJobId || null,
           related_ad_id: relatedAdId || null,
@@ -203,76 +175,13 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           <div className="text-center">
             <p className="text-sm text-green-700 font-medium">Amount to Pay</p>
             <p className="text-3xl font-bold text-green-800">KES {amount.toLocaleString()}</p>
-            <p className="text-xs text-green-600 mt-1">Till No: 1600149</p>
           </div>
         </div>
 
         <div className="p-6">
           {step === 'instructions' && (
             <div className="space-y-6">
-              {/* Manual Payment Instructions */}
               <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                  Pay via M-Pesa (Manual)
-                </h3>
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">1. Go to <strong>M-Pesa</strong> on your phone</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">2. Select <strong>Lipa na M-Pesa</strong></span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">3. Choose <strong>Buy Goods and Services</strong> (Till)</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">4. Enter Till No:</span>
-                    <button
-                      onClick={() => copyToClipboard('1600149', 'till')}
-                      className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="font-mono font-bold text-green-700">1600149</span>
-                      {copied === 'till' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
-                    </button>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">5. Amount:</span>
-                    <button
-                      onClick={() => copyToClipboard(amount.toString(), 'amount')}
-                      className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="font-mono font-bold text-green-700">KES {amount.toLocaleString()}</span>
-                      {copied === 'amount' ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
-                    </button>
-                  </div>
-                  <div className="text-gray-600">6. Enter your <strong>M-Pesa PIN</strong> and confirm</div>
-                </div>
-                <button
-                  onClick={handleManualConfirm}
-                  disabled={manualConfirmLoading || !user?.id}
-                  className="mt-4 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {manualConfirmLoading ? (
-                    <><Clock className="w-4 h-4 animate-spin" /> Recording payment...</>
-                  ) : (
-                    <><CheckCircle className="w-4 h-4" /> I've Paid — Confirm</>
-                  )}
-                </button>
-                {!user?.id && <p className="text-xs text-red-500 mt-2 text-center">Please log in to confirm payment.</p>}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400 font-medium">OR</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                  Pay Instantly (STK Push)
-                </h3>
                 <p className="text-sm text-gray-500 mb-3">Enter your M-Pesa phone number and we'll send a payment prompt directly to your phone.</p>
                 <div className="space-y-3">
                   <div>
@@ -280,7 +189,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                       type="tel"
                       value={phone}
                       onChange={e => setPhone(e.target.value)}
-                      placeholder="+254 7XX XXX XXX"
+                      placeholder="07XX XXX XXX"
                       className={`w-full px-4 py-3 rounded-lg border ${phoneError ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-lg`}
                     />
                     {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
@@ -376,23 +285,6 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                   Close
                 </button>
               </div>
-            </div>
-          )}
-
-          {step === 'manual_success' && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-10 h-10 text-green-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Recorded</h3>
-              <p className="text-sm text-gray-500 mb-2">KES {amount.toLocaleString()} — pending admin verification.</p>
-              <p className="text-xs text-gray-400 mb-6">An admin will confirm your M-Pesa payment shortly. You'll see the status update in your Payments tab.</p>
-              <button
-                onClick={resetAndClose}
-                className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
-              >
-                Continue
-              </button>
             </div>
           )}
         </div>

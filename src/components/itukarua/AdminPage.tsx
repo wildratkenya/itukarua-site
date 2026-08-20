@@ -1199,10 +1199,18 @@ const AdminPage: React.FC = () => {
 
   const updatePaymentStatus = async (paymentId: string, status: string) => {
     try {
+      const payment = payments.find(p => p.id === paymentId);
       const { error } = await proxyTable('payments').update({ status }, 'id', paymentId);
       if (error) throw error;
+
+      if (status === 'completed' && payment?.payment_type === 'registration' && payment?.user_id) {
+        await extendSubscription(payment.user_id, 7);
+      } else if (status === 'completed' && payment?.payment_type === 'advert' && payment?.related_ad_id) {
+        await proxyTable('service_ads').update({ payment_confirmed: true }, 'id', payment.related_ad_id);
+      }
+
       setPayments(payments.map(p => p.id === paymentId ? { ...p, status } : p));
-      toast({ title: 'Success', description: 'Payment status updated' });
+      toast({ title: 'Success', description: status === 'completed' ? 'Payment confirmed — subscription extended' : 'Payment status updated' });
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to update payment status', variant: 'destructive' });
     }
@@ -1730,7 +1738,7 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.filter(p => p.user_id === 'anonymous' && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
+                    {payments.filter(p => !p.user_id && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell>
                           <span className="font-mono text-sm font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded">{payment.token || 'N/A'}</span>
@@ -1749,7 +1757,7 @@ const AdminPage: React.FC = () => {
                     ))}
                   </TableBody>
                 </Table>
-                {payments.filter(p => p.user_id === 'anonymous' && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
+                {payments.filter(p => !p.user_id && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
                   <p className="text-center text-gray-500 text-sm py-8">No guest transactions found.</p>
                 )}
               </CardContent>

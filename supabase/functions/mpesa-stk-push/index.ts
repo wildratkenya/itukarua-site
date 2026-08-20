@@ -1,11 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 
-const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
+const ALLOWED_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+function corsHeadersFor(req: Request) {
+  const origin = req.headers.get('Origin') || ''
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
 }
 
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
@@ -81,7 +85,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SIMULATE = Deno.env.get('MPESA_SIMULATE') === 'true'
 
-const DARAJA_BASE = 'https://sandbox.safaricom.co.ke'
+const DARAJA_BASE = Deno.env.get('MPESA_BASE_URL') || 'https://sandbox.safaricom.co.ke'
 
 function getTimestamp(): string {
   const now = new Date()
@@ -136,6 +140,7 @@ async function completePayment(supabase: any, payment: any) {
 Deno.serve(async (req) => {
   const url = new URL(req.url)
   const path = url.pathname.replace(/^\/mpesa-stk-push/, '') || '/'
+  const corsHeaders = corsHeadersFor(req)
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -200,12 +205,13 @@ Deno.serve(async (req) => {
               BusinessShortCode: SHORTCODE,
               Password: password,
               Timestamp: timestamp,
-              TransactionType: 'CustomerBuyGoodsOnline',
+              TransactionType: Deno.env.get('MPESA_TXN_TYPE') || 'CustomerBuyGoodsOnline',
               Amount: Math.round(amount),
               PartyA: formattedPhone,
               PartyB: SHORTCODE,
               PhoneNumber: formattedPhone,
-              CallBackURL: `${SUPABASE_URL}/functions/v1/mpesa-stk-push/callback`,
+              CallBackURL: Deno.env.get('MPESA_CALLBACK_URL') || `${SUPABASE_URL}/functions/v1/mpesa-stk-push/callback`,
+              AccountReference: accountRef || 'ITUKARUA',
               TransactionDesc: description || 'Payment',
             }),
           })
