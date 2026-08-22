@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key } from 'lucide-react';
-import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken } from '@/lib/database';
+import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown } from 'lucide-react';
+import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
-import MpesaModal from './MpesaModal';
+import { KENYA_COUNTIES } from '@/data/siteData';
 
 interface WorkerSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenAuth?: (tab: 'login' | 'signup') => void;
+  onNavigate?: (page: string) => void;
+  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
 }
 
-const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth }) => {
+const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth, onNavigate, onOpenMpesa }) => {
   const [query, setQuery] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
   const [location, setLocation] = useState('');
@@ -19,49 +20,63 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentWorker, setPaymentWorker] = useState<any>(null);
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
   const [workerDetails, setWorkerDetails] = useState<Map<string, any>>(new Map());
-  const [allSkills, setAllSkills] = useState<string[]>([]);
+  const [dbJobCats, setDbJobCats] = useState<string[]>([]);
+  const [dbServiceCats, setDbServiceCats] = useState<string[]>([]);
   const [expandedCv, setExpandedCv] = useState<Set<string>>(new Set());
+  const allSkills = React.useMemo(
+    () => [...new Set([...dbJobCats, ...dbServiceCats])].sort(),
+    [dbJobCats, dbServiceCats]
+  );
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    supabase.auth.getUser().then(async ({ data }) => {
+      setUser(data.user);
+      if (data.user) {
+        const active = await checkSubscriptionActive(data.user.id);
+        setHasSubscription(active);
+      }
+    });
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      getCustomCategories('job'),
-      getCustomCategories('service'),
-    ]).then(([jobCats, serviceCats]) => {
-      const predefined = [
-        ...JOB_CATEGORIES.filter(c => c !== 'All Categories'),
-        ...SERVICE_CATEGORIES.filter(c => c !== 'All Services'),
-      ];
-      const all = [...new Set([...predefined, ...jobCats, ...serviceCats])].sort();
-      setAllSkills(all);
-    });
+    getCustomCategories('job').then(setDbJobCats);
+    getCustomCategories('service').then(setDbServiceCats);
   }, []);
 
   useEffect(() => {
     if (!isOpen || !user || workers.length === 0) return;
-    workers.forEach(async (w) => {
-      try {
-        const hasAccess = await checkContactAccess(user.id, w.id);
-        if (hasAccess) {
-          setUnlockedIds(prev => new Set(prev).add(w.id));
-          setWorkerDetails(prev => {
-            if (prev.has(w.id)) return prev;
-            const next = new Map(prev);
-            next.set(w.id, w);
-            return next;
-          });
-        }
-      } catch {}
-    });
-  }, [workers, user, isOpen]);
+    if (hasSubscription) {
+      workers.forEach(w => {
+        setUnlockedIds(prev => new Set(prev).add(w.id));
+        setWorkerDetails(prev => {
+          if (prev.has(w.id)) return prev;
+          const next = new Map(prev);
+          next.set(w.id, w);
+          return next;
+        });
+      });
+    } else {
+      workers.forEach(async (w) => {
+        try {
+          const hasAccess = await checkContactAccess(user.id, w.id);
+          if (hasAccess) {
+            setUnlockedIds(prev => new Set(prev).add(w.id));
+            setWorkerDetails(prev => {
+              if (prev.has(w.id)) return prev;
+              const next = new Map(prev);
+              next.set(w.id, w);
+              return next;
+            });
+          }
+        } catch {}
+      });
+    }
+  }, [workers, user, isOpen, hasSubscription]);
 
   useEffect(() => {
     console.log('[WorkerSearch] isOpen changed to', isOpen);
@@ -71,8 +86,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
       setLocation('');
       setSelectedSkill('');
       setWorkers([]);
-      setShowPaymentModal(false);
-      setPaymentWorker(null);
+      setShowSubscriptionPrompt(false);
       return;
     }
     fetchWorkers();
@@ -109,7 +123,6 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
 
   const [unlockMsg, setUnlockMsg] = useState('');
   const [showGuestPrompt, setShowGuestPrompt] = useState(false);
-  const [guestWorker, setGuestWorker] = useState<any>(null);
   const [showRedeemInput, setShowRedeemInput] = useState(false);
   const [redeemTokenValue, setRedeemTokenValue] = useState('');
   const [redeemLoading, setRedeemLoading] = useState(false);
@@ -117,26 +130,30 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
 
   const handleUnlock = (worker: any) => {
     if (!user) {
-      setGuestWorker(worker);
       setShowGuestPrompt(true);
       return;
     }
-    setUnlockMsg('');
-    setPaymentWorker(worker);
-    setShowPaymentModal(true);
-  };
-
-  const handleGuestPay = () => {
-    setShowGuestPrompt(false);
-    setPaymentWorker(guestWorker);
-    setShowPaymentModal(true);
+    if (!hasSubscription) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
   };
 
   const handleGuestSignIn = () => {
     setShowGuestPrompt(false);
-    setGuestWorker(null);
     onClose();
     onOpenAuth?.('login');
+  };
+
+  const handleGuestSubscribe = () => {
+    setShowGuestPrompt(false);
+    onClose();
+    onOpenAuth?.('signup');
+  };
+
+  const handleSubscribe = () => {
+    setShowSubscriptionPrompt(false);
+    onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration');
   };
 
   const handleRedeemToken = async () => {
@@ -162,23 +179,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   };
 
   const handlePaymentComplete = async () => {
-    if (!paymentWorker) { console.warn('[WorkerSearch] handlePaymentComplete: no paymentWorker'); return; }
-    console.log('[WorkerSearch] Fetching full profile after payment for', paymentWorker.id);
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', paymentWorker.id).single();
-    if (error) {
-      console.error('[WorkerSearch] Profile fetch error:', error);
-      return;
-    }
-    console.log('[WorkerSearch] Profile fetched:', { id: data.id, hasResume: !!data.resume, resumeLength: data.resume?.length, hasCertificates: !!data.certificates });
-    if (user) {
-      trackProfileView(paymentWorker.id, user.id).then(() => console.log('[WorkerSearch] Profile view tracked'));
-    }
-    if (data) {
-      setUnlockedIds(prev => new Set(prev).add(paymentWorker.id));
-      setWorkerDetails(prev => new Map(prev).set(paymentWorker.id, data));
-    }
-    setShowPaymentModal(false);
-    setPaymentWorker(null);
+    setHasSubscription(true);
   };
 
   const getInitial = (worker: any) => {
@@ -299,6 +300,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <h4 className="font-semibold text-gray-900 text-sm truncate">{worker.full_name}</h4>
+                            {worker.is_featured && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded flex items-center gap-0.5"><Zap className="w-2.5 h-2.5" />Featured</span>}
                             <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-medium rounded">Jobseeker</span>
                             {worker.verified && <Shield className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
                           </div>
@@ -325,13 +327,17 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                           <div className="flex flex-col items-end gap-1">
                             <button
                               onClick={() => handleUnlock(worker)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
                             >
                               <Lock className="w-3 h-3" />
-                              KES 50
+                              Subscribe to view
                             </button>
                           </div>
-                        ) : null}
+                        ) : hasSubscription && (
+                          <div className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-semibold rounded-lg flex-shrink-0">
+                            <Crown className="w-3 h-3" /> Subscribed
+                          </div>
+                        )}
                       </div>
 
                       {isUnlocked && details && (
@@ -339,6 +345,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             {details.phone && <p className="flex items-center gap-1.5 text-gray-700"><Phone className="w-3.5 h-3.5 text-green-600" /> {details.phone}</p>}
                             {details.email && <p className="flex items-center gap-1.5 text-gray-700"><Mail className="w-3.5 h-3.5 text-green-600" /> {details.email}</p>}
+                            {details.whatsapp_number && <p className="flex items-center gap-1.5 text-gray-700"><a href={`https://wa.me/${details.whatsapp_number.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:text-green-700 font-medium">Chat on WhatsApp</a></p>}
                             {details.location && <p className="flex items-center gap-1.5 text-gray-700 col-span-2"><MapPin className="w-3.5 h-3.5 text-green-600" /> {details.county ? `${details.county}${details.subcounty ? `, ${details.subcounty}` : ''} - ${details.location}` : details.location}</p>}
                           </div>
                           {details.certificates && details.certificates.length > 0 && (
@@ -380,20 +387,20 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
         </div>
       </div>
 
-      {showGuestPrompt && guestWorker && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowGuestPrompt(false); setGuestWorker(null); }}>
+      {showGuestPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowGuestPrompt(false); }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Unlock Contact</h3>
-            <p className="text-sm text-gray-600 mb-1">Access <span className="font-semibold">{guestWorker.full_name}</span>'s phone number and details.</p>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Employer Access Required</h3>
+            <p className="text-sm text-gray-600 mb-1">Subscribe to unlock <span className="font-semibold">all</span> jobseeker contacts in your category.</p>
             <p className="text-sm text-gray-500 mb-5">Choose how you'd like to continue:</p>
             <div className="space-y-3">
-              <button onClick={handleGuestPay} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
-                <Phone className="w-4 h-4" /> Pay KES 50 with M-Pesa
+              <button onClick={handleGuestSubscribe} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                <Crown className="w-4 h-4" /> Subscribe — KES 200/week
               </button>
               <button onClick={handleGuestSignIn} className="w-full py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
                 Sign In / Create Account
               </button>
-              <button onClick={() => { setShowGuestPrompt(false); setGuestWorker(null); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={() => { setShowGuestPrompt(false); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
                 Cancel
               </button>
             </div>
@@ -401,18 +408,25 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
         </div>
       )}
 
-      {showPaymentModal && paymentWorker && (
-        <MpesaModal
-          isOpen={true}
-          onClose={() => { setShowPaymentModal(false); setPaymentWorker(null); }}
-          amount={50}
-          description={`Unlock contact for ${paymentWorker.full_name}`}
-          accountRef={`WRK-${paymentWorker.id}`}
-          user={user}
-          paymentType="contact_access"
-          relatedProfileId={paymentWorker.id}
-          onPaymentComplete={handlePaymentComplete}
-        />
+      {showSubscriptionPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowSubscriptionPrompt(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Crown className="w-6 h-6 text-indigo-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Employer Subscription</h3>
+            <p className="text-sm text-gray-600 mb-1 text-center">Subscribe for <span className="font-bold text-indigo-600">KES 200/week</span> to access all jobseeker contacts in your category.</p>
+            <p className="text-sm text-gray-500 mb-5 text-center">No per-contact fees — one flat rate.</p>
+            <div className="space-y-3">
+              <button onClick={() => { setShowSubscriptionPrompt(false); handleSubscribe(); }} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                <Phone className="w-4 h-4" /> Subscribe with M-Pesa
+              </button>
+              <button onClick={() => { setShowSubscriptionPrompt(false); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

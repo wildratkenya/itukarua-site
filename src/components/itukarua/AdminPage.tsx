@@ -4,7 +4,7 @@ import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription } from '@/lib/database';
 
-import { JOB_CATEGORIES, SERVICE_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,6 +70,9 @@ interface Profile {
   registration_paid: boolean;
   suspended?: boolean;
   ratings_enabled?: boolean;
+  is_featured?: boolean;
+  whatsapp_number?: string;
+  subscription_expires_at?: string;
   created_at: string;
   deleted_at?: string;
   resume?: string;
@@ -466,9 +469,11 @@ const AdminPage: React.FC = () => {
       ]);
 
       // Use individual category lists for modals
-      const jobCats = JOB_CATEGORIES.filter(c => c !== 'All Categories');
-      const serviceCats = SERVICE_CATEGORIES.filter(c => c !== 'All Services');
-      setCategories([...new Set([...jobCats, ...serviceCats])]);
+      const allJobCats = await getCustomCategories('job');
+      const allServiceCats = await getCustomCategories('service');
+      setCustomJobCats(allJobCats);
+      setCustomServiceCats(allServiceCats);
+      setCategories([...new Set([...allJobCats, ...allServiceCats])]);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -601,6 +606,24 @@ const AdminPage: React.FC = () => {
         description: 'Failed to update verification status',
         variant: 'destructive',
       });
+    }
+  };
+
+  const toggleUserFeatured = async (userId: string, currentFeatured: boolean) => {
+    const newFeatured = !currentFeatured;
+    try {
+      const { error } = await proxyTable('profiles').update({ is_featured: newFeatured }, 'id', userId);
+      if (error) throw error;
+      setUsers(users.map(user =>
+        user.id === userId ? { ...user, is_featured: newFeatured } : user
+      ));
+      toast({
+        title: 'Success',
+        description: `User ${newFeatured ? 'featured' : 'unfeatured'}.`,
+      });
+    } catch (error) {
+      console.error('Error updating featured status:', error);
+      toast({ title: 'Error', description: 'Failed to update featured status', variant: 'destructive' });
     }
   };
 
@@ -980,11 +1003,10 @@ const AdminPage: React.FC = () => {
     const updated = await getCustomCategories(newCategoryType);
     if (newCategoryType === 'job') {
       setCustomJobCats(updated);
-      setCategories([...new Set([...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...updated, ...customServiceCats])]);
     } else {
       setCustomServiceCats(updated);
-      setCategories([...new Set([...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customJobCats, ...updated])]);
     }
+    setCategories([...new Set([...(newCategoryType === 'job' ? updated : customJobCats), ...(newCategoryType === 'service' ? updated : customServiceCats)])]);
     toast({ title: 'Success', description: 'Category added.' });
   };
 
@@ -1204,7 +1226,7 @@ const AdminPage: React.FC = () => {
       if (error) throw error;
 
       if (status === 'completed' && payment?.payment_type === 'registration' && payment?.user_id) {
-        await extendSubscription(payment.user_id, 7);
+        await extendSubscription(payment.user_id, 30);
       } else if (status === 'completed' && payment?.payment_type === 'advert' && payment?.related_ad_id) {
         await proxyTable('service_ads').update({ payment_confirmed: true }, 'id', payment.related_ad_id);
       }
@@ -1375,7 +1397,8 @@ const AdminPage: React.FC = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Verified</TableHead>
-                      <TableHead>Registration</TableHead>
+                      <TableHead>Subscription</TableHead>
+                      <TableHead>Bids / Wk</TableHead>
                       {showTrash && <TableHead>Trashed</TableHead>}
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -1422,9 +1445,27 @@ const AdminPage: React.FC = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.registration_paid ? 'default' : 'destructive'}>
-                            {user.registration_paid ? 'Paid' : 'Unpaid'}
-                          </Badge>
+                          {user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now() ? (
+                            <Badge variant="default" className="bg-green-600">
+                              Premium · {Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))}d left
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-gray-100 text-gray-600">Free</Badge>
+                          )}
+                          {user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now() && (
+                            <div className="text-[10px] text-gray-400 mt-0.5">Expires {new Date(user.subscription_expires_at).toLocaleDateString()}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {user.role === 'jobseeker' ? (
+                            user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now() ? (
+                              <span className="text-xs text-green-600 font-medium">Unlimited</span>
+                            ) : (
+                              <span className="text-xs text-gray-500">—</span>
+                            )
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
                         </TableCell>
                         {showTrash && (
                           <TableCell className="text-xs text-gray-500">
@@ -1445,6 +1486,9 @@ const AdminPage: React.FC = () => {
                               <Button variant="outline" size="sm" onClick={() => toggleUserVerification(user.id, user.verified)}>
                                 {user.verified ? 'Unverify' : 'Verify'}
                               </Button>
+                              <Button variant={user.is_featured ? 'default' : 'outline'} size="sm" onClick={() => toggleUserFeatured(user.id, !!user.is_featured)} className={user.is_featured ? 'bg-amber-500 hover:bg-amber-600' : ''}>
+                                {user.is_featured ? '★ Featured' : 'Feature'}
+                              </Button>
                               <div className="flex gap-1">
                                 <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email} title="Send reset email">
                                   Send Email
@@ -1456,6 +1500,11 @@ const AdminPage: React.FC = () => {
                               <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
                                 +1 Day
                               </Button>
+                              {user.role === 'jobseeker' && (!user.subscription_expires_at || new Date(user.subscription_expires_at).getTime() <= Date.now()) && (
+                                <Button variant="default" size="sm" onClick={() => extendUserSubscription(user.id, 30, user.full_name || user.email)} className="bg-green-600 hover:bg-green-700">
+                                  Upgrade 30d
+                                </Button>
+                              )}
                               <Button variant="outline" size="sm" onClick={() => {
                                 setEditingUser(user);
                                 setRatingsEnabled(!!user.ratings_enabled);
@@ -2092,45 +2141,35 @@ const AdminPage: React.FC = () => {
                     <Button onClick={addCategory} className="mb-0.5">Add</Button>
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Job Categories</h4>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Job Categories ({customJobCats.length})</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...customJobCats].filter(c => !searchCategories || c.toLowerCase().includes(searchCategories.toLowerCase())).map((category) => {
-                        const isCustom = customJobCats.includes(category);
-                        return (
-                          <div key={'job-'+category} className="flex items-center gap-1">
-                            <Badge variant={isCustom ? 'default' : 'outline'} className="flex-1 justify-center">{category}</Badge>
-                            {isCustom && (
-                              <button onClick={async () => {
-                                await deleteCustomCategory(category, 'job');
-                                const updated = await getCustomCategories('job');
-                                setCustomJobCats(updated);
-                                setCategories([...new Set([...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...updated, ...customServiceCats])]);
-                              }} className="text-red-500 hover:text-red-700 text-xs font-bold px-1">&times;</button>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {customJobCats.filter(c => !searchCategories || c.toLowerCase().includes(searchCategories.toLowerCase())).map((category) => (
+                        <div key={'job-'+category} className="flex items-center gap-1">
+                          <Badge variant="outline" className="flex-1 justify-center">{category}</Badge>
+                          <button onClick={async () => {
+                            await deleteCustomCategory(category, 'job');
+                            const updated = await getCustomCategories('job');
+                            setCustomJobCats(updated);
+                            setCategories([...new Set([...updated, ...customServiceCats])]);
+                          }} className="text-red-500 hover:text-red-700 text-xs font-bold px-1">&times;</button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Service Categories</h4>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Service Categories ({customServiceCats.length})</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customServiceCats].filter(c => !searchCategories || c.toLowerCase().includes(searchCategories.toLowerCase())).map((category) => {
-                        const isCustom = customServiceCats.includes(category);
-                        return (
-                          <div key={'svc-'+category} className="flex items-center gap-1">
-                            <Badge variant={isCustom ? 'default' : 'outline'} className="flex-1 justify-center">{category}</Badge>
-                            {isCustom && (
-                              <button onClick={async () => {
-                                await deleteCustomCategory(category, 'service');
-                                const updated = await getCustomCategories('service');
-                                setCustomServiceCats(updated);
-                                setCategories([...new Set([...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customJobCats, ...updated])]);
-                              }} className="text-red-500 hover:text-red-700 text-xs font-bold px-1">&times;</button>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {customServiceCats.filter(c => !searchCategories || c.toLowerCase().includes(searchCategories.toLowerCase())).map((category) => (
+                        <div key={'svc-'+category} className="flex items-center gap-1">
+                          <Badge variant="outline" className="flex-1 justify-center">{category}</Badge>
+                          <button onClick={async () => {
+                            await deleteCustomCategory(category, 'service');
+                            const updated = await getCustomCategories('service');
+                            setCustomServiceCats(updated);
+                            setCategories([...new Set([...customJobCats, ...updated])]);
+                          }} className="text-red-500 hover:text-red-700 text-xs font-bold px-1">&times;</button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -2810,7 +2849,7 @@ const AdminPage: React.FC = () => {
                 <Label>Category</Label>
                 <Select 
                   name="category_select" 
-                  defaultValue={editingJob?.category || (categories.length > 0 ? categories[0] : JOB_CATEGORIES[1])}
+                  defaultValue={editingJob?.category || (customJobCats.length > 0 ? customJobCats[0] : '')}
                   onValueChange={(val) => {
                     const el = document.getElementById('job_category_hidden') as HTMLInputElement;
                     if (el) el.value = val;
@@ -2818,10 +2857,10 @@ const AdminPage: React.FC = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
-                    {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...customJobCats].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {[...customJobCats].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <input type="hidden" id="job_category_hidden" name="category" defaultValue={editingJob?.category || (categories.length > 0 ? categories[0] : JOB_CATEGORIES[1])} />
+                <input type="hidden" id="job_category_hidden" name="category" defaultValue={editingJob?.category || (customJobCats.length > 0 ? customJobCats[0] : '')} />
               </div>
               <div>
                 <Label>Location</Label>
@@ -2959,7 +2998,7 @@ const AdminPage: React.FC = () => {
                 <Label>Category</Label>
                 <Select 
                   name="ad_category_select" 
-                  defaultValue={editingAd?.category || (categories.length > 0 ? categories[0] : SERVICE_CATEGORIES[1])}
+                  defaultValue={editingAd?.category || (customServiceCats.length > 0 ? customServiceCats[0] : '')}
                   onValueChange={(val) => {
                     const el = document.getElementById('ad_category_hidden') as HTMLInputElement;
                     if (el) el.value = val;
@@ -2967,10 +3006,10 @@ const AdminPage: React.FC = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
-                    {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...customServiceCats].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {[...customServiceCats].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <input type="hidden" id="ad_category_hidden" name="category" defaultValue={editingAd?.category || (categories.length > 0 ? categories[0] : SERVICE_CATEGORIES[1])} />
+                <input type="hidden" id="ad_category_hidden" name="category" defaultValue={editingAd?.category || (customServiceCats.length > 0 ? customServiceCats[0] : '')} />
               </div>
               <div>
                 <Label>Location</Label>

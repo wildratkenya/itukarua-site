@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown } from 'lucide-react';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -9,6 +9,7 @@ import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import MpesaModal from './MpesaModal';
 import ProfileViewsChart from './ProfileViewsChart';
+import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
 import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
@@ -33,7 +34,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [profiles, setProfiles] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '' });
+  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '', whatsapp_number: '' });
   const [saving, setSaving] = useState(false);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [certFiles, setCertFiles] = useState<File[]>([]);
@@ -43,12 +44,16 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [showNotifications, setShowNotifications] = useState(false);
   const [subscriptionDays, setSubscriptionDays] = useState(0);
   const [subscriptionActive, setSubscriptionActive] = useState(false);
+  const [weeklyBidCount, setWeeklyBidCount] = useState(0);
+  const [monthlyBidCount, setMonthlyBidCount] = useState(0);
   const [platformFees, setPlatformFees] = useState<Record<string, number>>({});
   const [feeInputs, setFeeInputs] = useState<Record<string, number>>({});
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeMessage, setFeeMessage] = useState('');
   const [newsletterSubs, setNewsletterSubs] = useState<{ email: string; created_at: string }[]>([]);
   const [profileViewHistory, setProfileViewHistory] = useState<{ view_date: string; view_count: number }[]>([]);
+  const [jobViewHistory, setJobViewHistory] = useState<{ view_date: string; view_count: number }[]>([]);
+  const [totalJobViews, setTotalJobViews] = useState(0);
   const [siteTraffic, setSiteTraffic] = useState<{ date: string; visitors: number; page_views: number }[]>([]);
   const [userRanking, setUserRanking] = useState<{ rank: number; total: number; reviews_count: number; rating: number } | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -67,6 +72,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [dbJobCategories, setDbJobCategories] = useState<string[]>([]);
+  const [matchingJobs, setMatchingJobs] = useState<DbJob[]>([]);
+  const [categoryFormSaved, setCategoryFormSaved] = useState(false);
 
   const isAdmin = user.role === 'admin' || user.role === 'super_admin';
   const isJobseeker = user.role === 'jobseeker';
@@ -83,7 +92,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         if (isAdmin) {
           promises.push(getJobs({}), getServiceAds({}), getAllProfiles(), getPlatformStats(), getPlatformSettings());
         } else if (isJobseeker) {
-          promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id));
+          promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getWeeklyBidCount(user.id), getMonthlyBidCount(user.id));
         } else if (isAdvertiser) {
           promises.push(getMyAds(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id));
         } else {
@@ -110,6 +119,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setBids(results[offset] || []);
           setSubscriptionActive(results[offset + 1] || false);
           setSubscriptionDays(results[offset + 2] || 0);
+          setWeeklyBidCount(results[offset + 3] || 0);
+          setMonthlyBidCount(results[offset + 4] || 0);
         } else if (isAdvertiser) {
           setMyAds(results[offset] || []);
           setSubscriptionActive(results[offset + 1] || false);
@@ -133,8 +144,31 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             qualifications: user.profile.qualifications || '',
             experience: user.profile.experience || '',
             profile_image: user.profile.profile_image || '',
+            whatsapp_number: user.profile.whatsapp_number || '',
           });
           setRatingsEnabled(user.profile.ratings_enabled || false);
+        }
+
+        // For jobseekers: load selected categories from user metadata + fetch matching jobs
+        if (isJobseeker) {
+          const [userData, dbCats] = await Promise.all([
+            supabase.auth.getUser(),
+            getCustomCategories('job'),
+          ]);
+          setDbJobCategories(dbCats);
+          const cats = (userData?.data?.user?.user_metadata?.selected_categories as string[]) || [];
+          setSelectedCategories(cats);
+          if (cats.length > 0) {
+            const allOpenJobs = await getJobs({ activeOnly: true });
+            const matched = allOpenJobs.filter(j => cats.includes(j.category));
+            setMatchingJobs(matched);
+          } else {
+            const allOpenJobs = await getJobs({ activeOnly: true, limit: 10 });
+            setMatchingJobs(allOpenJobs);
+          }
+        } else if (isAdvertiser || user.role === 'employer') {
+          const dbCats = await getCustomCategories('job');
+          setDbJobCategories(dbCats);
         }
 
         // Fetch analytics
@@ -147,6 +181,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setProfileViewHistory(history || []);
           setUserRanking(ranking);
           setSiteTraffic(traffic || []);
+          if (!isAdmin && !isJobseeker && !isAdvertiser) {
+            const [jvh, tjv] = await Promise.all([
+              getJobViewHistory(user.id, 30),
+              getTotalJobViews(user.id),
+            ]);
+            setJobViewHistory(jvh || []);
+            setTotalJobViews(tjv || 0);
+          }
           console.log('[Dashboard] Analytics data:', { history, ranking, traffic });
         }
       } catch (err) { console.error('Dashboard load error:', err); }
@@ -193,8 +235,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         profile_image: profileImageUrl,
         ratings_enabled: ratingsEnabled,
         certificates: [...existingCerts, ...certUrls],
+        whatsapp_number: profileForm.whatsapp_number || null,
       });
+      // Persist selected categories to user metadata so dashboard can filter jobs
+      await supabase.auth.updateUser({ data: { selected_categories: selectedCategories } });
       setCertFiles([]);
+      setCategoryFormSaved(true);
+      setTimeout(() => setCategoryFormSaved(false), 2000);
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
   };
@@ -241,6 +288,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     if (showNotifications) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showNotifications]);
+
+  const recentPayments = useMemo(() => {
+    const filtered = isAdmin ? payments : payments.filter(p => p.payment_type === 'job_posting' || p.payment_type === 'registration' || p.payment_type === 'job_payment');
+    return [...filtered].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+  }, [payments, isAdmin]);
 
   const handleAcceptReceivedBid = async (bid: DbBid & { job?: DbJob }) => {
     if (!bid.job) return;
@@ -448,7 +500,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     <p className="text-sm text-gray-400 text-center py-6">No notifications yet</p>
                   ) : (
                     notifications.slice(0, 20).map(n => (
-                      <div key={n.id} className={`p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-green-50/50' : ''}`}>
+                      <div key={n.id} className={`p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-green-50/50' : ''} ${n.related_link ? 'cursor-pointer' : ''}`} onClick={() => { if (n.related_link) { if (!n.is_read) handleMarkRead(n.id); if (n.related_link.startsWith('/jobs/')) { onViewJob(n.related_link.replace('/jobs/', '')); } } }}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm ${n.is_read ? 'text-gray-700' : 'font-semibold text-gray-900'}`}>{n.title}</p>
@@ -456,7 +508,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                             <p className="text-[10px] text-gray-400 mt-1">{new Date(n.created_at).toLocaleDateString()}</p>
                           </div>
                           {!n.is_read && (
-                            <button onClick={() => handleMarkRead(n.id)} className="text-[10px] text-green-600 hover:text-green-700 whitespace-nowrap">Mark read</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }} className="text-[10px] text-green-600 hover:text-green-700 whitespace-nowrap">Mark read</button>
                           )}
                         </div>
                       </div>
@@ -480,25 +532,226 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
 
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {(isAdmin ? [
-                { label: 'Total Users', value: profiles.length.toString(), icon: Users, color: 'bg-blue-100 text-blue-600', tab: 'users' },
-                { label: 'Active Jobs', value: (stats?.active_jobs || 0).toString(), icon: Briefcase, color: 'bg-green-100 text-green-600', tab: 'jobs' },
-                { label: 'Revenue', value: `KES ${((stats?.total_payments || 0) / 1000).toFixed(0)}K`, icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
-                { label: 'Active Adverts', value: (stats?.active_businesses || 0).toString(), icon: Building2, color: 'bg-purple-100 text-purple-600', tab: 'adverts' },
-              ] : isJobseeker ? [
-                { label: 'Active Bids', value: bids.filter(b => b.status === 'pending').length.toString(), icon: FileText, color: 'bg-blue-100 text-blue-600', tab: 'bids' },
-                { label: 'Total Bids', value: bids.length.toString(), icon: Briefcase, color: 'bg-green-100 text-green-600', tab: 'bids' },
-                { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
-                { label: 'Rating', value: user.profile?.rating?.toString() || '0', icon: Star, color: 'bg-purple-100 text-purple-600', tab: 'profile' },
-                { label: 'Profile Views', value: (user.profile?.profile_views || 0).toString(), icon: Users, color: 'bg-indigo-100 text-indigo-600', tab: 'profile' },
-              ] : isAdvertiser ? [
+            {isJobseeker ? (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left column — Stats + Subscription + Bid Usage */}
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { label: 'Active Bids', value: bids.filter(b => b.status === 'pending').length.toString(), icon: FileText, color: 'bg-blue-100 text-blue-600', tab: 'bids' },
+                        { label: 'Total Bids', value: bids.length.toString(), icon: Briefcase, color: 'bg-green-100 text-green-600', tab: 'bids' },
+                        { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
+                        { label: 'Rating', value: user.profile?.rating?.toString() || '0', icon: Star, color: 'bg-purple-100 text-purple-600', tab: 'profile' },
+                        { label: 'Profile Views', value: (user.profile?.profile_views || 0).toString(), icon: Users, color: 'bg-indigo-100 text-indigo-600', tab: 'profile' },
+                      ].map((stat, i) => (
+                        <div key={i} onClick={() => setActiveTab(stat.tab)} className="bg-white rounded-xl p-4 border border-gray-100 cursor-pointer hover:border-green-200 hover:shadow-sm transition-all">
+                          <div className={`w-9 h-9 ${stat.color} rounded-lg flex items-center justify-center mb-2`}><stat.icon className="w-4 h-4" /></div>
+                          <p className="text-xl font-bold text-gray-900">{stat.value}</p>
+                          <p className="text-[11px] text-gray-500">{stat.label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className={`rounded-xl p-5 border ${subscriptionActive && subscriptionDays <= 7 ? 'border-amber-200 bg-amber-50' : subscriptionActive ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {subscriptionActive ? (
+                            subscriptionDays <= 7 ? <AlertCircle className="w-6 h-6 text-amber-600" /> : <RefreshCw className="w-6 h-6 text-green-600" />
+                          ) : (
+                            <User className="w-6 h-6 text-gray-500" />
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {subscriptionActive
+                                ? `Subscription active — ${subscriptionDays} day${subscriptionDays === 1 ? '' : 's'} remaining`
+                                : 'Free Plan'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {subscriptionActive
+                                ? subscriptionDays <= 7 ? 'Your subscription is expiring soon. Renew to continue bidding.' : 'Your premium subscription is active.'
+                                : `You have ${FREE_BID_LIMIT - weeklyBidCount} of ${FREE_BID_LIMIT} free bids this week. Upgrade for unlimited bids.`}
+                            </p>
+                          </div>
+                        </div>
+                        {(!subscriptionActive || subscriptionDays <= 7) && (
+                          <div className="flex gap-2 flex-wrap">
+                            {!subscriptionActive && (
+                              <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap bg-green-600 hover:bg-green-700 text-white">
+                                Upgrade — KES 100/mo
+                              </button>
+                            )}
+                            {subscriptionActive && subscriptionDays <= 7 && PRICING_PLANS.subscriptionPackages.map(pkg => (
+                              <button key={pkg.id} onClick={() => onOpenMpesa(pkg.price, `Subscription renewal — ${pkg.name} (${pkg.days} days)`, user.id, 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, pkg.days))} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${pkg.popular ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white border border-green-200 text-green-700 hover:bg-green-50'}`}>
+                                {pkg.name} — KES {pkg.price}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right column — Jobs in Your Interests */}
+                  <div>
+                    {matchingJobs.length > 0 ? (
+                      <div className="bg-white rounded-xl p-5 border border-gray-100">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">Jobs in Your Interests</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {selectedCategories.length > 0
+                                ? `Showing jobs in ${selectedCategories.length} categor${selectedCategories.length === 1 ? 'y' : 'ies'} you selected`
+                                : 'Browse open jobs matching your skills'}
+                            </p>
+                          </div>
+                          <button onClick={() => onNavigate('search-jobs')} className="text-xs font-semibold text-green-700 hover:text-green-800">View All</button>
+                        </div>
+                        <div className="space-y-2">
+                          {matchingJobs.slice(0, 8).map(job => (
+                            <div key={job.id} onClick={() => onViewJob(job.id)} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border border-gray-50">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-medium text-gray-900 truncate">{job.title}</h4>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>
+                                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(job.created_at).toLocaleDateString()}</span>
+                                  <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">{job.category}</span>
+                                </div>
+                              </div>
+                              <div className="text-right ml-3">
+                                <p className="text-sm font-semibold text-green-700">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p>
+                                <span className="text-[10px] text-gray-400">{job.bids_count || 0} bids</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {matchingJobs.length > 8 && (
+                          <button onClick={() => onNavigate('search-jobs')} className="w-full mt-3 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                            View {matchingJobs.length - 8} more jobs
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl p-8 border border-gray-100 text-center">
+                        <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm font-medium text-gray-600">No matching jobs yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Jobs in your selected categories will appear here</p>
+                        <button onClick={() => onNavigate('search-jobs')} className="mt-3 px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                          Browse All Jobs
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-xl p-5 border border-gray-100">
+                    {subscriptionActive ? (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold text-gray-900">Monthly Bid Usage</h3>
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                            Unlimited
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                          <div className="h-2.5 rounded-full transition-all bg-blue-500" style={{ width: '100%' }} />
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          You've placed {monthlyBidCount} bid{monthlyBidCount === 1 ? '' : 's'} this month. Premium gives you unlimited bids.
+                        </p>
+                        {bids.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-gray-100">
+                            <p className="text-xs font-medium text-gray-700 mb-2">Recent Bids This Month</p>
+                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                              {bids.filter(b => {
+                                const d = new Date(b.created_at);
+                                const now = new Date();
+                                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                                return d >= startOfMonth;
+                              }).slice(0, 5).map(bid => (
+                                <div key={bid.id} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-600 truncate max-w-[60%]">{(bid as any).job?.title || 'Job'}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-400">{new Date(bid.created_at).toLocaleDateString()}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${bid.status === 'accepted' ? 'bg-green-100 text-green-700' : bid.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{bid.status}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold text-gray-900">Weekly Bid Usage</h3>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            {weeklyBidCount}/{FREE_BID_LIMIT} used
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                          <div className={`h-2.5 rounded-full transition-all ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-red-500' : weeklyBidCount >= 3 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (weeklyBidCount / FREE_BID_LIMIT) * 100)}%` }} />
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          {weeklyBidCount >= FREE_BID_LIMIT
+                            ? 'You\'ve used all free bids this week. Upgrade to Premium for unlimited bids.'
+                            : `${FREE_BID_LIMIT - weeklyBidCount} free bid${FREE_BID_LIMIT - weeklyBidCount === 1 ? '' : 's'} remaining this week.`}
+                        </p>
+                        {weeklyBidCount >= FREE_BID_LIMIT && (
+                          <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                            Upgrade to Premium — KES 100/mo
+                          </button>
+                        )}
+                        {bids.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-gray-100">
+                            <p className="text-xs font-medium text-gray-700 mb-2">Recent Bids This Week</p>
+                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                              {bids.filter(b => {
+                                const d = new Date(b.created_at);
+                                const now = new Date();
+                                const startOfWeek = new Date(now);
+                                startOfWeek.setDate(now.getDate() - now.getDay());
+                                startOfWeek.setHours(0, 0, 0, 0);
+                                return d >= startOfWeek;
+                              }).slice(0, 5).map(bid => (
+                                <div key={bid.id} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-600 truncate max-w-[60%]">{(bid as any).job?.title || 'Job'}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-400">{new Date(bid.created_at).toLocaleDateString()}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${bid.status === 'accepted' ? 'bg-green-100 text-green-700' : bid.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{bid.status}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {userRanking && (
+                    <div className="bg-white rounded-xl p-5 border border-gray-100">
+                      <UserRanking rank={userRanking.rank} total={userRanking.total} reviewsCount={userRanking.reviews_count} rating={userRanking.rating} />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                  {(isAdmin ? [
+                    { label: 'Total Users', value: profiles.length.toString(), icon: Users, color: 'bg-blue-100 text-blue-600', tab: 'users' },
+                    { label: 'Active Jobs', value: (stats?.active_jobs || 0).toString(), icon: Briefcase, color: 'bg-green-100 text-green-600', tab: 'jobs' },
+                    { label: 'Revenue', value: `KES ${((stats?.total_payments || 0) / 1000).toFixed(0)}K`, icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
+                    { label: 'Active Adverts', value: (stats?.active_businesses || 0).toString(), icon: Building2, color: 'bg-purple-100 text-purple-600', tab: 'adverts' },
+                  ] : isAdvertiser ? [
                 { label: 'Total Adverts', value: myAds.length.toString(), icon: Megaphone, color: 'bg-blue-100 text-blue-600', tab: 'adverts' },
                 { label: 'Displays', value: myAds.reduce((sum, a) => sum + (a.displays || 0), 0).toString(), icon: Eye, color: 'bg-green-100 text-green-600', tab: 'adverts' },
                 { label: 'Clicks', value: myAds.reduce((sum, a) => sum + (a.clicks || 0), 0).toString(), icon: MousePointerClick, color: 'bg-amber-100 text-amber-600', tab: 'adverts' },
                 { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-purple-100 text-purple-600', tab: 'payments' },
               ] : [
                 { label: 'Posted Jobs', value: jobs.length.toString(), icon: Briefcase, color: 'bg-blue-100 text-blue-600', tab: 'jobs' },
+                { label: 'Job Views', value: totalJobViews.toString(), icon: Eye, color: 'bg-cyan-100 text-cyan-600', tab: 'overview' },
                 { label: 'Total Bids', value: receivedBids.length.toString(), icon: FileText, color: 'bg-green-100 text-green-600', tab: 'received-bids' },
                 { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
                 { label: 'Profile Views', value: (user.profile?.profile_views || 0).toString(), icon: Users, color: 'bg-indigo-100 text-indigo-600', tab: 'profile' },
@@ -510,41 +763,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 </div>
               ))}
             </div>
-
-            {isJobseeker && (
-              <div className={`rounded-xl p-5 border ${subscriptionActive && subscriptionDays <= 7 ? 'border-amber-200 bg-amber-50' : subscriptionActive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {subscriptionActive ? (
-                      subscriptionDays <= 7 ? <AlertCircle className="w-6 h-6 text-amber-600" /> : <RefreshCw className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <AlertCircle className="w-6 h-6 text-red-600" />
-                    )}
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {subscriptionActive
-                          ? `Subscription active — ${subscriptionDays} day${subscriptionDays === 1 ? '' : 's'} remaining`
-                          : 'Subscription expired'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {subscriptionActive
-                          ? subscriptionDays <= 7 ? 'Your subscription is expiring soon. Renew to continue bidding.' : 'Your weekly subscription is active.'
-                          : 'Renew your subscription to start bidding on jobs.'}
-                      </p>
-                    </div>
-                  </div>
-                  {(!subscriptionActive || subscriptionDays <= 7) && (
-                    <div className="flex gap-2 flex-wrap">
-                      {PRICING_PLANS.subscriptionPackages.map(pkg => (
-                        <button key={pkg.id} onClick={() => onOpenMpesa(pkg.price, `Subscription renewal — ${pkg.name} (${pkg.days} days)`, user.id, 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, pkg.days))} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${pkg.popular ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white border border-green-200 text-green-700 hover:bg-green-50'}`}>
-                          {pkg.name} — KES {pkg.price}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {isAdvertiser && (
               <div className={`rounded-xl p-5 border ${subscriptionActive && subscriptionDays <= 7 ? 'border-amber-200 bg-amber-50' : subscriptionActive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
@@ -576,6 +794,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 </div>
               </div>
             )}
+              </>
+            )}
 
             {/* Analytics Section */}
             <div className="space-y-4">
@@ -584,13 +804,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                   analyticsByAd={adAnalyticsByAd}
                 />
               )}
+              {!isAdmin && !isJobseeker && !isAdvertiser && jobViewHistory.length > 0 && (
+                <JobViewsChart data={jobViewHistory} total={totalJobViews} />
+              )}
               {profileViewHistory.length > 0 && (
                 <ProfileViewsChart data={profileViewHistory} total={user.profile?.profile_views || 0} />
               )}
               {siteTraffic.length > 0 && <SiteTrafficChart data={siteTraffic} />}
-              {userRanking && (
-                <UserRanking rank={userRanking.rank} total={userRanking.total} reviewsCount={userRanking.reviews_count} rating={userRanking.rating} />
-              )}
             </div>
           </div>
         )}
@@ -712,12 +932,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                                   <span className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed">Bid Closed</span>
                                 )}
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                </div>
+                )}
+              </div>
+            ))}
+            </div>
+          </div>
                 );
               });
             })() : <p className="text-gray-500 text-sm py-8 text-center">No bids received yet. Post a job to start receiving bids!</p>}
@@ -814,10 +1034,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               )}
             </>) : (<>
               <div>
-                <h3 className="font-semibold text-gray-900">{isAdmin ? 'All Platform Payments' : 'Job & Contact Payments'}</h3>
-                <p className="text-sm text-gray-500 mt-1">{isAdmin ? 'All M-Pesa transactions across the platform.' : 'Payment history for job postings and employer contact unlocks.'}</p>
+                <h3 className="font-semibold text-gray-900">Recent M-Pesa Transactions</h3>
+                <p className="text-sm text-gray-500 mt-1">{isAdmin ? 'Last 5 platform transactions.' : 'Last 5 payment transactions.'}</p>
               </div>
-              {payments.filter(p => isAdmin || p.payment_type === 'job_posting' || p.payment_type === 'contact_access' || p.payment_type === 'job_payment').length > 0 ? (
+              {recentPayments.length > 0 ? (
                 <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -832,7 +1052,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         </tr>
                       </thead>
                       <tbody>
-                        {(isAdmin ? payments : payments.filter(p => p.payment_type === 'job_posting' || p.payment_type === 'contact_access' || p.payment_type === 'job_payment')).map(p => (
+                        {recentPayments.map(p => (
                           <tr key={p.id} className="border-t border-gray-50">
                             <td className="px-4 py-3 text-sm text-gray-900 capitalize">{p.payment_type.replace('_', ' ')}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{p.description || '-'}</td>
@@ -938,7 +1158,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 100</strong> (7-day banner ad).</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 200</strong> (7-day banner ad). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
                   <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
                     Pay Now — KES 100
@@ -1072,6 +1292,60 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
 
         {activeTab === 'profile' && (
           <div className="max-w-2xl">
+            {isJobseeker && (
+              <div className="mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className={`rounded-2xl border-2 flex flex-col overflow-hidden ${!subscriptionActive ? 'border-green-300 shadow-md' : 'border-gray-200 bg-white'}`}>
+                    <div className="p-5 flex-1 flex flex-col">
+                      <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center mb-3">
+                        <Check className="w-5 h-5 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">Free</h3>
+                      <p className="text-xs text-gray-500 mb-4">Your current plan</p>
+                      <ul className="space-y-2 mb-5 flex-1">
+                        {PRICING_PLANS.jobseekerFree.features.map((f, j) => (
+                          <li key={j} className="flex items-start gap-2 text-sm text-gray-700">
+                            <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      {!subscriptionActive && <div className="py-2 text-center text-xs font-semibold text-green-700 bg-green-50 rounded-lg">Current Plan</div>}
+                    </div>
+                  </div>
+
+                  <div className="relative bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 rounded-2xl shadow-lg flex flex-col overflow-hidden">
+                    {subscriptionActive && (
+                      <div className="absolute top-0 right-0 bg-white/20 backdrop-blur text-white text-[10px] font-bold px-3 py-1.5 rounded-bl-xl tracking-wide">
+                        ACTIVE
+                      </div>
+                    )}
+                    <div className="p-5 flex-1 flex flex-col">
+                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mb-3">
+                        <Zap className="w-5 h-5 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-1">Premium</h3>
+                      <p className="text-xs text-green-100 mb-4">KES 100/month — Unlimited bids, messaging, analytics & more</p>
+                      <ul className="space-y-2 mb-5 flex-1">
+                        {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
+                          <li key={j} className="flex items-start gap-2 text-sm text-white/95">
+                            <Check className="w-3.5 h-3.5 text-green-300 flex-shrink-0 mt-0.5" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      {!subscriptionActive ? (
+                        <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} className="w-full py-2.5 bg-white hover:bg-green-50 text-green-700 font-bold rounded-lg text-sm transition-colors">
+                          Upgrade Now
+                        </button>
+                      ) : (
+                        <div className="py-2 text-center text-xs font-semibold text-white bg-white/20 rounded-lg">Active — {subscriptionDays}d left</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <h3 className="font-semibold text-gray-900 mb-6">Profile Settings</h3>
               <div className="space-y-4">
@@ -1140,6 +1414,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                       <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        WhatsApp Number <span className="text-gray-400 text-xs">(optional)</span>
+                        {!subscriptionActive && <span className="ml-1 text-xs text-amber-600 font-normal">— Premium only</span>}
+                      </label>
+                      <input type="tel" value={subscriptionActive ? profileForm.whatsapp_number : ''} onChange={e => setProfileForm({ ...profileForm, whatsapp_number: e.target.value })} disabled={!subscriptionActive} className={`w-full px-4 py-2.5 rounded-lg border outline-none ${subscriptionActive ? 'border-gray-300 focus:ring-2 focus:ring-green-500' : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'}`} placeholder="e.g. 0712345678" />
+                      <p className="text-xs text-gray-400 mt-1">{subscriptionActive ? 'Employers will see a "Chat on WhatsApp" button' : 'Upgrade to Premium to let employers contact you via WhatsApp'}</p>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                       <input type="text" value={profileForm.location} onChange={e => setProfileForm({ ...profileForm, location: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                     </div>
@@ -1157,6 +1439,26 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
                       <input type="text" value={profileForm.skills} onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Painting, Plumbing, Carpentry" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Categories of Interest</label>
+                      <p className="text-xs text-gray-500 mb-2">Select the job categories you're interested in. Jobs in these categories will appear on your dashboard.</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {dbJobCategories.map(cat => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setSelectedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])}
+                            className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all ${selectedCategories.includes(cat) ? 'border-green-500 bg-green-50 text-green-700 ring-1 ring-green-200' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
+                          >
+                            {selectedCategories.includes(cat) && <span className="mr-1">&#10003;</span>}
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                      {selectedCategories.length > 0 && (
+                        <p className="text-[10px] text-green-600 mt-1.5">{selectedCategories.length} {selectedCategories.length === 1 ? 'category' : 'categories'} selected</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Qualifications</label>
@@ -1183,9 +1485,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                      <label htmlFor="ratings_enabled" className="text-sm text-gray-700">Enable ratings & reviews on my profile</label>
+                    <div className={`flex items-center gap-3 ${!subscriptionActive ? 'opacity-50' : ''}`}>
+                      <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} disabled={!subscriptionActive} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                      <label htmlFor="ratings_enabled" className="text-sm text-gray-700">
+                        Enable ratings & reviews on my profile
+                        {!subscriptionActive && <span className="ml-1 text-xs text-amber-600 font-normal">— Premium only</span>}
+                      </label>
                     </div>
                     <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
@@ -1203,7 +1508,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               <h3 className="font-semibold text-gray-900 mb-4">Platform Fees</h3>
               <div className="space-y-4">
                 {[
-                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Weekly subscription fee', val: 100 },
+                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Monthly subscription fee', val: 100 },
                   { key: 'contact_access_fee', label: 'Contact Access Fee', desc: 'Per contact unlock', val: 100 },
                 ].map((fee) => (
                   <div key={fee.key} className="flex items-center justify-between">

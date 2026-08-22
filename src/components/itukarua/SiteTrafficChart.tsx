@@ -17,7 +17,7 @@ const SiteTrafficChart: React.FC<Props> = ({ data }) => {
           <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
             <Activity className="w-4 h-4 text-green-600" />
           </div>
-          <h3 className="font-semibold text-gray-900">Site Traffic</h3>
+          <h3 className="font-semibold text-gray-900">Itukarua Website Traffic Activity</h3>
         </div>
         <span className="text-xs text-gray-400">Last 30 days</span>
       </div>

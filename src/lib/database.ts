@@ -28,6 +28,8 @@ export interface DbProfile {
   ratings_enabled?: boolean;
   subscription_expires_at?: string;
   profile_views?: number;
+  is_featured?: boolean;
+  whatsapp_number?: string;
 }
 
 export interface DbJob {
@@ -108,7 +110,7 @@ export interface DbServiceAd {
 export interface DbPayment {
   id: string;
   user_id: string;
-  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost';
+  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post';
   amount: number;
   mpesa_ref: string;
   mpesa_phone: string;
@@ -225,7 +227,7 @@ export async function getProfiles(filters?: {
   if (filters?.ratings_enabled) {
     query = query.eq('ratings_enabled', true).order('rating', { ascending: false }).order('reviews_count', { ascending: false });
   } else {
-    query = query.order('created_at', { ascending: false });
+    query = query.order('subscription_expires_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
   }
 
   if (filters?.limit) {
@@ -852,6 +854,32 @@ export async function checkContactAccess(userId: string, profileId: string): Pro
   return !!data;
 }
 
+export async function checkSingleJobAccess(userId: string, jobId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('payment_type', 'single_job_post')
+    .eq('related_job_id', jobId)
+    .eq('status', 'completed')
+    .maybeSingle();
+  return !!data;
+}
+
+export async function countRecentSingleJobs(userId: string): Promise<number> {
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const { count, error } = await supabase
+    .from('payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('payment_type', 'single_job_post')
+    .eq('status', 'completed')
+    .gte('created_at', since.toISOString());
+  if (error) return 0;
+  return count || 0;
+}
+
 export async function redeemToken(token: string): Promise<{ profileId: string } | null> {
   const { data } = await supabase
     .from('payments')
@@ -1134,6 +1162,77 @@ export async function extendSubscription(userId: string, days: number): Promise<
   await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', userId);
 }
 
+// ─── Weekly Bid Counter ─────────────────────────────────────────────────────
+
+export async function getWeeklyBidCount(userId: string): Promise<number> {
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+  const { count, error } = await supabase
+    .from('bids')
+    .select('id', { count: 'exact', head: true })
+    .eq('bidder_id', userId)
+    .gte('created_at', startOfWeek.toISOString());
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function getMonthlyBidCount(userId: string): Promise<number> {
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const { count, error } = await supabase
+    .from('bids')
+    .select('id', { count: 'exact', head: true })
+    .eq('bidder_id', userId)
+    .gte('created_at', startOfMonth.toISOString());
+  if (error) return 0;
+  return count || 0;
+}
+
+export const FREE_BID_LIMIT = 10;
+
+// ─── Notify Jobseekers of New Job ──────────────────────────────────────────
+
+export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
+  const { data: job } = await supabase.from('jobs').select('id, title, category, county').eq('id', jobId).maybeSingle();
+  if (!job) return;
+
+  const { data: jobseekers } = await supabase
+    .from('profiles')
+    .select('id, skills, county')
+    .eq('role', 'jobseeker')
+    .not('subscription_expires_at', 'is', null);
+
+  if (!jobseekers?.length) return;
+
+  const notifications: { user_id: string; type: string; title: string; body: string; related_link: string }[] = [];
+
+  for (const seeker of jobseekers) {
+    let matchReason = '';
+    const skills = (seeker.skills || []).join(',').toLowerCase();
+    if (job.category && skills.includes(job.category.toLowerCase())) {
+      matchReason = 'category';
+    }
+    if (seeker.county && job.county && seeker.county === job.county) {
+      matchReason += matchReason ? ' & location' : 'location';
+    }
+    if (matchReason) {
+      notifications.push({
+        user_id: seeker.id,
+        type: 'new_job',
+        title: 'New Job Match',
+        body: `A new ${matchReason} match job has been posted: ${job.title}`,
+        related_link: `/jobs/${job.id}`,
+      });
+    }
+  }
+
+  if (notifications.length > 0) {
+    await supabase.from('notifications').insert(notifications);
+  }
+}
+
 // ─── Platform Settings ──────────────────────────────────────────────────────
 
 export async function getPlatformSettings(): Promise<Record<string, number>> {
@@ -1236,6 +1335,25 @@ export async function getProfileViewHistory(profileId: string, days = 30): Promi
     if (d) grouped[d] = (grouped[d] || 0) + 1;
   }
   return Object.entries(grouped).map(([view_date, view_count]) => ({ view_date, view_count }));
+}
+
+// ─── Job Views ────────────────────────────────────────────────────────────
+
+export async function trackJobView(jobId: string): Promise<void> {
+  await supabase.rpc('increment_job_views', { p_job_id: jobId });
+  await supabase.from('job_views_log').insert({ job_id: jobId });
+}
+
+export async function getJobViewHistory(employerId: string, days = 30): Promise<{ view_date: string; view_count: number }[]> {
+  const { data, error } = await supabase.rpc('get_job_view_history', { p_profile_id: employerId, p_days: days });
+  if (error || !data) { console.error('[getJobViewHistory]', error); return []; }
+  return data.map((r: any) => ({ view_date: r.view_date, view_count: Number(r.view_count) }));
+}
+
+export async function getTotalJobViews(employerId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('get_total_job_views', { p_profile_id: employerId });
+  if (error || data == null) { console.error('[getTotalJobViews]', error); return 0; }
+  return Number(data);
 }
 
 export async function getSiteTraffic(days = 30): Promise<{ date: string; visitors: number; page_views: number }[]> {

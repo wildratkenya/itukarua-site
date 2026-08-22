@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Upload, Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { SERVICE_CATEGORIES, LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
+import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { createServiceAd, createPayment, getCustomCategories } from '@/lib/database';
 import type { Page } from './Header';
@@ -25,9 +25,9 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
-  const [extraCats, setExtraCats] = useState<string[]>([]);
+  const [dbCats, setDbCats] = useState<string[]>([]);
 
-  useEffect(() => { getCustomCategories('service').then(setExtraCats); }, []);
+  useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
 
   const selectedPlan = PRICING_PLANS.advertPlans.find(p => p.name === formData.plan);
 
@@ -168,7 +168,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
                 <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.category ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
                   <option value="">Select category</option>
-                  {[...SERVICE_CATEGORIES.filter(c => c !== 'All Services'), ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
+                  {dbCats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
               </div>

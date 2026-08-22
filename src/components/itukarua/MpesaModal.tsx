@@ -10,7 +10,7 @@ interface MpesaModalProps {
   accountRef: string;
   user?: { id: string; name: string; email: string; role: string } | null;
   onPaymentComplete?: () => void;
-  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost';
+  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post';
   relatedJobId?: string;
   relatedAdId?: string;
   relatedProfileId?: string;

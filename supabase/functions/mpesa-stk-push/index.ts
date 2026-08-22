@@ -128,7 +128,7 @@ async function completePayment(supabase: any, payment: any) {
     const { data: profile } = await supabase.from('profiles').select('subscription_expires_at').eq('id', payment.user_id).maybeSingle()
     const base = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date()
     if (base.getTime() < Date.now()) base.setTime(Date.now())
-    base.setDate(base.getDate() + 7)
+    base.setDate(base.getDate() + 30)
     await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', payment.user_id)
   } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
     await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
             const { data: profile } = await supabase.from('profiles').select('subscription_expires_at').eq('id', payment.user_id).maybeSingle()
             const base = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date()
             if (base.getTime() < Date.now()) base.setTime(Date.now())
-            base.setDate(base.getDate() + 7)
+            base.setDate(base.getDate() + 30)
             await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', payment.user_id)
           } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
             await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
