@@ -92,7 +92,7 @@ export const PRICING_PLANS = {
   jobseeker: {
     name: 'Jobseeker Registration',
     price: 100,
-    period: '/wk • 7-day subscription',
+    period: '/mo • 30-day subscription',
     features: [
       'Create professional profile',
       'Bid on unlimited jobs',
@@ -102,9 +102,59 @@ export const PRICING_PLANS = {
       'Profile visibility to all employers',
     ],
   },
+  jobseekerFree: {
+    name: 'Free',
+    price: 0,
+    features: [
+      'Create a professional jobseeker profile',
+      '10 job bids per week in your category',
+      'Basic visibility in employer searches',
+      'Receive in-app job notifications',
+      'View open job listings',
+      'Rate & review after completed work',
+    ],
+  },
+  jobseekerPremium: {
+    name: 'Premium',
+    price: 100,
+    period: '/month',
+    features: [
+      'Unlimited job bids in your category',
+      'Direct messaging with employers',
+      'Priority visibility in employer searches',
+      'Ratings & recommendations from employers',
+      'Profile views analytics & ranking',
+      'Featured badge on profile',
+      'WhatsApp contact for employers',
+    ],
+  },
+  employerSubscription: {
+    name: 'Employer Access',
+    price: 200,
+    period: '/week',
+    features: [
+      'See all active jobseekers in your category',
+      'Full contact details — phone, email, WhatsApp',
+      'View certifications, CVs & portfolios',
+      'Direct messaging with jobseekers',
+      'Post unlimited jobs in your category',
+      'Bid management & hiring tools',
+    ],
+  },
+  singleJobPost: {
+    name: 'Single Job Post',
+    price: 100,
+    period: 'one-time',
+    features: [
+      'Post one job listing (visible for 7 days)',
+      'See all bids on that job',
+      'Unlock bidder contacts — phone, email, WhatsApp',
+      'No subscription commitment',
+    ],
+  },
   subscriptionPackages: [
-    { id: 'weekly', name: 'Weekly', price: 100, days: 7, description: '7 days access', popular: true },
-    { id: 'monthly', name: 'Monthly', price: 400, days: 30, description: '30 days access (save 14%)' },
+    { id: 'monthly', name: 'Monthly', price: 100, days: 30, description: '30 days access', popular: true },
+    { id: 'weekly', name: 'Weekly', price: 200, days: 7, description: '7 days employer access', popular: true },
   ],
   advertPlans: [
     {
@@ -152,7 +202,7 @@ export const PRICING_PLANS = {
   ],
   homepageAdvert: {
     name: 'Homepage Advert',
-    price: 100,
+    price: 200,
     period: 'per week',
     features: [
       'Prime banner placement at the very top of the homepage',
@@ -163,14 +213,9 @@ export const PRICING_PLANS = {
       'Optional button linking to your website or listing',
       'Advert displays in the rotating carousel with other ads',
       'Clicks & views tracked in your analytics',
-      'Live for 7 full days (KES 100 per week)',
+      'Live for 7 full days (KES 200 per week)',
+      'Disclaimer: Exclusive of ad design — user to provide',
     ],
-  },
-  employerAccess: {
-    name: 'Contact Access Fee',
-    price: 50,
-    period: 'per contact',
-    description: 'Pay KES 50 to unlock jobseeker contact details, certifications and CV.',
   },
   featuredBoost: {
     name: 'Featured Boost',

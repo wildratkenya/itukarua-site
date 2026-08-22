@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, extendSubscription, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobAccess, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -41,8 +41,13 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [selectedBidderName, setSelectedBidderName] = useState('');
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null);
   const [subscriptionActive, setSubscriptionActive] = useState(true);
+  const [singleJobAccess, setSingleJobAccess] = useState(false);
+  const [weeklyBidCount, setWeeklyBidCount] = useState(0);
   const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+
+  const isEmployer = user?.role === 'employer';
+  const hasJobAccess = isEmployer && (subscriptionActive || singleJobAccess);
 
   useEffect(() => {
     const load = async () => {
@@ -51,6 +56,9 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
         const [j, b] = await Promise.all([getJobById(jobId), getBidsForJob(jobId)]);
         setJob(j);
         setBids(b);
+        if (j && j.posted_by !== user?.id) {
+          trackJobView(jobId);
+        }
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };
@@ -58,6 +66,17 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       if (user?.role === 'jobseeker') {
         const active = await checkSubscriptionActive(user.id);
         setSubscriptionActive(active);
+        if (!active) {
+          const count = await getWeeklyBidCount(user.id);
+          setWeeklyBidCount(count);
+        }
+      } else if (user?.role === 'employer') {
+        const subActive = await checkSubscriptionActive(user.id);
+        setSubscriptionActive(subActive);
+        if (!subActive) {
+          const hasAccess = await checkSingleJobAccess(user.id, jobId);
+          setSingleJobAccess(hasAccess);
+        }
       }
     };
     load();
@@ -110,6 +129,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     e.preventDefault();
     if (!user) { onOpenAuth('login'); return; }
     if (!bidPrice || !bidProposal.trim()) return;
+    if (!subscriptionActive && weeklyBidCount >= FREE_BID_LIMIT) return;
     setBidSubmitting(true);
     try {
       await createBid({ job_id: jobId, bidder_id: user.id, price: parseInt(bidPrice), proposal: bidProposal });
@@ -117,6 +137,9 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       setShowBidForm(false);
       const updatedBids = await getBidsForJob(jobId);
       setBids(updatedBids);
+      if (!subscriptionActive) {
+        setWeeklyBidCount(prev => prev + 1);
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to submit bid');
     } finally { setBidSubmitting(false); }
@@ -383,16 +406,23 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                               </button>
                             )}
                           </div>
-                          {winnerId === bid.id && user && user.id === job.posted_by && (
-                            contactUnlocked ? (
+                          {user && user.id === job.posted_by && (
+                            hasJobAccess ? (
                               <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium mt-2">
-                                <Phone className="w-4 h-4" /> Contact: {bid.bidder_phone || '+254 7XX XXX XXX'}
+                                <Phone className="w-4 h-4" /> {bid.bidder_phone || '+254 7XX XXX XXX'}
+                                {bid.bidder_email && <span className="text-green-600 ml-2">| {bid.bidder_email}</span>}
                               </div>
-                            ) : (
-                              <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 mt-2">
-                                <Phone className="w-4 h-4" /> Unlock Contact (KES 50)
-                              </button>
-                            )
+                            ) : winnerId === bid.id ? (
+                              contactUnlocked ? (
+                                <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium mt-2">
+                                  <Phone className="w-4 h-4" /> Contact: {bid.bidder_phone || '+254 7XX XXX XXX'}
+                                </div>
+                              ) : (
+                                <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 mt-2">
+                                  <Phone className="w-4 h-4" /> Unlock Contact (KES 50)
+                                </button>
+                              )
+                            ) : null
                           )}
                         </div>
                       </div>
@@ -424,6 +454,24 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     <p className="font-semibold text-gray-900">You posted this job</p>
                     <p className="text-sm text-gray-500 mt-1">Review bids from workers below and accept the best one.</p>
                   </div>
+                  {!hasJobAccess && bids.length > 0 && (
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
+                      <p className="text-xs text-amber-700 font-medium mb-2">Contacts locked — pay KES 100 once or subscribe for unlimited access.</p>
+                      <button
+                        onClick={() => onOpenMpesa(100, `Unlock contacts for: ${job.title}`, `SJP-${job.id.slice(0, 8)}`, 'single_job_post', undefined, job.id, undefined, () => setSingleJobAccess(true))}
+                        className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        Unlock Contacts (KES 100)
+                      </button>
+                    </div>
+                  )}
+                  {hasJobAccess && (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+                      <p className="text-xs text-green-700 font-medium">
+                        {subscriptionActive ? 'Employer Access — unlimited contacts' : 'Single Job — contacts unlocked for this job'}
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -454,13 +502,25 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                 </form>
               ) : user?.role === 'jobseeker' && !subscriptionActive ? (
                 <div>
-                  <div className="text-center mb-4">
-                    <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-900">Subscription Expired</p>
-                    <p className="text-sm text-gray-500 mt-1">Renew your subscription for KES 100 to continue bidding.</p>
-                  </div>
-                  <button onClick={() => onOpenMpesa(100, 'Subscription renewal — Weekly (7 days)', user.id, 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 7))} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
-                    Renew KES 100
+                  {weeklyBidCount >= FREE_BID_LIMIT ? (
+                    <div className="text-center mb-4">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-900">Weekly Bid Limit Reached</p>
+                      <p className="text-sm text-gray-500 mt-1">You've used all {FREE_BID_LIMIT} free bids this week. Upgrade to Premium for unlimited bids.</p>
+                    </div>
+                  ) : (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-sm text-gray-600">Free plan</p>
+                        <span className="text-xs font-medium text-green-700">{FREE_BID_LIMIT - weeklyBidCount}/{FREE_BID_LIMIT} bids left</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full transition-all ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-red-500' : weeklyBidCount >= 3 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (weeklyBidCount / FREE_BID_LIMIT) * 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
+                    Upgrade to Premium — KES 100/mo
                   </button>
                 </div>
               ) : (

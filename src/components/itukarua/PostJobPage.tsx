@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield } from 'lucide-react';
-import { JOB_CATEGORIES, KENYA_COUNTIES } from '@/data/siteData';
-import { createJob, getCustomCategories } from '@/lib/database';
+import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield, Phone, Zap, Briefcase } from 'lucide-react';
+import { KENYA_COUNTIES } from '@/data/siteData';
+import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
@@ -11,23 +11,28 @@ interface PostJobPageProps {
   onNavigate: (page: Page) => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
+  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
 }
 
 const MAX_IMAGES = 3;
 const SUPABASE_URL = 'https://xahaxtbudiubelemewna.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhaGF4dGJ1ZGl1YmVsZW1ld25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjE5MDYsImV4cCI6MjA5MDY5NzkwNn0.jF-4s0Sv8O0PDrO9XeYU4w4W8kFpJ7lY3xQ5b2r0Z6E';
 
-type Step = 'form' | 'otp' | 'success';
+type Step = 'form' | 'otp' | 'payment' | 'success';
 
-const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth }) => {
+const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
   const [step, setStep] = useState<Step>('form');
   const [formData, setFormData] = useState({ title: '', category: '', description: '', location: '', county: '', subcounty: '', budgetMin: '', budgetMax: '', deadline: '', urgent: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
-  const [extraCats, setExtraCats] = useState<string[]>([]);
+  const [dbCats, setDbCats] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [createdJobId, setCreatedJobId] = useState<string>('');
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [recentSingleCount, setRecentSingleCount] = useState(0);
+  const [showUpsell, setShowUpsell] = useState(false);
 
   // OTP state
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
@@ -37,7 +42,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
   const [otpResendTimer, setOtpResendTimer] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  useEffect(() => { getCustomCategories('job').then(setExtraCats); }, []);
+  useEffect(() => { getCustomCategories('job').then(setDbCats); }, []);
 
   // OTP countdown timer
   useEffect(() => {
@@ -180,8 +185,24 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
       if (!result?.valid) throw new Error('Invalid verification code');
 
       // Create the job with the stored data
-      await createJob(result.job_data);
-      setStep('success');
+      const newJob = await createJob(result.job_data);
+      notifyJobseekersOfNewJob(newJob.id).catch(console.error);
+      setCreatedJobId(newJob.id);
+
+      // Check if employer has active subscription
+      if (user) {
+        const active = await checkSubscriptionActive(user.id);
+        setHasSubscription(active);
+        if (active) {
+          setStep('success');
+        } else {
+          const count = await countRecentSingleJobs(user.id);
+          setRecentSingleCount(count);
+          setStep('payment');
+        }
+      } else {
+        setStep('success');
+      }
     } catch (err: any) {
       setOtpError(err.message || 'Invalid code. Please try again.');
       setOtpCode(['', '', '', '', '', '']);
@@ -235,6 +256,10 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
     setOtpCode(['', '', '', '', '', '']);
     setServerError('');
     setOtpError('');
+    setCreatedJobId('');
+    setHasSubscription(false);
+    setRecentSingleCount(0);
+    setShowUpsell(false);
     setStep('form');
   };
 
@@ -246,10 +271,83 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-green-600" /></div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Job Posted Successfully!</h2>
           <p className="text-gray-500 mb-6">Your job is now live and visible to workers. You'll start receiving bids soon.</p>
+          {hasSubscription && <p className="text-xs text-green-600 mb-4 font-medium">Your Employer Access subscription gives you full contact access for all bids.</p>}
           <div className="flex gap-3 justify-center">
             <button onClick={() => onNavigate('jobs')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">View Jobs</button>
             <button onClick={resetAll} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Payment prompt screen (after job created, non-subscriber)
+  if (step === 'payment') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-lg">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-blue-600" /></div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Job Posted!</h2>
+            <p className="text-gray-500">Your job is live. Unlock bidder contacts with a one-time payment.</p>
+          </div>
+
+          {/* Single Job Post option */}
+          <div className="border-2 border-blue-200 rounded-xl p-5 mb-4 bg-blue-50/50">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Briefcase className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Post & Unlock This Job</h3>
+                <p className="text-xs text-gray-500">One-time payment — no commitment</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">Pay KES 100 to unlock contact details (phone, email, WhatsApp) for all jobseekers who bid on this job.</p>
+            <button
+              onClick={() => {
+                if (!onOpenMpesa || !user) return;
+                onOpenMpesa(100, `Single Job Post — unlock contacts`, `SJP-${createdJobId.slice(0, 8)}`, 'single_job_post', undefined, createdJobId, undefined, () => {
+                  setShowUpsell(recentSingleCount >= 1);
+                  setStep('success');
+                });
+              }}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <Phone className="w-4 h-4" /> Pay KES 100 with M-Pesa
+            </button>
+          </div>
+
+          {/* Subscription upsell */}
+          <div className="border border-gray-200 rounded-xl p-5 mb-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                <Shield className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Employer Access</h3>
+                <p className="text-xs text-gray-500">KES 200/week — best for repeat hiring</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">Post unlimited jobs & access all jobseeker contacts in your category. No per-contact fees.</p>
+            <button
+              onClick={() => {
+                if (!onOpenMpesa || !user) return;
+                onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
+                  setHasSubscription(true);
+                  setStep('success');
+                });
+              }}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <Phone className="w-4 h-4" /> Subscribe — KES 200/week
+            </button>
+          </div>
+
+          {/* Skip option */}
+          <button onClick={() => setStep('success')} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            Skip for now — I'll pay later
+          </button>
         </div>
       </div>
     );
@@ -346,7 +444,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth 
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
                 <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.category ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
                   <option value="">Select category</option>
-                  {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
+                  {dbCats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
               </div>

@@ -1,9 +1,9 @@
-﻿import React, { useState, useRef, useCallback } from 'react';
+﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { subscribeNewsletter, updateProfile } from '@/lib/database';
+import { subscribeNewsletter, updateProfile, getCustomCategories } from '@/lib/database';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
 
 interface AuthModalProps {
@@ -28,6 +28,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     skills: '',
     resume: '',
   });
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [dbJobCategories, setDbJobCategories] = useState<string[]>([]);
   const [certFiles, setCertFiles] = useState<FileList | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
@@ -42,6 +44,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [emailSent, setEmailSent] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) getCustomCategories('job').then(setDbJobCategories);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const validate = () => {
@@ -51,6 +57,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
     if (!formData.password || formData.password.length < 6) errs.password = 'Min 6 characters';
     if (tab === 'signup' && !formData.phone.trim()) errs.phone = 'Phone is required';
+    if (tab === 'signup' && (role === 'jobseeker' || role === 'employer') && selectedCategories.length === 0) errs.categories = 'Select at least one category of interest';
     if (tab === 'signup' && !termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
     if (tab === 'signup' && !privacyAccepted) errs.privacy = 'You must accept the Privacy Policy';
     setErrors(errs);
@@ -65,6 +72,9 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     try {
       if (tab === 'signup') {
+        // Set the auth-complete flag BEFORE the async call so the SIGNED_IN
+        // listener in AppLayout sees it when the event fires.
+        onAuth();
         const signupPromise = supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -77,6 +87,7 @@ data: {
   county: formData.county,
   subcounty: formData.subcounty,
   skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
+  selected_categories: (role === 'jobseeker' || role === 'employer') ? selectedCategories : [],
 },
           },
         });
@@ -159,13 +170,13 @@ data: {
 
           if (hasSession) {
             // No email confirmation required — account is live now
-            onAuth();
             onClose();
           } else {
             setEmailSent(true);
           }
         }
       } else {
+        onAuth();
         const signinPromise = supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
@@ -176,7 +187,6 @@ data: {
         if (error) throw error;
         
         setLoginAttempts(0);
-        onAuth();
         onClose();
       }
     } catch (err: any) {
@@ -217,7 +227,7 @@ data: {
 
         <div className="flex border-b border-gray-100">
           <button
-            onClick={() => { setTab('login'); setServerError(''); setTermsAccepted(false); }}
+            onClick={() => { setTab('login'); setServerError(''); setTermsAccepted(false); setSelectedCategories([]); }}
             className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'login' ? 'text-green-700 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Sign In
@@ -254,7 +264,7 @@ data: {
               <button
                 type="button"
                 onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
-county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
+county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]); setCertFiles(null); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
                 Back to Sign In
@@ -436,6 +446,36 @@ county: '', subcounty: '', skills: '', resume: '' }); setCertFiles(null); setSub
                 )}
               </div>
             </>
+          )}
+
+          {tab === 'signup' && (role === 'jobseeker' || role === 'employer') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Categories of Interest <span className="text-gray-400 text-xs">(select at least one)</span>
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                {role === 'jobseeker'
+                  ? 'Choose the job categories you\'re interested in. We\'ll show matching jobs on your dashboard.'
+                  : 'Choose the job categories you\'re hiring for. We\'ll help you find the right talent.'}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {dbJobCategories.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])}
+                    className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all ${selectedCategories.includes(cat) ? 'border-green-500 bg-green-50 text-green-700 ring-1 ring-green-200' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {selectedCategories.includes(cat) && <span className="mr-1">&#10003;</span>}
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              {selectedCategories.length > 0 && (
+                <p className="text-[10px] text-green-600 mt-1.5">{selectedCategories.length} {selectedCategories.length === 1 ? 'category' : 'categories'} selected</p>
+              )}
+              {errors.categories && <p className="text-red-500 text-xs mt-1">{errors.categories}</p>}
+            </div>
           )}
 
           {tab === 'signup' && !emailSent && (

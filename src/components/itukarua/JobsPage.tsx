@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import VerticalAdRail from './VerticalAdRail';
-import { JOB_CATEGORIES, LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
+import { LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
 import { useJobs } from '@/hooks/useQueries';
 import { getCustomCategories } from '@/lib/database';
 import type { Page } from './Header';
@@ -22,9 +22,9 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const [sortBy, setSortBy] = useState<'newest' | 'budget-high' | 'budget-low' | 'urgent'>('newest');
 
   const [showFilters, setShowFilters] = useState(true);
-  const [extraCats, setExtraCats] = useState<string[]>([]);
+  const [dbCats, setDbCats] = useState<string[]>([]);
 
-  useEffect(() => { getCustomCategories('job').then(setExtraCats); }, []);
+  useEffect(() => { getCustomCategories('job').then(setDbCats); }, []);
 
   const filters = useMemo(() => ({
     category: category !== 'All Categories' ? category : undefined,
@@ -117,7 +117,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
                 <select value={category} onChange={e => setCategory(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  {[...JOB_CATEGORIES, ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="All Categories">All Categories</option>
+                  {dbCats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -154,7 +155,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {[...JOB_CATEGORIES, ...extraCats].map(c => (
+          <button key="all-categories" onClick={() => setCategory('All Categories')} className={`px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === 'All Categories' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>All Categories</button>
+          {dbCats.map(c => (
             <button key={c} onClick={() => setCategory(c)} className={`px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === c ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>{c}</button>
           ))}
         </div>

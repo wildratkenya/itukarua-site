@@ -13,7 +13,6 @@ import { getPlatformStats, createServiceRating, checkServiceRating, createProfil
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 import ImageViewerModal from './ImageViewerModal';
-import MpesaModal from './MpesaModal';
 
 interface HomePageProps {
   onNavigate: (page: Page) => void;
@@ -34,7 +33,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [selectedWorker, setSelectedWorker] = useState<any | null>(null);
   const [hasContactAccess, setHasContactAccess] = useState(false);
   const [workerReviews, setWorkerReviews] = useState<any[]>([]);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showWorkerSearch, setShowWorkerSearch] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
@@ -337,6 +335,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 )}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-bold text-gray-900 truncate">{selectedWorker.full_name}</h3>
+                  {selectedWorker.is_featured && <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded"><Zap className="w-3 h-3" />Featured</span>}
                   <p className="text-sm text-gray-500">
                     {(() => { const s = typeof selectedWorker.skills === 'string' ? selectedWorker.skills.split(',')[0]?.trim() : selectedWorker.skills?.[0]; return s || "Worker"; })()}
                   </p>
@@ -358,6 +357,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   <div className="space-y-2 text-sm">
                     {selectedWorker.phone && <p className="flex items-center gap-2 text-gray-700"><Phone className="w-4 h-4 text-green-600" /> {selectedWorker.phone}</p>}
                     {selectedWorker.email && <p className="flex items-center gap-2 text-gray-700"><Mail className="w-4 h-4 text-green-600" /> {selectedWorker.email}</p>}
+                    {selectedWorker.whatsapp_number && <a href={`https://wa.me/${selectedWorker.whatsapp_number.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"><span className="w-4 h-4 flex items-center justify-center">💬</span> Chat on WhatsApp</a>}
                     {selectedWorker.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {selectedWorker.county ? `${selectedWorker.county}${selectedWorker.subcounty ? `, ${selectedWorker.subcounty}` : ''} - ${selectedWorker.location}` : selectedWorker.location}</p>}
                   </div>
                   {selectedWorker.certificates && selectedWorker.certificates.length > 0 && (
@@ -383,17 +383,16 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
                   <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-gray-700 mb-1">Contact & Certifications Locked</p>
-                  <p className="text-xs text-gray-500 mb-3">Pay KES 50 to unlock contact details, certifications, and CV</p>
+                  <p className="text-xs text-gray-500 mb-3">Subscribe to access all jobseeker contacts in your category</p>
                   <button
                     onClick={async () => {
                       const { data: { user: currentUser } } = await supabase.auth.getUser();
-                      if (!currentUser) { setReviewMsg('Please sign in first'); return; }
-                      setUser(currentUser);
-                      setShowPaymentModal(true);
+                      if (!currentUser) { onOpenAuth('login'); return; }
+                      onOpenAuth('login');
                     }}
-                    className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Pay KES 50 to Unlock
+                    Subscribe to View Contacts
                   </button>
                   {reviewMsg === 'Please sign in first' && <p className="text-xs text-red-500 mt-2">{reviewMsg}</p>}
                 </div>
@@ -468,25 +467,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         </div>
       )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedWorker && (
-        <MpesaModal
-          isOpen={true}
-          onClose={() => setShowPaymentModal(false)}
-          amount={50}
-          description={`Unlock contact for ${selectedWorker.full_name}`}
-          accountRef={`WRK-${selectedWorker.id}`}
-          user={user}
-          paymentType="contact_access"
-          relatedProfileId={selectedWorker.id}
-          onPaymentComplete={async () => {
-            const { data } = await supabase.from('profiles').select('*').eq('id', selectedWorker.id).single();
-            if (data) setSelectedWorker(data);
-            setShowPaymentModal(false);
-            setHasContactAccess(true);
-          }}
-        />
-      )}
+      {/* Subscription Prompt instead of payment modal */}
 
       <WorkerSearchModal
         isOpen={showWorkerSearch}
@@ -591,6 +572,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                         </div>
                       )}
                       <h4 className="font-semibold text-gray-900 text-sm mb-0.5 line-clamp-1">{worker.full_name}</h4>
+                      {worker.is_featured && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded mb-1"><Zap className="w-2.5 h-2.5" />Featured</span>}
                       <p className="text-xs text-gray-500 mb-2">{firstSkill || "Worker"}</p>
                       <div className="flex items-center justify-center gap-1">
                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />

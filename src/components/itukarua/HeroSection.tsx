@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight } from 'lucide-react';
-import { IMAGES, JOB_CATEGORIES, LOCATIONS } from '@/data/siteData';
+import { IMAGES, LOCATIONS } from '@/data/siteData';
 import { getCustomCategories, getNewsletterSubscriberCount } from '@/lib/database';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
@@ -24,11 +24,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
   const [showFilters, setShowFilters] = useState(false);
   const [filterCategory, setFilterCategory] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
-  const [extraCats, setExtraCats] = useState<string[]>([]);
+  const [dbCats, setDbCats] = useState<string[]>([]);
   const [subCount, setSubCount] = useState(0);
 
   useEffect(() => {
-    getCustomCategories('job').then(setExtraCats).catch(() => {});
+    getCustomCategories('job').then(setDbCats).catch(() => {});
     getNewsletterSubscriberCount().then(setSubCount).catch(() => {});
   }, []);
 
@@ -92,7 +92,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
               <div className="flex flex-col sm:flex-row gap-2 mb-4">
                 <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Categories</option>
-                  {[...JOB_CATEGORIES.filter(c => c !== 'All Categories'), ...extraCats].map(c => <option key={c} value={c}>{c}</option>)}
+                  {dbCats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Locations</option>

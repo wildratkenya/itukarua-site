@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { ArrowLeft, Send, Loader2, User } from 'lucide-react';
-import { getConversations, getConversationMessages, sendMessage, markConversationRead, type DbConversationWithParticipant, type DbDirectMessage } from '@/lib/database';
+import { ArrowLeft, Send, Loader2, User, Lock } from 'lucide-react';
+import { getConversations, getConversationMessages, sendMessage, markConversationRead, checkSubscriptionActive, type DbConversationWithParticipant, type DbDirectMessage } from '@/lib/database';
 import { supabase, optimizeImageUrl } from '@/lib/supabase';
 
 interface InboxPageProps {
@@ -17,14 +17,19 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState('');
+  const [subscriptionActive, setSubscriptionActive] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const convs = await getConversations(userId);
+      const [convs, subActive] = await Promise.all([
+        getConversations(userId),
+        checkSubscriptionActive(userId),
+      ]);
       setConversations(convs);
+      setSubscriptionActive(subActive);
       setLoading(false);
     };
     load();
@@ -207,24 +212,34 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
 
                 {/* Input */}
                 <div className="border-t border-gray-100 p-3">
-                  <div className="flex gap-2">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={input}
-                      onChange={e => setInput(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Type a message..."
-                      className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm"
-                    />
-                    <button
-                      onClick={handleSend}
-                      disabled={!input.trim() || sending}
-                      className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  {!subscriptionActive ? (
+                    <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <Lock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800">Premium feature</p>
+                        <p className="text-xs text-amber-600">Subscribe to unlock direct messaging with employers.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a message..."
+                        className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm"
+                      />
+                      <button
+                        onClick={handleSend}
+                        disabled={!input.trim() || sending}
+                        className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

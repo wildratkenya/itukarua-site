@@ -1,6 +1,6 @@
 ﻿import React, { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { MousePointerClick, Eye, ChevronDown, BarChart3 } from 'lucide-react';
+import { MousePointerClick, Eye, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AdAnalyticsByAd } from '@/lib/database';
 
 interface Props {
@@ -33,188 +33,146 @@ function aggregate(data: { date: string; clicks: number; impressions: number }[]
     .map(([date, v]) => ({ date, ...v }));
 }
 
+function ChartSection({ data, id }: { data: { date: string; clicks: number; impressions: number }[]; id: string }) {
+  if (data.length === 0) {
+    return <div className="h-[180px] flex items-center justify-center text-gray-400 text-xs">No data yet</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={180}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id={`clicksGrad-${id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id={`impGrad-${id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={v => v?.slice(5) || v} interval="preserveStartEnd" />
+        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+        <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }} labelFormatter={l => `Date: ${l}`} />
+        <Legend />
+        <Area type="monotone" dataKey="impressions" name="Impressions" stroke="#10b981" fill={`url(#impGrad-${id})`} strokeWidth={2} />
+        <Area type="monotone" dataKey="clicks" name="Clicks" stroke="#3b82f6" fill={`url(#clicksGrad-${id})`} strokeWidth={2} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 const AdvertiserAnalyticsChart: React.FC<Props> = ({ analyticsByAd }) => {
-  const [period, setPeriod] = useState<Period>('daily');
-  const [selectedAd, setSelectedAd] = useState<string>('__all__');
-
-  const allData = useMemo(() => {
-    const combined: Record<string, { clicks: number; impressions: number }> = {};
-    for (const ad of analyticsByAd) {
-      for (const p of ad.data) {
-        if (!combined[p.date]) combined[p.date] = { clicks: 0, impressions: 0 };
-        combined[p.date].clicks += p.clicks;
-        combined[p.date].impressions += p.impressions;
-      }
-    }
-    return Object.entries(combined)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, v]) => ({ date, ...v }));
-  }, [analyticsByAd]);
-
-  const chartData = useMemo(() => {
-    if (selectedAd === '__all__') return aggregate(allData, period);
-    const ad = analyticsByAd.find(a => a.adId === selectedAd);
-    return ad ? aggregate(ad.data, period) : [];
-  }, [allData, analyticsByAd, selectedAd, period]);
-
-  const totalClicks = useMemo(() => {
-    if (selectedAd === '__all__') return analyticsByAd.reduce((s, a) => s + a.totalClicks, 0);
-    return analyticsByAd.find(a => a.adId === selectedAd)?.totalClicks || 0;
-  }, [analyticsByAd, selectedAd]);
-
-  const totalImpressions = useMemo(() => {
-    if (selectedAd === '__all__') return analyticsByAd.reduce((s, a) => s + a.totalImpressions, 0);
-    return analyticsByAd.find(a => a.adId === selectedAd)?.totalImpressions || 0;
-  }, [analyticsByAd, selectedAd]);
-
-  const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(1) : '0';
+  const [expandedAd, setExpandedAd] = useState<string | null>(analyticsByAd.length === 1 ? analyticsByAd[0]?.adId : null);
 
   const sortedAds = useMemo(() =>
     [...analyticsByAd].sort((a, b) => b.totalClicks - a.totalClicks),
     [analyticsByAd]
   );
 
+  const totals = useMemo(() => {
+    const clicks = analyticsByAd.reduce((s, a) => s + a.totalClicks, 0);
+    const impressions = analyticsByAd.reduce((s, a) => s + a.totalImpressions, 0);
+    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(1) : '0';
+    return { clicks, impressions, ctr };
+  }, [analyticsByAd]);
+
   return (
-    <div className="bg-white rounded-xl p-5 border border-gray-100">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-        <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      {/* Overall Summary */}
+      <div className="bg-white rounded-xl p-5 border border-gray-100">
+        <div className="flex items-center gap-2 mb-4">
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <MousePointerClick className="w-4 h-4 text-blue-600" />
           </div>
           <h3 className="font-semibold text-gray-900">Advert Performance</h3>
+          <span className="text-xs text-gray-400 ml-1">{analyticsByAd.length} advert{analyticsByAd.length !== 1 ? 's' : ''}</span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Ad filter */}
-          <div className="relative">
-            <select
-              value={selectedAd}
-              onChange={e => setSelectedAd(e.target.value)}
-              className="appearance-none bg-gray-100 text-xs font-medium text-gray-700 rounded-lg px-3 py-1.5 pr-7 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-blue-50 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 text-blue-600 text-xs mb-1">
+              <MousePointerClick className="w-3.5 h-3.5" />
+              <span>Clicks</span>
+            </div>
+            <p className="text-xl font-bold text-blue-900">{totals.clicks.toLocaleString()}</p>
+          </div>
+          <div className="bg-emerald-50 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 text-emerald-600 text-xs mb-1">
+              <Eye className="w-3.5 h-3.5" />
+              <span>Impressions</span>
+            </div>
+            <p className="text-xl font-bold text-emerald-900">{totals.impressions.toLocaleString()}</p>
+          </div>
+          <div className="bg-purple-50 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 text-purple-600 text-xs mb-1">
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>CTR</span>
+            </div>
+            <p className="text-xl font-bold text-purple-900">{totals.ctr}%</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-ad cards */}
+      {sortedAds.map(ad => {
+        const isExpanded = expandedAd === ad.adId;
+        const adCtr = ad.totalImpressions > 0 ? ((ad.totalClicks / ad.totalImpressions) * 100).toFixed(1) : '0';
+        const data = aggregate(ad.data, 'daily');
+
+        return (
+          <div key={ad.adId} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            {/* Ad header — clickable */}
+            <button
+              onClick={() => setExpandedAd(isExpanded ? null : ad.adId)}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
             >
-              <option value="__all__">All Ads ({analyticsByAd.length})</option>
-              {sortedAds.map(ad => (
-                <option key={ad.adId} value={ad.adId}>
-                  {ad.title} ({ad.totalClicks} clicks)
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-          </div>
-          {/* Period toggle */}
-          <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
-            {(['daily', 'weekly', 'monthly'] as Period[]).map(p => (
-              <button key={p} onClick={() => setPeriod(p)} className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${period === p ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+              <div className="flex items-center gap-3 min-w-0">
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {ad.active ? 'Live' : 'Off'}
+                </span>
+                <span className="font-medium text-gray-900 truncate">{ad.title}</span>
+                <span className="text-xs text-gray-400 hidden sm:inline">Created {new Date(ad.created_at).toLocaleDateString()}</span>
+              </div>
+              <div className="flex items-center gap-4 shrink-0">
+                <div className="hidden sm:flex items-center gap-3 text-xs">
+                  <span className="text-blue-600 font-medium">{ad.totalClicks.toLocaleString()} clicks</span>
+                  <span className="text-emerald-600 font-medium">{ad.totalImpressions.toLocaleString()} views</span>
+                  <span className="text-purple-600 font-medium">{adCtr}% CTR</span>
+                </div>
+                {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              </div>
+            </button>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-blue-50 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-blue-600 text-xs mb-1">
-            <MousePointerClick className="w-3.5 h-3.5" />
-            <span>Clicks</span>
+            {/* Expanded detail */}
+            {isExpanded && (
+              <div className="px-4 pb-4 border-t border-gray-100">
+                {/* Mobile stats */}
+                <div className="flex items-center gap-4 sm:hidden py-3 text-xs">
+                  <span className="text-blue-600 font-medium">{ad.totalClicks.toLocaleString()} clicks</span>
+                  <span className="text-emerald-600 font-medium">{ad.totalImpressions.toLocaleString()} views</span>
+                  <span className="text-purple-600 font-medium">{adCtr}% CTR</span>
+                </div>
+                {/* Mini summary */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="bg-blue-50 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-blue-600 mb-0.5">Clicks</p>
+                    <p className="text-sm font-bold text-blue-900">{ad.totalClicks.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-emerald-600 mb-0.5">Impressions</p>
+                    <p className="text-sm font-bold text-emerald-900">{ad.totalImpressions.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-purple-600 mb-0.5">CTR</p>
+                    <p className="text-sm font-bold text-purple-900">{adCtr}%</p>
+                  </div>
+                </div>
+                <ChartSection data={data} id={ad.adId} />
+              </div>
+            )}
           </div>
-          <p className="text-xl font-bold text-blue-900">{totalClicks.toLocaleString()}</p>
-        </div>
-        <div className="bg-emerald-50 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-emerald-600 text-xs mb-1">
-            <Eye className="w-3.5 h-3.5" />
-            <span>Impressions</span>
-          </div>
-          <p className="text-xl font-bold text-emerald-900">{totalImpressions.toLocaleString()}</p>
-        </div>
-        <div className="bg-purple-50 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-purple-600 text-xs mb-1">
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>CTR</span>
-          </div>
-          <p className="text-xl font-bold text-purple-900">{ctr}%</p>
-        </div>
-      </div>
-
-      {/* Chart */}
-      {chartData.length > 0 ? (
-        <ResponsiveContainer width="100%" height={250}>
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="clicksGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="impressionsGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={v => v?.slice(5) || v} interval="preserveStartEnd" />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-            <Tooltip
-              contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }}
-              labelFormatter={l => `Date: ${l}`}
-            />
-            <Legend />
-            <Area type="monotone" dataKey="impressions" name="Impressions" stroke="#10b981" fill="url(#impressionsGrad)" strokeWidth={2} />
-            <Area type="monotone" dataKey="clicks" name="Clicks" stroke="#3b82f6" fill="url(#clicksGrad)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="h-[250px] flex items-center justify-center text-gray-400 text-sm">
-          No analytics data yet. Data will appear as people view and click your adverts.
-        </div>
-      )}
-
-      {/* Per-ad breakdown table */}
-      {analyticsByAd.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Per Ad Breakdown (last 30 days)</h4>
-          <div className="overflow-x-auto -mx-5 px-5">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 font-medium text-gray-500">Ad</th>
-                  <th className="text-center py-2 font-medium text-gray-500">Status</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Clicks</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Impressions</th>
-                  <th className="text-right py-2 font-medium text-gray-500">CTR</th>
-                  <th className="text-right py-2 font-medium text-gray-500 hidden sm:table-cell">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedAds.map(ad => {
-                  const adCtr = ad.totalImpressions > 0 ? ((ad.totalClicks / ad.totalImpressions) * 100).toFixed(1) : '0';
-                  const isHighlighted = selectedAd === ad.adId;
-                  return (
-                    <tr
-                      key={ad.adId}
-                      onClick={() => setSelectedAd(isHighlighted ? '__all__' : ad.adId)}
-                      className={`border-b border-gray-50 cursor-pointer transition-colors ${isHighlighted ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                    >
-                      <td className="py-2.5 pr-3">
-                        <span className="font-medium text-gray-900 truncate max-w-[180px] block">{ad.title}</span>
-                      </td>
-                      <td className="text-center py-2.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {ad.active ? 'Live' : 'Paused'}
-                        </span>
-                      </td>
-                      <td className="text-right py-2.5 font-medium text-blue-700">{ad.totalClicks.toLocaleString()}</td>
-                      <td className="text-right py-2.5 font-medium text-emerald-700">{ad.totalImpressions.toLocaleString()}</td>
-                      <td className="text-right py-2.5 font-medium text-purple-700">{adCtr}%</td>
-                      <td className="text-right py-2.5 text-gray-400 hidden sm:table-cell">{new Date(ad.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 };
