@@ -1659,6 +1659,7 @@ export interface DbAdvertisement {
   last_invoice_at?: string | null;
   clicks?: number;
   displays?: number;
+  slot?: string;
   created_at: string;
 }
 
@@ -1672,12 +1673,26 @@ export async function getMyAds(userId: string): Promise<DbAdvertisement[]> {
   return data || [];
 }
 
-export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean }) {
+export async function getActiveAdsBySlot(slot: string): Promise<DbAdvertisement[]> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .eq('active', true)
+    .eq('slot', slot)
+    .lte('billing_start', now)
+    .gte('billing_end', now)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('[getActiveAdsBySlot]', error); return []; }
+  return data || [];
+}
+
+export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean; slot?: string }) {
   const nowIso = new Date().toISOString();
   const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('advertisements')
-    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd })
+    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd, slot: ad.slot || 'homepage_banner' })
     .select('id')
     .single();
   if (error) throw error;

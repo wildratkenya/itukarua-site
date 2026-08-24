@@ -58,7 +58,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [userRanking, setUserRanking] = useState<{ rank: number; total: number; reviews_count: number; rating: number } | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' });
   const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
   const [advUrlInput, setAdvUrlInput] = useState('');
   const [advSaving, setAdvSaving] = useState(false);
@@ -405,6 +405,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         cta_text: adForm.cta_text,
         whatsapp_number: adForm.whatsapp_number,
         is_affiliate: adForm.is_affiliate,
+        slot: adForm.slot,
       };
       if (adForm.id) {
         await updateMyAd(adForm.id, user.id, payload);
@@ -416,7 +417,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setShowAdForm(false);
       setAdvImageFiles([]);
       setAdvUrlInput('');
-      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false });
+      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' });
       await reloadMyAds();
     } catch (err: any) {
       setAdvError(err.message || 'Failed to save advert. Please try again.');
@@ -1082,7 +1083,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">My Adverts</h3>
-              <button onClick={() => { setAdvError(''); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+              <button onClick={() => { setAdvError(''); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
                 <Plus className="w-4 h-4" /> {showAdForm ? 'Close Form' : 'New Advert'}
               </button>
             </div>
@@ -1091,6 +1092,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               <div className="bg-white rounded-xl p-6 border border-gray-100 space-y-4">
                 <h4 className="font-semibold text-gray-900">{adForm.id ? 'Edit Advert' : 'Create Banner Advert'}</h4>
                 <p className="text-xs text-gray-500">Your advert appears in the banner carousel on the homepage. New adverts start unpublished — click "Publish" when ready.</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ad Placement *</label>
+                  <select value={adForm.slot} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm">
+                    <option value="homepage_banner">Homepage Carousel Banner — KES 200/week</option>
+                    <option value="job_listings_top">Job Listings Top Banner — KES 500/week</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">{adForm.slot === 'job_listings_top' ? 'Full-width banner above all job listings — premium slot, exclusive to one advertiser per week.' : 'Rotating carousel banner at the top of the homepage.'}</p>
+                </div>
                 {advError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{advError}</div>}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
@@ -1209,7 +1218,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         <span className="text-[10px] text-amber-600 font-semibold">Live</span>
                       </div>
                     )}
-                    <button onClick={() => { setAdvError(''); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
+                    <button onClick={() => { setAdvError(''); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'homepage_banner' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
                     <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
                     <button onClick={() => handleDeleteAd(ad)} className="text-xs text-red-600 hover:text-red-700">Delete</button>
                   </div>
