@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Search, SlidersHorizontal, X, Plus, Zap } from 'lucide-react';
 import ServiceCard from './ServiceCard';
 import VerticalAdRail from './VerticalAdRail';
+import JobListingsTopBanner from './JobListingsTopBanner';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { LOCATIONS, IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { useServiceAds } from '@/hooks/useQueries';
@@ -287,6 +288,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
           ))}
         </div>
       </div>
+
+      <JobListingsTopBanner />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-6 items-start">
