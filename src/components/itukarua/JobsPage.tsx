@@ -3,7 +3,6 @@ import { Helmet } from 'react-helmet-async';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import VerticalAdRail from './VerticalAdRail';
-import JobListingsTopBanner from './JobListingsTopBanner';
 import { LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
 import { useJobs } from '@/hooks/useQueries';
 import { getCustomCategories } from '@/lib/database';
@@ -162,8 +161,6 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
           ))}
         </div>
       </div>
-
-      <JobListingsTopBanner />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         <div className="flex gap-6 items-start">
