@@ -40,9 +40,9 @@ CREATE POLICY "Admins can manage custom categories"
   TO authenticated
   USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('admin', 'super_admin')));
 
--- Create read policy for all authenticated users
-CREATE POLICY "Authenticated users can read categories"
+-- Create read policy for all users (including anon for signup)
+CREATE POLICY "All users can read categories"
   ON custom_categories
   FOR SELECT
-  TO authenticated
+  TO anon, authenticated
   USING (true);
