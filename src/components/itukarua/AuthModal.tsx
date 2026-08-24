@@ -215,7 +215,7 @@ data: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-900">
             {tab === 'login' ? 'Welcome Back' : 'Create Account'}
@@ -458,7 +458,7 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
                   ? 'Choose the job categories you\'re interested in. We\'ll show matching jobs on your dashboard.'
                   : 'Choose the job categories you\'re hiring for. We\'ll help you find the right talent.'}
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {dbJobCategories.map(cat => (
                   <button
                     key={cat}

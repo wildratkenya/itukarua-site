@@ -8,18 +8,24 @@ const corsHeaders = {
 }
 
 function pickImage(item: any): string {
-  if (Array.isArray(item.images) && item.images.length > 0) return item.images[0]
-  return item.image_url || item.image || `${SITE_URL}/images/logo.png`
+  let images = item.images
+  if (typeof images === 'string') {
+    try { images = JSON.parse(images) } catch { images = null }
+  }
+  if (Array.isArray(images) && images.length > 0 && images[0]) return images[0]
+  if (item.image_url) return item.image_url
+  if (item.image) return item.image
+  return ''
 }
 
 function buildBannerGrid(banners: any[]): string {
-  const cells = banners.map(b => {
+  const cells = banners.filter(b => pickImage(b)).map(b => {
     const img = pickImage(b)
     const dest = b.destination_url || `${SITE_URL}/services`
     return `
       <td style="padding:6px;width:50%;vertical-align:top">
         <a href="${dest}" style="display:block;text-decoration:none">
-          <img src="${img}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="240" style="width:240px;max-width:100%;height:auto;border-radius:10px;display:block;border:0" />
+          <img src="${escapeHtml(img)}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="240" style="width:240px;max-width:100%;height:auto;border-radius:10px;display:block;border:0" />
         </a>
         ${b.cta_text ? `<p style="text-align:center;margin:6px 0 0"><a href="${dest}" style="color:#059669;font-size:12px;font-weight:600;text-decoration:none">${escapeHtml(b.cta_text)} →</a></p>` : ''}
       </td>`
@@ -206,8 +212,9 @@ Deno.serve(async (req) => {
         .limit(6)
 
       subject = `Itukarua Monthly Digest — ${dateStr}`
-      html = buildNewsletterHtml(jobs || [], ads || [], banners || [], dateStr, subject, 'This month\u2019s updated Banners, Jobs and Businesses around you')
-      textPlain = `Itukarua Monthly Digest - ${dateStr}\n\n${(banners || []).length} banners, ${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
+      const validBanners = (banners || []).filter(b => pickImage(b))
+      html = buildNewsletterHtml(jobs || [], ads || [], validBanners, dateStr, subject, 'This month\u2019s updated Banners, Jobs and Businesses around you')
+      textPlain = `Itukarua Monthly Digest - ${dateStr}\n\n${validBanners.length} banners, ${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
     }
 
     const smtp = await loadSmtpConfig(supabase)
