@@ -216,7 +216,7 @@ const AdminPage: React.FC = () => {
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '7 days' });
   const [advUploading, setAdvUploading] = useState(false);
   const [advUploadKey, setAdvUploadKey] = useState(0);
   const [advUrlInput, setAdvUrlInput] = useState('');
@@ -412,7 +412,7 @@ const AdminPage: React.FC = () => {
     if (!url) return;
     setAdvUrlInput('');
     setAdForm(f => {
-      const images = f.images.length >= 3 ? f.images : [...f.images, url];
+      const images = f.images.length >= 8 ? f.images : [...f.images, url];
       return { ...f, images, image_url: images[0] || f.image_url };
     });
   };
@@ -2619,7 +2619,7 @@ const AdminPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Advertisements ({adverts.length})</CardTitle>
-                <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '' }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
+                <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -2635,8 +2635,8 @@ const AdminPage: React.FC = () => {
                         <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       </div>
                       <div className="col-span-full">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Banner Images <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">(up to 3)</span></label>
-                        <p className="text-[11px] text-amber-600 mb-2">First image is the main banner; all images show in the homepage popup. Each photo is compressed automatically and opens full-size when clicked. Max 20MB each.</p>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Banner Images <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">(up to 8)</span></label>
+                        <p className="text-[11px] text-amber-600 mb-2">First image is the main banner; all images show in the popup. 10-day: 3 images, 20-day: 5, 30-day: 8. Each photo is compressed automatically and opens full-size when clicked.</p>
                         <div key={advUploadKey} className="flex flex-wrap gap-2 mb-2">
                           {adForm.images.length === 0 && (
                             <div className="w-32 h-24 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400"><Plus className="w-5 h-5" /></div>
@@ -2656,13 +2656,23 @@ const AdminPage: React.FC = () => {
                             <input type="file" accept="image/png, image/jpeg, image/webp" multiple hidden disabled={advUploading} onChange={e => { uploadAdImages(e.target.files); e.target.value = ''; }} />
                           </label>
                           <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                          <button onClick={addAdminAdUrl} disabled={adForm.images.length >= 3 || !advUrlInput.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors">Add</button>
+                          <button onClick={addAdminAdUrl} disabled={adForm.images.length >= 8 || !advUrlInput.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors">Add</button>
                         </div>
                       </div>
                       <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <select value={adForm.slot || 'homepage_banner'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="homepage_banner">Homepage Carousel Banner</option>
+                        <option value="job_listings_top">Job Listings Top Banner</option>
+                      </select>
+                      <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="7 days">7 Days (KES 100)</option>
+                        <option value="10 days">10 Days (KES 300)</option>
+                        <option value="20 days">20 Days (KES 500)</option>
+                        <option value="30 days">30 Days (KES 800)</option>
+                      </select>
                       <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
                         <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -2676,7 +2686,7 @@ const AdminPage: React.FC = () => {
                           Featured <span className="text-xs text-gray-400">(shows on homepage carousel and side rail)</span>
                         </label>
                       </div>
-                      <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing runs in 7-day cycles (KES {adForm.featured ? '500' : '100'}/week). Renewal alerts & invoices are sent from the Billing tab.</p>
+                      <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '7 days'} cycle — KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : adForm.billing_cycle === '10 days' ? '300' : adForm.featured ? '500' : '100'}/week. Renewal alerts & invoices are sent from the Billing tab.</p>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={async () => {
@@ -2706,14 +2716,15 @@ const AdminPage: React.FC = () => {
                         };
                         try {
                           const nowIso = new Date().toISOString();
-                          const weekEndIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                          const cycleDays = adForm.billing_cycle === '30 days' ? 30 : adForm.billing_cycle === '20 days' ? 20 : adForm.billing_cycle === '10 days' ? 10 : 7;
+                          const cycleEndIso = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
                           if (adForm.id) {
                             const { id, image_url, images: _oldImages, ...updateData } = adForm;
-                            const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null };
+                            const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: updateData.slot || 'homepage_banner' };
                             if (!adForm.is_affiliate) {
-                              patch.billing_cycle = '7 days';
+                              patch.billing_cycle = adForm.billing_cycle || '7 days';
                               if (!patch.billing_start) patch.billing_start = nowIso;
-                              if (!patch.billing_end) patch.billing_end = weekEndIso;
+                              if (!patch.billing_end) patch.billing_end = cycleEndIso;
                             }
                             const { error } = await proxyTable('advertisements').update(patch, 'id', adForm.id);
                             if (error) throw error;
@@ -2724,11 +2735,11 @@ const AdminPage: React.FC = () => {
                               finishSaved();
                               return;
                             }
-                            const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null };
+                            const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: insertData.slot || 'homepage_banner' };
                             if (!insertData.is_affiliate) {
-                              insert.billing_cycle = '7 days';
+                              insert.billing_cycle = insertData.billing_cycle || '7 days';
                               insert.billing_start = nowIso;
-                              insert.billing_end = weekEndIso;
+                              insert.billing_end = cycleEndIso;
                             }
                             const { error } = await proxyTable('advertisements').insert(insert);
                             if (error) throw error;
@@ -2807,7 +2818,7 @@ const AdminPage: React.FC = () => {
                               </button>
                             </td>
                             <td className="py-2 px-3 text-right">
-                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '' }); setAdvUrlInput(''); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
+                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
                               <button onClick={async () => {
                                 if (!window.confirm(`Delete "${ad.title}"?`)) return;
                                 try {

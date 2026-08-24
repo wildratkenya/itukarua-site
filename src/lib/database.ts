@@ -1784,7 +1784,7 @@ export async function getBillingItems(): Promise<BillingItem[]> {
       owner_id: ad.owner_id || null,
       owner_email: ownerEmail,
       billing_cycle: ad.billing_cycle || '7 days',
-      amount: ad.featured ? 500 : 100,
+      amount: ad.billing_cycle === '30 days' ? 800 : ad.billing_cycle === '20 days' ? 500 : ad.billing_cycle === '10 days' ? 300 : ad.featured ? 500 : 100,
       billing_start: ad.billing_start || null,
       billing_end: ad.billing_end || null,
       last_invoice_at: ad.last_invoice_at || null,

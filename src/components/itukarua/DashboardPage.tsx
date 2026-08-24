@@ -1167,10 +1167,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 200</strong> (7-day banner ad). Exclusive of ad design — user to provide.</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.slot === 'job_listings_top' ? '500' : '200'}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — 7 days). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES 100
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.slot === 'job_listings_top' ? 500 : 200, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — 7 days`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES {adForm.slot === 'job_listings_top' ? '500' : '200'}
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Pay Later
