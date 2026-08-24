@@ -358,10 +358,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     if (!url) return;
     setAdvUrlInput('');
     setAdForm(prev => {
-      const images = prev.images.length >= 3 ? prev.images : [...prev.images, url];
+      const images = prev.images.length >= 8 ? prev.images : [...prev.images, url];
       return { ...prev, images, image_url: images[0] || prev.image_url };
     });
-    setAdvImageFiles(prev => (prev.length >= 3 ? prev : [...prev, null]));
+    setAdvImageFiles(prev => (prev.length >= 8 ? prev : [...prev, null]));
   };
 
   const removeAdvImage = (idx: number) => {
@@ -1106,8 +1106,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                   <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="e.g. Kamau Hardware Mega Sale" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Banner Images * <span className="text-gray-400 font-normal">(up to 3)</span></label>
-                  <p className="text-xs text-gray-500 mb-2">The first image is the main banner. All images appear in the homepage popup. Each is compressed automatically on save.</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
+                  <p className="text-xs text-gray-500 mb-2">The first image is the main banner. All images appear in the popup. 10-day plan: 3 images, 20-day: 5, 30-day: 8. Each is compressed automatically on save.</p>
                   <div className="flex flex-wrap gap-3">
                     {adForm.images.length === 0 && (
                       <div className="w-24 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400"><Plus className="w-5 h-5" /></div>
@@ -1121,12 +1121,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     ))}
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <label className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${adForm.images.length >= 3 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
+                    <label className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${adForm.images.length >= 8 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
                       <Upload className="w-4 h-4 inline mr-1" /> Upload
-                      <input type="file" accept="image/*" multiple className="hidden" disabled={adForm.images.length >= 3} onChange={e => { addAdvFiles(e.target.files); e.target.value = ''; }} />
+                      <input type="file" accept="image/*" multiple className="hidden" disabled={adForm.images.length >= 8} onChange={e => { addAdvFiles(e.target.files); e.target.value = ''; }} />
                     </label>
                     <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                    <button onClick={addAdvUrl} disabled={adForm.images.length >= 3 || !advUrlInput.trim()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">Add</button>
+                    <button onClick={addAdvUrl} disabled={adForm.images.length >= 8 || !advUrlInput.trim()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">Add</button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

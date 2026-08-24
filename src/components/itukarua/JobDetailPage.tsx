@@ -7,7 +7,6 @@ import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
-import JobListingsTopBanner from './JobListingsTopBanner';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -281,8 +280,6 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           </div>
         </div>
       </div>
-
-      <JobListingsTopBanner />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
