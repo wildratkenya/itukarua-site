@@ -60,7 +60,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const notifRef = useRef<HTMLDivElement>(null);
   const [showAdForm, setShowAdForm] = useState(false);
   const [showAdSpecs, setShowAdSpecs] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
   const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
   const [advUrlInput, setAdvUrlInput] = useState('');
   const [advSaving, setAdvSaving] = useState(false);
@@ -1123,12 +1123,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     ))}
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <label className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${adForm.images.length >= 8 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
+                    <label className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
                       <Upload className="w-4 h-4 inline mr-1" /> Upload
-                      <input type="file" accept="image/*" multiple className="hidden" disabled={adForm.images.length >= 8} onChange={e => { addAdvFiles(e.target.files); e.target.value = ''; }} />
+                      <input type="file" accept="image/*" multiple className="hidden" disabled={adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8)} onChange={e => { addAdvFiles(e.target.files); e.target.value = ''; }} />
                     </label>
                     <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                    <button onClick={addAdvUrl} disabled={adForm.images.length >= 8 || !advUrlInput.trim()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">Add</button>
+                    <button onClick={addAdvUrl} disabled={adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8) || !advUrlInput.trim()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">Add</button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1169,10 +1169,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.slot === 'job_listings_top' ? '500' : '200'}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — 7 days). Exclusive of ad design — user to provide.</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — {adForm.plan.replace('-', ' ')}). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.slot === 'job_listings_top' ? 500 : 200, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — 7 days`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES {adForm.slot === 'job_listings_top' ? '500' : '200'}
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES {adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Pay Later
