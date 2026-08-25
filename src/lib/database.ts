@@ -428,6 +428,7 @@ export async function getServiceAds(filters?: {
   category?: string;
   location?: string;
   county?: string;
+  subcounty?: string;
   search?: string;
   ownerId?: string;
   activeOnly?: boolean;
@@ -443,6 +444,9 @@ export async function getServiceAds(filters?: {
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);
+  }
+  if (filters?.subcounty) {
+    query = query.eq('subcounty', filters.subcounty);
   }
   if (filters?.ownerId) {
     query = query.eq('owner_id', filters.ownerId);
