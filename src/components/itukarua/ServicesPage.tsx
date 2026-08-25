@@ -239,19 +239,24 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Sub County</label>
-                <select value={subcounty} onChange={e => setSubcounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="">All Sub Counties</option>
-                  {getSubcounties(county).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">County</label>
                 <select value={county} onChange={e => setCounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Counties</option>
                   {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              {county && getSubcounties(county).length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Sub County</label>
+                <select value={subcounty} onChange={e => setSubcounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Sub Counties</option>
+                  {getSubcounties(county).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
+                <input type="text" value={locationFilter} onChange={e => setLocationFilter(e.target.value)} placeholder="e.g. Near church, Town center..." className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none w-52" />
               {hasActiveFilters && (
                 <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-5">
                   <X className="w-4 h-4" /> Clear All
