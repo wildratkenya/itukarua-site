@@ -5,7 +5,8 @@ import ServiceCard from './ServiceCard';
 import VerticalAdRail from './VerticalAdRail';
 import JobListingsTopBanner from './JobListingsTopBanner';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { LOCATIONS, IMAGES, KENYA_COUNTIES } from '@/data/siteData';
+import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
+import { getSubcounties } from '@/data/kenyaLocations';
 import { useServiceAds } from '@/hooks/useQueries';
 import { createServiceRating, checkServiceRating, getCustomCategories } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
@@ -19,7 +20,7 @@ interface ServicesPageProps {
 const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All Services');
-  const [location, setLocation] = useState('All Locations');
+  const [subcounty, setSubcounty] = useState('');
   const [county, setCounty] = useState('');
   const [showFilters, setShowFilters] = useState(true);
   const [selectedService, setSelectedService] = useState<any | null>(null);
@@ -43,10 +44,10 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
   const filters = useMemo(() => ({
     category: category !== 'All Services' ? category : undefined,
-    location: location !== 'All Locations' ? location : undefined,
+    subcounty: subcounty || undefined,
     county: county || undefined,
     search: search.trim() || undefined,
-  }), [category, location, county, search]);
+  }), [category, subcounty, county, search]);
 
   const { data: servicesData = [], isLoading, error, refetch } = useServiceAds(filters);
 
@@ -89,8 +90,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
     }
   }).filter(Boolean);
 
-  const clearFilters = () => { setSearch(''); setCategory('All Services'); setLocation('All Locations'); setCounty(''); };
-  const hasActiveFilters = search || category !== 'All Services' || location !== 'All Locations' || !!county;
+  const clearFilters = () => { setSearch(''); setCategory('All Services'); setSubcounty(''); setCounty(''); };
+  const hasActiveFilters = search || category !== 'All Services' || !!subcounty || !!county;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -237,9 +238,10 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
-                <select value={location} onChange={e => setLocation(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                <label className="block text-xs font-medium text-gray-500 mb-1">Sub County</label>
+                <select value={subcounty} onChange={e => setSubcounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Sub Counties</option>
+                  {getSubcounties(county).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
@@ -267,7 +269,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">Boost your business to the top!</p>
-              <p className="text-xs text-gray-500">KES 500 — Appear first in search + homepage for 7 days</p>
+              <p className="text-xs text-gray-500">KES 500 ï¿½ Appear first in search + homepage for 7 days</p>
             </div>
           </div>
           <button onClick={() => onNavigate('dashboard')} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-bold rounded-lg transition-all shadow-sm whitespace-nowrap flex items-center gap-1.5">

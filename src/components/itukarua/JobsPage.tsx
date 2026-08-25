@@ -4,7 +4,8 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import VerticalAdRail from './VerticalAdRail';
 import JobListingsTopBanner from './JobListingsTopBanner';
-import { LOCATIONS, KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES } from '@/data/siteData';
+import { getSubcounties } from '@/data/kenyaLocations';
 import { useJobs } from '@/hooks/useQueries';
 import { getCustomCategories } from '@/lib/database';
 import type { Page } from './Header';
@@ -18,7 +19,7 @@ interface JobsPageProps {
 const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearch = '' }) => {
   const [search, setSearch] = useState(initialSearch);
   const [category, setCategory] = useState('All Categories');
-  const [location, setLocation] = useState('All Locations');
+  const [subcounty, setSubcounty] = useState('');
   const [county, setCounty] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'budget-high' | 'budget-low' | 'urgent'>('newest');
 
@@ -29,11 +30,11 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
   const filters = useMemo(() => ({
     category: category !== 'All Categories' ? category : undefined,
-    location: location !== 'All Locations' ? location : undefined,
+    subcounty: subcounty || undefined,
     county: county || undefined,
     search: search.trim() || undefined,
     activeOnly: true,
-  }), [category, location, county, search]);
+  }), [category, subcounty, county, search]);
 
   const { data: jobsData = [], isLoading } = useJobs(filters);
 
@@ -71,12 +72,12 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const clearFilters = () => {
     setSearch('');
     setCategory('All Categories');
-    setLocation('All Locations');
+    setSubcounty('');
     setCounty('');
     setSortBy('newest');
   };
 
-  const hasActiveFilters = search || category !== 'All Categories' || location !== 'All Locations';
+  const hasActiveFilters = search || category !== 'All Categories' || !!subcounty;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -126,9 +127,10 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
-                <select value={location} onChange={e => setLocation(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                <label className="block text-xs font-medium text-gray-500 mb-1">Sub County</label>
+                <select value={subcounty} onChange={e => setSubcounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Sub Counties</option>
+                  {getSubcounties(county).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
