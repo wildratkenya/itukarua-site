@@ -8,6 +8,7 @@ import { KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { useJobs } from '@/hooks/useQueries';
 import { getCustomCategories } from '@/lib/database';
+import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 
 interface JobsPageProps {
@@ -24,6 +25,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const [locationFilter, setLocationFilter] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'budget-high' | 'budget-low' | 'urgent'>('newest');
 
+  const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(true);
   const [dbCats, setDbCats] = useState<string[]>([]);
 
@@ -39,6 +41,13 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     }
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const cats = (data?.user?.user_metadata?.selected_categories as string[]) || [];
+      setPreferredCategories(cats);
+    });
+  }, []);
+
   const filters = useMemo(() => ({
     category: category !== 'All Categories' ? category : undefined,
     subcounty: subcounty || undefined,
@@ -52,14 +61,29 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   // Client-side sort
   const jobs = useMemo(() => {
     let sorted = [...jobsData];
-    switch (sortBy) {
-      case 'newest': sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
-      case 'budget-high': sorted.sort((a, b) => b.budget_max - a.budget_max); break;
-      case 'budget-low': sorted.sort((a, b) => a.budget_min - b.budget_min); break;
-      case 'urgent': sorted.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)); break;
+    if (preferredCategories.length > 0) {
+      sorted.sort((a, b) => {
+        const aMatch = preferredCategories.includes(a.category) ? 0 : 1;
+        const bMatch = preferredCategories.includes(b.category) ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+        switch (sortBy) {
+          case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          case 'budget-high': return b.budget_max - a.budget_max;
+          case 'budget-low': return a.budget_min - b.budget_min;
+          case 'urgent': return (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0);
+        }
+        return 0;
+      });
+    } else {
+      switch (sortBy) {
+        case 'newest': sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+        case 'budget-high': sorted.sort((a, b) => b.budget_max - a.budget_max); break;
+        case 'budget-low': sorted.sort((a, b) => a.budget_min - b.budget_min); break;
+        case 'urgent': sorted.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)); break;
+      }
     }
     return sorted;
-  }, [jobsData, sortBy]);
+  }, [jobsData, sortBy, preferredCategories]);
 
   const mapJob = (j: DbJob) => ({
     id: j.id,
