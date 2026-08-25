@@ -8,6 +8,7 @@ import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import MpesaModal from './MpesaModal';
+import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
 import ProfileViewsChart from './ProfileViewsChart';
 import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
@@ -58,6 +59,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [userRanking, setUserRanking] = useState<{ rank: number; total: number; reviews_count: number; rating: number } | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const [showAdForm, setShowAdForm] = useState(false);
+  const [showAdSpecs, setShowAdSpecs] = useState(false);
   const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' });
   const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
   const [advUrlInput, setAdvUrlInput] = useState('');
@@ -1407,7 +1409,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                             <Camera className="w-6 h-6 text-gray-400" />
                           </div>
                         )}
-                        <input type="file" accept="image/*" onChange={e => { if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]); }} className="flex-1 text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                        <input type="file" accept="image/png, image/jpeg" onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const err = await validateAdImage(f, 'profile');
+                            if (err) { setAdvError(err); return; }
+                            setProfilePhotoFile(f);
+                          }} className="flex-1 text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                          <button type="button" onClick={() => setShowAdSpecs(true)} className="text-xs text-blue-500 hover:underline whitespace-nowrap">Photo specs</button>
                       </div>
                     </div>
                     <div>
