@@ -4,6 +4,7 @@ import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp,
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
+import { getSubcounties } from '@/data/kenyaLocations';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -60,7 +61,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const notifRef = useRef<HTMLDivElement>(null);
   const [showAdForm, setShowAdForm] = useState(false);
   const [showAdSpecs, setShowAdSpecs] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day', target_scope: 'national', target_county: '', target_subcounty: '' });
   const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
   const [advUrlInput, setAdvUrlInput] = useState('');
   const [advSaving, setAdvSaving] = useState(false);
@@ -419,7 +420,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setShowAdForm(false);
       setAdvImageFiles([]);
       setAdvUrlInput('');
-      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' });
+      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day', target_scope: 'national', target_county: '', target_subcounty: '' });
       await reloadMyAds();
     } catch (err: any) {
       setAdvError(err.message || 'Failed to save advert. Please try again.');
@@ -805,6 +806,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               {isAdvertiser && adAnalyticsByAd.length > 0 && (
                 <AdvertiserAnalyticsChart
                   analyticsByAd={adAnalyticsByAd}
+                        ads={myAds}
                 />
               )}
               {!isAdmin && !isJobseeker && !isAdvertiser && jobViewHistory.length > 0 && (
@@ -1108,7 +1110,33 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                   <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="e.g. Kamau Hardware Mega Sale" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['national', 'county', 'subcounty'].map(s => (
+                      <button key={s} type="button" onClick={() => setAdForm({ ...adForm, target_scope: s, target_county: s === 'national' ? '' : adForm.target_county, target_subcounty: '' })}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${adForm.target_scope === s ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                        {s === 'national' ? 'All of Kenya' : s === 'county' ? 'This County' : 'This Sub-County'}
+                      </button>
+                    ))}
+                  </div>
+                  {adForm.target_scope !== 'national' && (
+                    <select value={adForm.target_county} onChange={e => setAdForm({ ...adForm, target_county: e.target.value, target_subcounty: '' })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2">
+                      <option value="">Select county</option>
+                      {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                  {adForm.target_scope === 'subcounty' && adForm.target_county && (
+                    <select value={adForm.target_subcounty} onChange={e => setAdForm({ ...adForm, target_subcounty: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2">
+                      <option value="">Select sub-county</option>
+                      {getSubcounties(adForm.target_county).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+                  <p className="text-xs text-gray-400">
+                    {adForm.target_scope === 'national' ? 'Your ad shows across all 47 counties — KES 500/week.' :
+                     adForm.target_scope === 'county' ? 'Your ad shows in ${adForm.target_county || "the selected county"} only — KES 300/week.' :
+                     'Your ad shows in ${adForm.target_subcounty || "the selected sub-county"} only — KES 150/week. Best for hyperlocal reach.'}
+                  </p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 mt-3">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
                   <p className="text-xs text-gray-500 mb-2">The first image is the main banner. All images appear in the popup. 10-day plan: 3 images, 20-day: 5, 30-day: 8. Each is compressed automatically on save.</p>
                   <div className="flex flex-wrap gap-3">
                     {adForm.images.length === 0 && (
@@ -1169,10 +1197,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — {adForm.plan.replace('-', ' ')}). Exclusive of ad design — user to provide.</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — {adForm.target_scope === 'national' ? 'All of Kenya' : adForm.target_scope === 'county' ? adForm.target_county : adForm.target_subcounty}). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES {adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Pay Later

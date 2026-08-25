@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ExternalLink, X } from 'lucide-react';
-import { getActiveAdsBySlot, incrementAdClick, incrementAdDisplay } from '@/lib/database';
+import { incrementAdClick, incrementAdDisplay } from '@/lib/database';
+import { getAdsForDelivery, logImpression } from '@/lib/adDelivery';
 import { proxyImageUrl } from '@/lib/supabase';
 
 const JobListingsTopBanner: React.FC = () => {
@@ -20,14 +21,15 @@ const JobListingsTopBanner: React.FC = () => {
   }, [modalAd]);
 
   useEffect(() => {
-    getActiveAdsBySlot('job_listings_top').then(setAds).catch(() => {});
+    getAdsForDelivery('job_listings_top', undefined, undefined, 10).then(setAds).catch(() => {});
   }, []);
 
   useEffect(() => {
     ads.forEach((ad: any) => {
       if (!displayedAds.current.has(ad.id)) {
         displayedAds.current.add(ad.id);
-        incrementAdDisplay(ad.id);
+        logImpression(ad.id);
+        incrementAdDisplay(ad.id).catch(() => {});
       }
     });
   }, [ads]);

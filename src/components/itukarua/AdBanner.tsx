@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ExternalLink, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getActiveAds, incrementAdClick, incrementAdDisplay, getAdCarouselSettings, type AdCarouselSettings } from '@/lib/database';
+import { incrementAdClick, getAdCarouselSettings, type AdCarouselSettings } from '@/lib/database';
+import { getAdsForDelivery, logImpression } from '@/lib/adDelivery';
 import { proxyImageUrl } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -89,7 +90,8 @@ const AdBanner: React.FC = () => {
     pageAds.forEach((ad: any) => {
       if (!displayedAds.current.has(ad.id)) {
         displayedAds.current.add(ad.id);
-        incrementAdDisplay(ad.id);
+        logImpression(ad.id);
+        incrementAdDisplay(ad.id).catch(() => {});
       }
     });
   }, [currentPage, pages]);
