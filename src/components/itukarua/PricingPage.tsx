@@ -20,7 +20,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
       />
 
       {/* Hero Header */}
-      <div className="relative py-16 lg:py-24 overflow-hidden">
+      <div className="relative py-10 lg:py-16 overflow-hidden">
         <img src="/images/pricing.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-br from-green-900/80 via-emerald-800/70 to-teal-900/80"></div>
         <div className="absolute top-10 left-10 w-32 h-32 bg-green-400/20 rounded-full blur-3xl animate-pulse"></div>
@@ -191,7 +191,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
         </div>
 
         {/* ═══ EMPLOYER SECTION ═══ */}
-        <div className="mb-24">
+        <div className="mb-12">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-xs font-bold px-4 py-1.5 rounded-full mb-4 uppercase tracking-wider">
               <Briefcase className="w-3.5 h-3.5" /> For Employers
@@ -286,7 +286,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
           </div>
 
           {/* Value comparison nudge */}
-          <div className="max-w-3xl mx-auto mt-8 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-6 border border-indigo-100 text-center">
+          <div className="max-w-3xl mx-auto mt-2 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-6 border border-indigo-100 text-center">
             <p className="text-sm text-indigo-800 font-medium">
               Posting more than 2 jobs this week? <span className="font-bold">Employer Access at KES 200/week</span> already pays for itself.
             </p>
