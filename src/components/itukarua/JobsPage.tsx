@@ -21,12 +21,23 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const [category, setCategory] = useState('All Categories');
   const [subcounty, setSubcounty] = useState('');
   const [county, setCounty] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'budget-high' | 'budget-low' | 'urgent'>('newest');
 
   const [showFilters, setShowFilters] = useState(true);
   const [dbCats, setDbCats] = useState<string[]>([]);
 
-  useEffect(() => { getCustomCategories('job').then(setDbCats); }, []);
+  useEffect(() => {
+    getCustomCategories('job').then(setDbCats);
+    if (initialSearch) {
+      const params = new URLSearchParams(initialSearch);
+      if (params.get('q')) setSearch(params.get('q')!);
+      if (params.get('category')) setCategory(params.get('category')!);
+      if (params.get('county')) setCounty(params.get('county')!);
+      if (params.get('subcounty')) setSubcounty(params.get('subcounty')!);
+      if (params.get('location')) setLocationFilter(params.get('location')!);
+    }
+  }, []);
 
   const filters = useMemo(() => ({
     category: category !== 'All Categories' ? category : undefined,
