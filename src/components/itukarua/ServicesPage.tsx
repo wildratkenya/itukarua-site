@@ -21,6 +21,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All Services');
   const [subcounty, setSubcounty] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [county, setCounty] = useState('');
   const [showFilters, setShowFilters] = useState(true);
   const [selectedService, setSelectedService] = useState<any | null>(null);
@@ -90,8 +91,8 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
     }
   }).filter(Boolean);
 
-  const clearFilters = () => { setSearch(''); setCategory('All Services'); setSubcounty(''); setCounty(''); };
-  const hasActiveFilters = search || category !== 'All Services' || !!subcounty || !!county;
+  const clearFilters = () => { setSearch(''); setCategory('All Services'); setSubcounty(''); setCounty(''); setLocationFilter(''); };
+  const hasActiveFilters = search || category !== 'All Services' || !!subcounty || !!county || !!locationFilter;
 
   return (
     <div className="min-h-screen bg-gray-50">
