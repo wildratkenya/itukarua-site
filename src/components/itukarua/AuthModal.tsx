@@ -32,6 +32,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [dbJobCategories, setDbJobCategories] = useState<string[]>([]);
   const [certFiles, setCertFiles] = useState<FileList | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [photoError, setPhotoError] = useState('');
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);

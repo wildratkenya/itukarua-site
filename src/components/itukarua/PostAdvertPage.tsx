@@ -6,6 +6,7 @@ import { compressImage } from '@/lib/imageUtils';
 import { createServiceAd, createPayment, getCustomCategories } from '@/lib/database';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
+import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
 
 interface PostAdvertPageProps {
   onNavigate: (page: Page) => void;
@@ -25,6 +26,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [showAdSpecs, setShowAdSpecs] = useState(false);
   const [dbCats, setDbCats] = useState<string[]>([]);
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
@@ -43,16 +45,14 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     return Object.keys(errs).length === 0;
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const remaining = MAX_IMAGES - imageFiles.length;
     const toAdd = files.slice(0, remaining);
     
     for (const file of toAdd) {
-      if (file.size > 5 * 1024 * 1024) {
-        setServerError(`${file.name} exceeds 5MB limit`);
-        return;
-      }
+      const err = await validateAdImage(file, 'homepage_banner');
+      if (err) { setServerError(err); e.target.value = ''; return; }
     }
 
     setImageFiles(prev => [...prev, ...toAdd]);
@@ -222,7 +222,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each</p>
+              <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each. <button type="button" onClick={() => setShowAdSpecs(true)} className="text-blue-500 hover:underline">View ad specs</button></p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">Select Advertising Plan *</label>
@@ -244,6 +244,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               </button>
             </div>
           </form>
+      <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="homepage_banner" />
         </div>
       </div>
     </div>
