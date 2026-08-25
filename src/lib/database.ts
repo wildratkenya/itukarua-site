@@ -1664,6 +1664,9 @@ export interface DbAdvertisement {
   clicks?: number;
   displays?: number;
   slot?: string;
+  target_county?: string | null;
+  target_subcounty?: string | null;
+  expected_impressions?: number;
   created_at: string;
 }
 
@@ -1691,19 +1694,19 @@ export async function getActiveAdsBySlot(slot: string): Promise<DbAdvertisement[
   return data || [];
 }
 
-export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean; slot?: string }) {
+export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean; slot?: string; target_county?: string | null; target_subcounty?: string | null; expected_impressions?: number }) {
   const nowIso = new Date().toISOString();
   const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('advertisements')
-    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd, slot: ad.slot || 'homepage_banner' })
+    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd, slot: ad.slot || 'homepage_banner', target_county: ad.target_county || null, target_subcounty: ad.target_subcounty || null, expected_impressions: ad.expected_impressions || null })
     .select('id')
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function updateMyAd(id: string, userId: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string | null; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; active: boolean }>) {
+export async function updateMyAd(id: string, userId: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string | null; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; active: boolean; target_county: string | null; target_subcounty: string | null; expected_impressions: number }>) {
   const { error } = await supabase
     .from('advertisements')
     .update({ ...updates, destination_url: updates.destination_url ?? null })

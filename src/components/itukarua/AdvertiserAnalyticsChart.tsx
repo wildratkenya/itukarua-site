@@ -5,6 +5,7 @@ import type { AdAnalyticsByAd } from '@/lib/database';
 
 interface Props {
   analyticsByAd: AdAnalyticsByAd[];
+  ads?: Array<{ id: string; billing_start?: string; billing_end?: string; displays?: number; expected_impressions?: number; target_county?: string; target_subcounty?: string; created_at: string }>;
 }
 
 type Period = 'daily' | 'weekly' | 'monthly';
@@ -62,7 +63,22 @@ function ChartSection({ data, id }: { data: { date: string; clicks: number; impr
   );
 }
 
-const AdvertiserAnalyticsChart: React.FC<Props> = ({ analyticsByAd }) => {
+function calcPace(ad: { billing_start?: string; billing_end?: string; displays?: number; expected_impressions?: number; created_at: string }) {
+  const now = Date.now();
+  const start = new Date(ad.billing_start || ad.created_at).getTime();
+  const end = new Date(ad.billing_end || start + 7 * 86400000).getTime();
+  const totalMs = Math.max(end - start, 1);
+  const elapsedMs = Math.max(now - start, 0);
+  const fraction = Math.min(elapsedMs / totalMs, 1);
+  const expected = ad.expected_impressions || 1000;
+  const expectedSoFar = Math.round(fraction * expected);
+  const delivered = ad.displays || 0;
+  const ratio = expectedSoFar > 0 ? delivered / expectedSoFar : 1;
+  const daysLeft = Math.max((end - now) / 86400000, 0);
+  return { ratio, delivered, expected: expectedSoFar, daysLeft, totalDays: totalMs / 86400000 };
+}
+
+const AdvertiserAnalyticsChart: React.FC<Props> = ({ analyticsByAd, ads = [] }) => {
   const [expandedAd, setExpandedAd] = useState<string | null>(analyticsByAd.length === 1 ? analyticsByAd[0]?.adId : null);
 
   const sortedAds = useMemo(() =>
@@ -166,6 +182,35 @@ const AdvertiserAnalyticsChart: React.FC<Props> = ({ analyticsByAd }) => {
                     <p className="text-[10px] text-purple-600 mb-0.5">CTR</p>
                     <p className="text-sm font-bold text-purple-900">{adCtr}%</p>
                   </div>
+                </div>
+                {/* Pacing + targeting info */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {(() => {
+                    const adData = ads.find(a => a.id === ad.adId);
+                    if (!adData) return null;
+                    const pace = calcPace(adData);
+                    const paceColor = pace.ratio < 0.8 ? 'text-amber-600' : pace.ratio > 1.2 ? 'text-red-600' : 'text-green-600';
+                    const paceBg = pace.ratio < 0.8 ? 'bg-amber-50' : pace.ratio > 1.2 ? 'bg-red-50' : 'bg-green-50';
+                    return (
+                      <>
+                        <div className={`${paceBg} rounded-lg p-2 text-center`}>
+                          <p className="text-[10px] text-gray-500 mb-0.5">Pace</p>
+                          <p className={`text-sm font-bold ${paceColor}`}>{Math.round(pace.ratio * 100)}%</p>
+                          <p className="text-[9px] text-gray-400">{pace.delivered}/{pace.expected} expected</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-[10px] text-gray-500 mb-0.5">Days Left</p>
+                          <p className="text-sm font-bold text-gray-900">{Math.round(pace.daysLeft)}</p>
+                          <p className="text-[9px] text-gray-400">of {Math.round(pace.totalDays)} total</p>
+                        </div>
+                        {(adData.target_county || adData.target_subcounty) && (
+                          <div className="col-span-2 bg-blue-50 rounded-lg p-2 text-center">
+                            <p className="text-[10px] text-blue-600">Targeting: {adData.target_subcounty ? `${adData.target_subcounty} sub-county` : `${adData.target_county} county`}</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <ChartSection data={data} id={ad.adId} />
               </div>
