@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
+import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
 import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobAccess, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
@@ -251,19 +251,34 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Helmet>
-        <title>{job?.title ? `${job.title} - Itukarua` : 'Job Details - Itukarua'}</title>
-        <meta name="description" content={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'} />
-        <link rel="canonical" href={job?.id ? `https://www.itukarua.co.ke/jobs/${job.id}` : 'https://www.itukarua.co.ke/jobs'} />
-        <meta property="og:title" content={job?.title ? `${job.title} - Itukarua` : 'Job Details - Itukarua'} />
-        <meta property="og:description" content={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'} />
-        <meta property="og:image" content={job?.images?.[0] || 'https://www.itukarua.co.ke/og.jpg'} />
-        <meta property="og:site_name" content="Itukarua" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={job?.title ? `${job.title} - Itukarua` : 'Job Details - Itukarua'} />
-        <meta name="twitter:description" content={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'} />
-        <meta name="twitter:image" content={job?.images?.[0] || 'https://www.itukarua.co.ke/og.jpg'} />
-      </Helmet>
+      <SEO
+        title={job?.title ? `${job.title} at ${job.company}` : 'Job Details'}
+        description={job?.description ? job.description.substring(0, 160) : 'View job details on Itukarua'}
+        canonical={job?.id ? `/jobs/${job.id}` : '/jobs'}
+        ogImage={job?.images?.[0]}
+        ogType="jobPosting"
+        jsonLd={job ? [
+          generateJobPostingSchema({
+            id: job.id,
+            title: job.title,
+            description: job.description || '',
+            datePosted: job.created_at,
+            hiringOrganization: job.company,
+            jobLocation: job.location,
+            county: job.county,
+            subcounty: job.subcounty,
+            employmentType: job.type,
+            category: job.category,
+          }),
+          generateBreadcrumbSchema({
+            items: [
+              { name: 'Home', url: '/' },
+              { name: 'Jobs', url: '/jobs' },
+              { name: job.title, url: `/jobs/${job.id}` },
+            ],
+          }),
+        ] : []}
+      />
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <button onClick={onBack} className="flex items-center gap-2 text-green-200 hover:text-white mb-4 transition-colors">
@@ -716,5 +731,4 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 };
 
 export default JobDetailPage;
-
 

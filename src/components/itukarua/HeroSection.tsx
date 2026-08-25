@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight } from 'lucide-react';
-import { IMAGES, LOCATIONS } from '@/data/siteData';
+import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
+import { getSubcounties } from '@/data/kenyaLocations';
 import { getCustomCategories, getNewsletterSubscriberCount } from '@/lib/database';
 import type { PlatformStats } from '@/lib/database';
 import type { Page } from './Header';
@@ -23,14 +24,25 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterLocation, setFilterLocation] = useState('');
+  const [filterCounty, setFilterCounty] = useState('');
+  const [filterSubcounty, setFilterSubcounty] = useState('');
   const [dbCats, setDbCats] = useState<string[]>([]);
+  const [subCats, setSubCats] = useState<string[]>([]);
   const [subCount, setSubCount] = useState(0);
 
   useEffect(() => {
     getCustomCategories('job').then(setDbCats).catch(() => {});
     getNewsletterSubscriberCount().then(setSubCount).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (filterCounty) {
+      getSubcounties(filterCounty).then(setSubCats).catch(() => setSubCats([]));
+      setFilterSubcounty('');
+    } else {
+      setSubCats([]);
+    }
+  }, [filterCounty]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +55,8 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
     const params = new URLSearchParams();
     if (searchQuery.trim()) params.set('q', searchQuery.trim());
     if (filterCategory) params.set('category', filterCategory);
-    if (filterLocation) params.set('location', filterLocation);
+    if (filterCounty) params.set('county', filterCounty);
+    if (filterSubcounty) params.set('subcounty', filterSubcounty);
     onSearch(params.toString());
   };
 
@@ -94,10 +107,16 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
                   <option value="">All Categories</option>
                   {dbCats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="">All Locations</option>
-                  {LOCATIONS.filter(l => l !== 'All Locations').map(l => <option key={l} value={l}>{l}</option>)}
+                <select value={filterCounty} onChange={e => setFilterCounty(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">All Counties</option>
+                  {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {filterCounty && subCats.length > 0 && (
+                  <select value={filterSubcounty} onChange={e => setFilterSubcounty(e.target.value)} className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="">All Sub-Counties</option>
+                    {subCats.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
                 <button onClick={handleFilteredSearch} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Apply</button>
               </div>
             )}

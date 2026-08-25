@@ -1,5 +1,5 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
+import SEO from '@/lib/seo';
 import { MapPin, Users, Briefcase, Shield, Target, Heart, TrendingUp, Award } from 'lucide-react';
 import { IMAGES } from '@/data/siteData';
 
@@ -9,18 +9,11 @@ const STATS = { activeJobs: 156, registeredWorkers: 432, completedJobs: 1847, co
 const AboutPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
-      <Helmet>
-        <title>About Us - Itukarua</title>
-        <meta name="description" content="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers in Itukarua County, Kenya." />
-        <link rel="canonical" href="https://www.itukarua.co.ke/about" />
-        <meta property="og:title" content="About Us - Itukarua" />
-        <meta property="og:description" content="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers in Itukarua County, Kenya." />
-        <meta property="og:site_name" content="Itukarua" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="About Us - Itukarua" />
-        <meta name="twitter:description" content="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers in Itukarua County, Kenya." />
-        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
-      </Helmet>
+      <SEO
+        title="About Us - Kenya's Local Jobs & Classifieds Platform"
+        description="Learn about Itukarua - the local marketplace connecting job seekers, businesses, and service providers across all 47 counties in Kenya."
+        canonical="/about"
+      />
       {/* Hero */}
       <div className="relative">
         <img src={IMAGES.community[1]} alt="ITUKARUA community members collaborating" fetchpriority="high" className="w-full h-64 lg:h-80 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />

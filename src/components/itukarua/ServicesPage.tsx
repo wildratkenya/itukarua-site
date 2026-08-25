@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
-import { Helmet } from 'react-helmet-async';
+import React, { useState, useEffect, useMemo } from 'react';
+import SEO from '@/lib/seo';
 import { Search, SlidersHorizontal, X, Plus, Zap } from 'lucide-react';
 import ServiceCard from './ServiceCard';
 import VerticalAdRail from './VerticalAdRail';
@@ -94,18 +94,11 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Helmet>
-        <title>Services & Business Directory - Itukarua</title>
-        <meta name="description" content="Discover local businesses and service providers in Itukarua County. Find mechanics, plumbers, electricians and more." />
-        <link rel="canonical" href="https://www.itukarua.co.ke/services" />
-        <meta property="og:title" content="Services & Business Directory - Itukarua" />
-        <meta property="og:description" content="Discover local businesses and service providers in Itukarua County. Find mechanics, plumbers, electricians and more." />
-        <meta property="og:site_name" content="Itukarua" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Services & Business Directory - Itukarua" />
-        <meta name="twitter:description" content="Discover local businesses and service providers in Itukarua County. Find mechanics, plumbers, electricians and more." />
-        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
-      </Helmet>
+      <SEO
+        title="Find Local Services in Kenya - Plumbers, Electricians, Mechanics & More"
+        description="Find trusted service providers across Kenya. Browse plumbers, electricians, mechanics, tutors, and more in all 47 counties."
+        canonical="/services"
+      />
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -159,7 +152,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                           }}
                           className={`w-6 h-6 transition-colors ${star <= userRating ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'}`}
                         >
-                          ★
+                          ?
                         </button>
                       ))}
                       {ratingMsg && <span className="text-xs text-green-600 ml-2">{ratingMsg}</span>}
@@ -168,7 +161,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                 </div>
                 <div className="w-48 flex-shrink-0 bg-gray-50 rounded-xl p-3.5 space-y-2.5 border border-gray-100">
                   <div className="flex items-start gap-2">
-                    <span className="text-green-600 mt-0.5">📍</span>
+                    <span className="text-green-600 mt-0.5">??</span>
                     <div>
                       <p className="text-xs text-gray-500 font-medium">Location</p>
                       <p className="text-sm text-gray-900 font-medium">{selectedService.location}</p>
@@ -176,7 +169,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                   </div>
                   {selectedService.contact_person && (
                     <div className="flex items-start gap-2">
-                      <span className="text-green-600 mt-0.5">👤</span>
+                      <span className="text-green-600 mt-0.5">??</span>
                       <div>
                         <p className="text-xs text-gray-500 font-medium">Contact Person</p>
                         <p className="text-sm text-gray-900 font-medium">{selectedService.contact_person}</p>
@@ -184,14 +177,14 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                     </div>
                   )}
                   <div className="flex items-start gap-2">
-                    <span className="text-green-600 mt-0.5">📞</span>
+                    <span className="text-green-600 mt-0.5">??</span>
                     <div>
                       <p className="text-xs text-gray-500 font-medium">Phone</p>
                       <p className="text-sm text-gray-900 font-medium">{selectedService.contact}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="text-amber-500 mt-0.5">⭐</span>
+                    <span className="text-amber-500 mt-0.5">?</span>
                     <div>
                       <p className="text-xs text-gray-500 font-medium">Rating</p>
                       <p className="text-sm text-gray-900 font-medium">{Number(selectedService.rating) || 0}/5 ({selectedService.reviews} reviews)</p>
@@ -274,7 +267,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">Boost your business to the top!</p>
-              <p className="text-xs text-gray-500">KES 500 — Appear first in search + homepage for 7 days</p>
+              <p className="text-xs text-gray-500">KES 500 � Appear first in search + homepage for 7 days</p>
             </div>
           </div>
           <button onClick={() => onNavigate('dashboard')} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-bold rounded-lg transition-all shadow-sm whitespace-nowrap flex items-center gap-1.5">

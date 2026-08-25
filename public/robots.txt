@@ -1,16 +1,46 @@
+# Itukarua - Kenya's Local Jobs & Classifieds Platform
+# https://www.itukarua.co.ke
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /inbox
+Disallow: /api/
+Disallow: /auth/
+Disallow: /*?page=
+Disallow: /*?search=
+Disallow: /*?category=
+Disallow: /*?county=
+
 User-agent: Googlebot
 Allow: /
+Allow: /jobs
+Allow: /jobs/*
+Allow: /services
+Allow: /services/*
+Allow: /pricing
+Allow: /about
+Allow: /contact
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /inbox
+Disallow: /api/
 
 User-agent: Bingbot
 Allow: /
+Allow: /jobs
+Allow: /jobs/*
+Allow: /services
+Allow: /services/*
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /inbox
 
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
-Allow: /
-
-User-agent: *
 Allow: /
 
 Sitemap: https://www.itukarua.co.ke/sitemap.xml
