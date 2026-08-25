@@ -60,13 +60,12 @@ RETURNS numeric LANGUAGE sql STABLE AS $$
   END;
 $$;
 
--- 5. Impressions by county RPC
+-- 5. Impressions by county RPC (uses ad_impressions which has county column)
 CREATE OR REPLACE FUNCTION get_impressions_by_county(p_ad_id uuid, p_days integer DEFAULT 30)
-RETURNS TABLE(county text, impressions bigint, clicks bigint) LANGUAGE sql STABLE AS $$
+RETURNS TABLE(county text, impressions bigint) LANGUAGE sql STABLE AS $
   SELECT COALESCE(ai.county, 'Unknown') AS county,
-    COUNT(*) FILTER (WHERE ai.event_type = 'impression') AS impressions,
-    COUNT(*) FILTER (WHERE ai.event_type = 'click') AS clicks
-  FROM advert_analytics ai
-  WHERE ai.ad_id = p_ad_id AND ai.created_at >= now() - (p_days || ' days')::interval
+    COUNT(*) AS impressions
+  FROM ad_impressions ai
+  WHERE ai.ad_id = p_ad_id AND ai.served_at >= now() - (p_days || ' days')::interval
   GROUP BY COALESCE(ai.county, 'Unknown') ORDER BY impressions DESC;
-$$;
+$;

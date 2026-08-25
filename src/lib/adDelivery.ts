@@ -244,7 +244,7 @@ export async function getAdPacingData(adId: string): Promise<DeliveryPace> {
   return calculatePace(ad);
 }
 
-export async function getImpressionsByCounty(adId: string, days: number = 30): Promise<Array<{ county: string; impressions: number; clicks: number }>> {
+export async function getImpressionsByCounty(adId: string, days: number = 30): Promise<Array<{ county: string; impressions: number }>> {
   const { data, error } = await supabase.rpc('get_impressions_by_county', { p_ad_id: adId, p_days: days });
   if (error) { console.error('[AdDelivery] county impressions failed:', error); return []; }
   return data || [];
