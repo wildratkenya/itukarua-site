@@ -26,6 +26,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
   const [filterCategory, setFilterCategory] = useState('');
   const [filterCounty, setFilterCounty] = useState('');
   const [filterSubcounty, setFilterSubcounty] = useState('');
+  const [filterLocation, setFilterLocation] = useState('');
   const [dbCats, setDbCats] = useState<string[]>([]);
   const [subCats, setSubCats] = useState<string[]>([]);
   const [subCount, setSubCount] = useState(0);
@@ -57,6 +58,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
     if (filterCategory) params.set('category', filterCategory);
     if (filterCounty) params.set('county', filterCounty);
     if (filterSubcounty) params.set('subcounty', filterSubcounty);
+    if (filterLocation.trim()) params.set('location', filterLocation.trim());
     onSearch(params.toString());
   };
 
@@ -117,6 +119,13 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
                     {subCats.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 )}
+                <input
+                  type="text"
+                  value={filterLocation}
+                  onChange={e => setFilterLocation(e.target.value)}
+                  placeholder="Location/landmark..."
+                  className="px-3 py-2 rounded-lg bg-white/90 text-gray-900 text-sm border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none w-44"
+                />
                 <button onClick={handleFilteredSearch} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Apply</button>
               </div>
             )}

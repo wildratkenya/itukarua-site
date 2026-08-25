@@ -260,8 +260,8 @@ export async function getJobs(filters?: {
   if (filters?.category && filters.category !== 'All Categories') {
     query = query.eq('category', filters.category);
   }
-  if (filters?.location && filters.location !== 'All Locations') {
-    query = query.eq('location', filters.location);
+  if (filters?.location) {
+    query = query.ilike('location', '%' + filters.location + '%');
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);
@@ -438,8 +438,8 @@ export async function getServiceAds(filters?: {
   if (filters?.category && filters.category !== 'All Services') {
     query = query.eq('category', filters.category);
   }
-  if (filters?.location && filters.location !== 'All Locations') {
-    query = query.eq('location', filters.location);
+  if (filters?.location) {
+    query = query.ilike('location', '%' + filters.location + '%');
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);
