@@ -87,8 +87,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
         jsonLd={generateItemListSchema({
           name: 'Jobs in Kenya',
           url: '/jobs',
-          numberOfItems: filteredJobs.length,
-          items: filteredJobs.slice(0, 20).map((j, i) => ({
+          numberOfItems: jobs.length,
+          items: jobs.slice(0, 20).map((j, i) => ({
             name: j.title,
             url: `/jobs/${j.id}`,
             position: i + 1,
