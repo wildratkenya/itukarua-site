@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import SEO from '@/lib/seo';
 import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, Crown, Briefcase, ArrowRight } from 'lucide-react';
 import { PRICING_PLANS } from '@/data/siteData';
 
@@ -13,18 +13,11 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Helmet>
-        <title>Pricing - Itukarua</title>
-        <meta name="description" content="Choose the plan that works for you. All payments are processed securely through M-Pesa." />
-        <link rel="canonical" href="https://www.itukarua.co.ke/pricing" />
-        <meta property="og:title" content="Pricing - Itukarua" />
-        <meta property="og:description" content="Choose the plan that works for you. All payments are processed securely through M-Pesa." />
-        <meta property="og:site_name" content="Itukarua" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Pricing - Itukarua" />
-        <meta name="twitter:description" content="Choose the plan that works for you. All payments are processed securely through M-Pesa." />
-        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
-      </Helmet>
+      <SEO
+        title="Pricing Plans - Jobs, Services & Adverts"
+        description="Choose the plan that works for you. Jobseeker subscriptions from KES 100/month, employer plans from KES 500/month, advert packages from KES 300. All payments via M-Pesa."
+        canonical="/pricing"
+      />
 
       {/* Hero Header */}
       <div className="relative py-16 lg:py-24 overflow-hidden">

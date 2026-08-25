@@ -1,33 +1,122 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <!-- ═══ Static Pages ═══ -->
   <url>
     <loc>https://www.itukarua.co.ke/</loc>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.itukarua.co.ke/?page=jobs</loc>
+    <loc>https://www.itukarua.co.ke/jobs</loc>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.itukarua.co.ke/?page=services</loc>
+    <loc>https://www.itukarua.co.ke/services</loc>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.itukarua.co.ke/?page=about</loc>
+    <loc>https://www.itukarua.co.ke/pricing</loc>
+    <lastmod>2026-08-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.itukarua.co.ke/about</loc>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://www.itukarua.co.ke/?page=contact</loc>
+    <loc>https://www.itukarua.co.ke/contact</loc>
+    <lastmod>2026-08-24</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
-  <url>
-    <loc>https://www.itukarua.co.ke/?page=pricing</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
+
+  <!-- ═══ Jobs by County ═══ -->
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kiambu</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/mombasa</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kisumu</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nakuru</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nyeri</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/meru</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/embu</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/machakos</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kajiado</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kisii</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kericho</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/uasin-gishu</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/bungoma</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kakamega</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/busia</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/siaya</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/homa-bay</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/migori</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/narok</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nyamira</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kilifi</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kwale</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/taita-taveta</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kitui</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/makueni</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/murang-a</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nyandarua</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kirinyaga</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/bomet</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/samburu</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/trans-nzoia</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nandi</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/baringo</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/laikipia</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/elgeyo-marakwet</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/west-pokot</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/turkana</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/marsabit</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/isio-lo</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/mandera</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/wajir</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/garissa</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/lamu</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/tana-river</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/vihiga</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/tharaka-nithi</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- ═══ Jobs by County + Category (top categories) ═══ -->
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/construction</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/plumbing</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/electrical</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/domestic-work</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/farming</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/transport</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/carpentry</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/painting</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/masonry</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nairobi/welding</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kiambu/construction</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kiambu/plumbing</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kiambu/electrical</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kiambu/farming</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kiambu/domestic-work</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/mombasa/construction</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/mombasa/plumbing</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/kisumu/construction</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nakuru/construction</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/jobs/nyeri/construction</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- ═══ Services by County ═══ -->
+  <url><loc>https://www.itukarua.co.ke/services/nairobi</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/services/kiambu</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/services/mombasa</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/services/kisumu</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/services/nakuru</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.itukarua.co.ke/services/nyeri</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
 </urlset>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
+import SEO, { generateItemListSchema } from '@/lib/seo';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import VerticalAdRail from './VerticalAdRail';
@@ -80,18 +80,21 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Helmet>
-        <title>Browse Jobs - Itukarua</title>
-        <meta name="description" content="Browse available jobs and work opportunities in Itukarua County, Kenya. Find local employment across all wards." />
-        <link rel="canonical" href="https://www.itukarua.co.ke/jobs" />
-        <meta property="og:title" content="Browse Jobs - Itukarua" />
-        <meta property="og:description" content="Browse available jobs and work opportunities in Itukarua County, Kenya. Find local employment across all wards." />
-        <meta property="og:site_name" content="Itukarua" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Browse Jobs - Itukarua" />
-        <meta name="twitter:description" content="Browse available jobs and work opportunities in Itukarua County, Kenya. Find local employment across all wards." />
-        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
-      </Helmet>
+      <SEO
+        title="Browse Jobs in Kenya - Find Local Employment"
+        description="Browse thousands of jobs across Kenya. Find employment in Nairobi, Kiambu, Mombasa, Kisumu, Nakuru, and all 47 counties. Updated daily."
+        canonical="/jobs"
+        jsonLd={generateItemListSchema({
+          name: 'Jobs in Kenya',
+          url: '/jobs',
+          numberOfItems: filteredJobs.length,
+          items: filteredJobs.slice(0, 20).map((j, i) => ({
+            name: j.title,
+            url: `/jobs/${j.id}`,
+            position: i + 1,
+          })),
+        })}
+      />
       <div className="relative py-10 lg:py-14 overflow-hidden">
         <img src="/images/plumber.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-black/40"></div>

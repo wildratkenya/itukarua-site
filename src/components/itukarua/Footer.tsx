@@ -3,6 +3,7 @@ import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
 import { subscribeNewsletter } from '@/lib/database';
+import { KENYA_COUNTIES } from '@/data/siteData';
 interface FooterProps {
   onNavigate: (page: Page) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
@@ -85,7 +86,7 @@ const Footer: React.FC<FooterProps> = ({
 
       {/* Main Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -147,6 +148,17 @@ const Footer: React.FC<FooterProps> = ({
               <li><button onClick={() => setShowTerms(true)} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Terms of Service</button></li>
               <li><button onClick={() => setShowPrivacy(true)} className="text-sm text-gray-400 hover:text-green-400 transition-colors">Privacy Policy</button></li>
             </ul>
+          </div>
+
+          {/* Counties We Serve */}
+          <div className="lg:col-span-1">
+            <h4 className="text-white font-semibold mb-4">Counties We Serve</h4>
+            <div className="columns-2 gap-x-4 gap-y-1">
+              {KENYA_COUNTIES.map(county => (
+                <p key={county} className="text-xs text-gray-500 hover:text-green-400 transition-colors cursor-pointer">{county}</p>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-600 mt-2">All 47 counties across Kenya</p>
           </div>
 
           {/* Contact */}
