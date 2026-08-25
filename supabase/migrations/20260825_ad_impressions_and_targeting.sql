@@ -33,39 +33,22 @@ ALTER TABLE public.advertisements ADD COLUMN IF NOT EXISTS expected_impressions 
 CREATE INDEX IF NOT EXISTS idx_advertisements_target ON public.advertisements(target_county, target_subcounty, slot, active);
 
 -- 3. Frequency cap RPC
+DROP FUNCTION IF EXISTS count_visitor_impressions(uuid, text, integer);
 CREATE OR REPLACE FUNCTION count_visitor_impressions(p_ad_id uuid, p_visitor_id text, p_days integer DEFAULT 7)
-RETURNS integer LANGUAGE sql STABLE AS $$
-  SELECT COUNT(*)::integer FROM public.ad_impressions
-  WHERE ad_id = p_ad_id AND visitor_id = p_visitor_id
-    AND served_at >= now() - (p_days || ' days')::interval;
-$$;
+RETURNS integer
+LANGUAGE sql STABLE
+AS 'SELECT COUNT(*)::integer FROM public.ad_impressions WHERE ad_id = p_ad_id AND visitor_id = p_visitor_id AND served_at >= now() - (p_days || '' days'')::interval;';
 
 -- 4. Delivery pace RPC
+DROP FUNCTION IF EXISTS get_delivery_pace(uuid);
 CREATE OR REPLACE FUNCTION get_delivery_pace(p_ad_id uuid)
-RETURNS numeric LANGUAGE sql STABLE AS $$
-  WITH ad_info AS (
-    SELECT billing_start, billing_end, COALESCE(expected_impressions, 1000) AS expected_total
-    FROM advertisements WHERE id = p_ad_id
-  ),
-  elapsed AS (
-    SELECT GREATEST(EXTRACT(EPOCH FROM (now() - billing_start)) / GREATEST(EXTRACT(EPOCH FROM (billing_end - billing_start)), 1), 0.01) AS fraction_elapsed,
-           expected_total FROM ad_info
-  ),
-  actual AS (
-    SELECT COUNT(*)::numeric AS cnt FROM ad_impressions
-    WHERE ad_id = p_ad_id AND served_at >= (SELECT billing_start FROM ad_info)
-  )
-  SELECT CASE WHEN (SELECT fraction_elapsed FROM elapsed) <= 0 THEN 1.0
-    ELSE (SELECT cnt FROM actual) / ((SELECT fraction_elapsed FROM elapsed) * (SELECT expected_total FROM elapsed))
-  END;
-$$;
+RETURNS numeric
+LANGUAGE sql STABLE
+AS 'WITH ad_info AS (SELECT billing_start, billing_end, COALESCE(expected_impressions, 1000) AS expected_total FROM advertisements WHERE id = p_ad_id), elapsed AS (SELECT GREATEST(EXTRACT(EPOCH FROM (now() - billing_start)) / GREATEST(EXTRACT(EPOCH FROM (billing_end - billing_start)), 1), 0.01) AS fraction_elapsed, expected_total FROM ad_info), actual AS (SELECT COUNT(*)::numeric AS cnt FROM ad_impressions WHERE ad_id = p_ad_id AND served_at >= (SELECT billing_start FROM ad_info)) SELECT CASE WHEN (SELECT fraction_elapsed FROM elapsed) <= 0 THEN 1.0 ELSE (SELECT cnt FROM actual) / ((SELECT fraction_elapsed FROM elapsed) * (SELECT expected_total FROM elapsed)) END;';
 
 -- 5. Impressions by county RPC (uses ad_impressions which has county column)
+DROP FUNCTION IF EXISTS get_impressions_by_county(uuid, integer);
 CREATE OR REPLACE FUNCTION get_impressions_by_county(p_ad_id uuid, p_days integer DEFAULT 30)
-RETURNS TABLE(county text, impressions bigint) LANGUAGE sql STABLE AS $
-  SELECT COALESCE(ai.county, 'Unknown') AS county,
-    COUNT(*) AS impressions
-  FROM ad_impressions ai
-  WHERE ai.ad_id = p_ad_id AND ai.served_at >= now() - (p_days || ' days')::interval
-  GROUP BY COALESCE(ai.county, 'Unknown') ORDER BY impressions DESC;
-$;
+RETURNS TABLE(county text, impressions bigint)
+LANGUAGE sql STABLE
+AS 'SELECT COALESCE(ai.county, ''Unknown'') AS county, COUNT(*) AS impressions FROM ad_impressions ai WHERE ai.ad_id = p_ad_id AND ai.served_at >= now() - (p_days || '' days'')::interval GROUP BY COALESCE(ai.county, ''Unknown'') ORDER BY impressions DESC;';
