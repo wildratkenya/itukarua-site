@@ -202,7 +202,7 @@ export const PRICING_PLANS = {
   ],
   homepageAdvert: {
     name: 'Homepage Advert',
-    price: 200,
+    price: 500,
     period: 'per week',
     features: [
       'Prime banner placement at the very top of the homepage',
@@ -213,7 +213,7 @@ export const PRICING_PLANS = {
       'Optional button linking to your website or listing',
       'Advert displays in the rotating carousel with other ads',
       'Clicks & views tracked in your analytics',
-      'Live for 7 full days (KES 200 per week)',
+      'Live for 7 full days (KES 500 per week)',
       'Disclaimer: Exclusive of ad design — user to provide',
     ],
   },

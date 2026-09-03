@@ -488,6 +488,12 @@ export async function getServiceAds(filters?: {
   return results.filter(ad => !ad.boost_until || ad.boost_until >= now || !ad.featured);
 }
 
+export async function getServiceAdById(id: string): Promise<DbServiceAd | null> {
+  const { data, error } = await supabase.from('service_ads').select('*').eq('id', id).single();
+  if (error) { console.error('[getServiceAdById]', error); return null; }
+  return data as DbServiceAd;
+}
+
 export async function createServiceAd(ad: {
   business_name: string;
   description: string;
@@ -1791,7 +1797,7 @@ export async function getBillingItems(): Promise<BillingItem[]> {
       owner_id: ad.owner_id || null,
       owner_email: ownerEmail,
       billing_cycle: ad.billing_cycle || '7 days',
-      amount: ad.billing_cycle === '30 days' ? 800 : ad.billing_cycle === '20 days' ? 500 : ad.billing_cycle === '10 days' ? 300 : ad.featured ? 500 : 100,
+      amount: ad.target_subcounty ? 150 : ad.target_county ? 300 : 500,
       billing_start: ad.billing_start || null,
       billing_end: ad.billing_end || null,
       last_invoice_at: ad.last_invoice_at || null,
