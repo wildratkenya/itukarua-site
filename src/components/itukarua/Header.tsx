@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X, User, LogOut, ChevronDown, Send } from 'lucide-react';
 
-export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox';
+export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox';
 
 interface HeaderProps {
   currentPage: Page;

@@ -1099,7 +1099,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ad Placement *</label>
                   <select value={adForm.slot} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm">
-                    <option value="homepage_banner">Homepage Carousel Banner — KES 200/week</option>
+                    <option value="homepage_banner">Homepage Carousel Banner — KES 500/week</option>
                     <option value="job_listings_top">Job Listings Top Banner — KES 500/week</option>
                   </select>
                   <p className="text-xs text-gray-400 mt-1">{adForm.slot === 'job_listings_top' ? 'Full-width banner above all job listings — premium slot, exclusive to one advertiser per week.' : 'Rotating carousel banner at the top of the homepage.'}</p>
@@ -1132,9 +1132,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     </select>
                   )}
                   <p className="text-xs text-gray-400">
-                    {adForm.target_scope === 'national' ? 'Your ad shows across all 47 counties — KES 500/week.' :
-                     adForm.target_scope === 'county' ? 'Your ad shows in ${adForm.target_county || "the selected county"} only — KES 300/week.' :
-                     'Your ad shows in ${adForm.target_subcounty || "the selected sub-county"} only — KES 150/week. Best for hyperlocal reach.'}
+                    {adForm.target_scope === 'national' ? `Your ad reaches users across all 47 counties — KES 500/week.` :
+                     adForm.target_scope === 'county' ? `Targeting ${adForm.target_county || 'your county'} — reaches users in this county for KES 300/week.` :
+                     `Hyperlocal targeting: ${adForm.target_subcounty || 'your sub-county'} only — KES 150/week.`}
                   </p>
                   <label className="block text-sm font-medium text-gray-700 mb-1 mt-3">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
                   <p className="text-xs text-gray-500 mb-2">The first image is the main banner. All images appear in the popup. 10-day plan: 3 images, 20-day: 5, 30-day: 8. Each is compressed automatically on save.</p>
@@ -1197,10 +1197,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — {adForm.target_scope === 'national' ? 'All of Kenya' : adForm.target_scope === 'county' ? adForm.target_county : adForm.target_subcounty}). Exclusive of ad design — user to provide.</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : 500}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — {adForm.target_scope === 'national' ? 'All of Kenya' : adForm.target_scope === 'county' ? adForm.target_county : adForm.target_subcounty}). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : adForm.plan === '30-day' ? 800 : adForm.plan === '20-day' ? 500 : 300}
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : 500, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : 500}
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Pay Later
@@ -1232,7 +1232,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div className="flex flex-col items-end gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
                   <div className="flex gap-2 items-center">
-                    {!ad.active && <button onClick={() => onOpenMpesa(100, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
+                    {!ad.active && <button onClick={() => onOpenMpesa(ad.target_subcounty ? 150 : ad.target_county ? 300 : 500, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
                     {ad.active && !isBoosted && (
                       <button onClick={() => onOpenMpesa(500, 'Boost — 7 days homepage carousel', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
                         <Zap className="w-3 h-3" /> Boost

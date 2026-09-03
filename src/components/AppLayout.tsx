@@ -7,6 +7,7 @@ import Footer from './itukarua/Footer';
 import HomePage from './itukarua/HomePage';
 import JobsPage from './itukarua/JobsPage';
 import JobDetailPage from './itukarua/JobDetailPage';
+import ServiceDetailPage from './itukarua/ServiceDetailPage';
 import ServicesPage from './itukarua/ServicesPage';
 import PricingPage from './itukarua/PricingPage';
 import AboutPage from './itukarua/AboutPage';
@@ -46,6 +47,7 @@ const AppLayout: React.FC = () => {
     onComplete?: () => void;
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -244,6 +246,11 @@ const AppLayout: React.FC = () => {
     setCurrentPage('job-detail');
   }, []);
 
+  const handleViewService = useCallback((serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    setCurrentPage('service-detail');
+  }, []);
+
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     setCurrentPage('jobs');
@@ -273,7 +280,7 @@ const AppLayout: React.FC = () => {
     try {
       switch (currentPage) {
         case 'home':
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
           return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
         case 'job-detail':

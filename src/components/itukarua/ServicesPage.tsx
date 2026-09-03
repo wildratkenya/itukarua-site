@@ -15,20 +15,17 @@ import ImageViewerModal from './ImageViewerModal';
 
 interface ServicesPageProps {
   onNavigate: (page: Page) => void;
+  onViewService: (serviceId: string) => void;
 }
 
-const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
+const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService }) => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All Services');
   const [subcounty, setSubcounty] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [county, setCounty] = useState('');
   const [showFilters, setShowFilters] = useState(true);
-  const [selectedService, setSelectedService] = useState<any | null>(null);
-  const [viewingImage, setViewingImage] = useState<string[] | null>(null);
-  const [userRating, setUserRating] = useState<number>(0);
   const [user, setUser] = useState<any>(null);
-  const [ratingMsg, setRatingMsg] = useState('');
   const [dbCats, setDbCats] = useState<string[]>([]);
 
   useEffect(() => {
@@ -37,11 +34,6 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
 
-  useEffect(() => {
-    if (selectedService && user) {
-      checkServiceRating(selectedService.id, user.id).then(r => setUserRating(r || 0));
-    }
-  }, [selectedService, user]);
 
   const filters = useMemo(() => ({
     category: category !== 'All Services' ? category : undefined,
@@ -101,110 +93,6 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
         description="Find trusted service providers across Kenya. Browse plumbers, electricians, mechanics, tutors, and more in all 47 counties."
         canonical="/services"
       />
-      {selectedService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedService(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            {/* Main Image */}
-            <div className="relative m-3 rounded-2xl overflow-hidden cursor-pointer" onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images || [selectedService.image]); }}>
-              <img src={optimizeImageUrl(selectedService.image || IMAGES.services[0], 600, 300)} alt={selectedService.business_name} className="w-full h-64 object-cover" loading="lazy" onError={handleImageError} />
-              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
-                <span className="text-white opacity-0 hover:opacity-100 font-medium">Click to enlarge</span>
-              </div>
-            </div>
-            
-            {/* Thumbnail Scroller */}
-            {selectedService.images && selectedService.images.length > 1 && (
-              <div className="flex gap-2 px-3 pb-3 overflow-x-auto">
-                {selectedService.images.map((img: string, i: number) => (
-                  <button
-                    key={i}
-                    onClick={(e) => { e.stopPropagation(); setViewingImage(selectedService.images); }}
-                    className="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-transparent hover:border-green-500 transition-colors"
-                  >
-                    <img src={optimizeImageUrl(img, 128, 128)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
-                  </button>
-                ))}
-              </div>
-            )}
-            
-            <div className="p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{selectedService.category}</span>
-                    {selectedService.featured && <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Featured</span>}
-                  </div>
-                  <h2 className="text-lg font-bold text-gray-900">{selectedService.business_name}</h2>
-                  <p className="text-sm text-gray-600 leading-relaxed">{selectedService.description}</p>
-                  <div className="pt-2 border-t border-gray-100">
-                    <p className="text-xs font-medium text-gray-500 mb-1.5">Rate this service</p>
-                    <div className="flex items-center gap-0.5">
-                      {[1,2,3,4,5].map(star => (
-                        <button
-                          key={star}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!user) { setRatingMsg('Please sign in to rate'); return; }
-                            setUserRating(star);
-                            try {
-                              await createServiceRating(selectedService.id, user.id, star);
-                              setRatingMsg('Thank you for rating!');
-                              setTimeout(() => setRatingMsg(''), 2500);
-                            } catch { setRatingMsg('Failed to save rating'); }
-                          }}
-                          className={`w-6 h-6 transition-colors ${star <= userRating ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'}`}
-                        >
-                          ?
-                        </button>
-                      ))}
-                      {ratingMsg && <span className="text-xs text-green-600 ml-2">{ratingMsg}</span>}
-                    </div>
-                  </div>
-                </div>
-                <div className="w-48 flex-shrink-0 bg-gray-50 rounded-xl p-3.5 space-y-2.5 border border-gray-100">
-                  <div className="flex items-start gap-2">
-                    <span className="text-green-600 mt-0.5">??</span>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium">Location</p>
-                      <p className="text-sm text-gray-900 font-medium">{selectedService.location}</p>
-                    </div>
-                  </div>
-                  {selectedService.contact_person && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-green-600 mt-0.5">??</span>
-                      <div>
-                        <p className="text-xs text-gray-500 font-medium">Contact Person</p>
-                        <p className="text-sm text-gray-900 font-medium">{selectedService.contact_person}</p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-start gap-2">
-                    <span className="text-green-600 mt-0.5">??</span>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium">Phone</p>
-                      <p className="text-sm text-gray-900 font-medium">{selectedService.contact}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-amber-500 mt-0.5">?</span>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium">Rating</p>
-                      <p className="text-sm text-gray-900 font-medium">{Number(selectedService.rating) || 0}/5 ({selectedService.reviews} reviews)</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setSelectedService(null)} className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">Close</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {viewingImage && (
-        <ImageViewerModal
-          images={viewingImage}
-          onClose={() => setViewingImage(null)}
-        />
-      )}
 
       <div className="relative py-10 lg:py-14 overflow-hidden">
         <img src="/images/services.png" alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
@@ -313,7 +201,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
             ) : services.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {services.map(service => (
-                  <ServiceCard key={service.id} service={service} onClick={() => setSelectedService(service)} compact />
+                  <ServiceCard key={service.id} service={service} onClick={() => onViewService(service.id)} compact />
                 ))}
               </div>
             ) : (
