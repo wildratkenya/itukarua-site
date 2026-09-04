@@ -148,7 +148,10 @@ export function selectAdsForDelivery(
     // Score = geo priority * urgency * pace correction
     const score = (geo + 1) * urgencyBoost * paceBoost;
 
-    return { ad, score, geoPriority: geo };
+    // Featured / boost priority: paid premium ads win the homepge carousel
+    const featuredBoostScore = (ad.featured && (!ad.boost_until || new Date(ad.boost_until).getTime() > now)) ? 3.0 : ad.featured ? 2.0 : 1.0;
+    const finalScore = score * featuredBoostScore;
+    return { ad, score: finalScore, geoPriority: geo };
   });
 
   // Sort by score descending (highest priority first)
@@ -190,7 +193,8 @@ export async function getAdsForDelivery(
   slot: string,
   county?: string,
   subcounty?: string,
-  limit: number = 5
+  limit: number = 5,
+  featuredOnly: boolean = false
 ): Promise<DbAdvertisement[]> {
   const visitorId = getVisitorId();
   const now = new Date().toISOString();
@@ -230,8 +234,17 @@ export async function getAdsForDelivery(
       .slice(0, limit);
   }
 
-  // Select ads with fair rotation
-  return selectAdsForDelivery(eligible, county, subcounty, limit);
+  // When featuredOnly, only paid premium (featured) ads are eligible for delivery
+  const deliverable = featuredOnly ? eligible.filter(a => a.featured) : eligible;
+
+  if (deliverable.length === 0) {
+    // Fall back to featured-only among the raw fetched ads (billing/per-cap relaxed)
+    const featuredFallback = (ads || []).filter(a => a.featured && (!a.boost_until || new Date(a.boost_until).getTime() > Date.now()));
+    return featuredFallback.slice(0, limit);
+  }
+
+  // Select ads with fair rotation (featured boosted in scoring)
+  return selectAdsForDelivery(deliverable, county, subcounty, limit);
 }
 
 // ============================================================

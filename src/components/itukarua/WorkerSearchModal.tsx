@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown } from 'lucide-react';
+import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
@@ -347,6 +347,10 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                             <div className="flex items-center gap-1">
                               <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                               <span className="text-xs font-medium text-gray-700">{Number(worker.rating) || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className="inline-flex items-center gap-0.5 text-green-600"><ThumbsUp className="w-3 h-3" /> {Number(worker.likes_count) || 0}</span>
+                              <span className="inline-flex items-center gap-0.5 text-red-500"><ThumbsDown className="w-3 h-3" /> {Number(worker.dislikes_count) || 0}</span>
                             </div>
                             {worker.location && (
                               <div className="flex items-center gap-1">

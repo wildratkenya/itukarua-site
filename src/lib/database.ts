@@ -30,6 +30,8 @@ export interface DbProfile {
   profile_views?: number;
   is_featured?: boolean;
   whatsapp_number?: string;
+  likes_count?: number;
+  dislikes_count?: number;
 }
 
 export interface DbJob {
@@ -866,6 +868,31 @@ export async function checkProfileReview(profileId: string, userId: string): Pro
 }
 
 // ─── Contact Access ─────────────────────────────────────────────────────────
+
+export async function getMyProfileVote(voterId: string, profileId: string): Promise<'up' | 'down' | null> {
+  const { data } = await supabase
+    .from('profile_votes')
+    .select('vote_type')
+    .eq('voter_id', voterId)
+    .eq('profile_id', profileId)
+    .maybeSingle();
+  return data?.vote_type ?? null;
+}
+
+export async function setProfileVote(voterId: string, profileId: string, voteType: 'up' | 'down'): Promise<void> {
+  const { error } = await supabase
+    .from('profile_votes')
+    .upsert({ voter_id: voterId, profile_id: profileId, vote_type: voteType }, { onConflict: 'voter_id,profile_id' });
+  if (error) throw error;
+}
+
+export async function clearProfileVote(voterId: string, profileId: string): Promise<void> {
+  await supabase
+    .from('profile_votes')
+    .delete()
+    .eq('voter_id', voterId)
+    .eq('profile_id', profileId);
+}
 
 export async function checkContactAccess(userId: string, profileId: string): Promise<boolean> {
   const { data } = await supabase

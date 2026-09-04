@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SEO, { generateOrganizationSchema, generateLocalBusinessSchema } from '@/lib/seo';
-import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock } from 'lucide-react';
+import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown } from 'lucide-react';
 import HeroSection from './HeroSection';
 import AdBanner from './AdBanner';
 import JobCard from './JobCard';
@@ -9,7 +9,7 @@ import WorkerSearchModal from './WorkerSearchModal';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
-import { getPlatformStats, createProfileReview, getProfileReviews, checkContactAccess, incrementProfileViews, type PlatformStats } from '@/lib/database';
+import { getPlatformStats, createProfileReview, getProfileReviews, checkContactAccess, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, type PlatformStats } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 
@@ -38,6 +38,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewMsg, setReviewMsg] = useState('');
+  const [myVote, setMyVote] = useState<'up' | 'down' | null>(null);
+  const [workerVotes, setWorkerVotes] = useState<Record<string, { likes: number; dislikes: number }>>({});
 
   useEffect(() => {
     const loadUser = async (authUser: any) => {
@@ -49,7 +51,26 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       loadUser(session?.user ?? null);
     });
-    return () => listener?.subscription.unsubscribe();
+    const handleVote = async (profileId: string, type: 'up' | 'down') => {
+    if (!user) { onOpenAuth('login'); return; }
+    try {
+      if (myVote === type) {
+        await clearProfileVote(user.id, profileId);
+        setMyVote(null);
+      } else {
+        await setProfileVote(user.id, profileId, type);
+        setMyVote(type);
+      }
+      const { data }: any = await supabase.from('profiles').select('likes_count, dislikes_count').eq('id', profileId).single();
+      const counts = { likes: data?.likes_count ?? 0, dislikes: data?.dislikes_count ?? 0 };
+      setWorkerVotes(prev => ({ ...prev, [profileId]: counts }));
+      if (selectedWorker && selectedWorker.id === profileId) {
+        setSelectedWorker({ ...selectedWorker, likes_count: counts.likes, dislikes_count: counts.dislikes });
+      }
+    } catch (e) { console.error('Vote failed:', e); }
+  };
+
+  return () => listener?.subscription.unsubscribe();
   }, []);
 
   // "Our Other Services" sticker: pop in 5s after load, then hide for ~1 min
@@ -98,6 +119,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         checkContactAccess(user.id, selectedWorker.id).then(setHasContactAccess);
       }
       getProfileReviews(selectedWorker.id).then(setWorkerReviews);
+      if (user) { setMyVote(null); getMyProfileVote(user.id, selectedWorker.id).then(v => setMyVote(v || null)).catch(() => {}); }
     }
   }, [selectedWorker, user]);
 
@@ -241,6 +263,22 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                     <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                     <span className="text-sm font-medium text-gray-700">{Number(selectedWorker.rating) || 0}/5</span>
                     <span className="text-xs text-gray-400">({selectedWorker.reviews_count || 0} reviews)</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => handleVote(selectedWorker.id, 'up')}
+                      className={"inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors " + (myVote === 'up' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50')}
+                    >
+                      <ThumbsUp className={"w-3.5 h-3.5 " + (myVote === 'up' ? 'fill-green-500 text-green-500' : '')} />
+                      {workerVotes[selectedWorker.id]?.likes ?? (Number(selectedWorker.likes_count) || 0)}
+                    </button>
+                    <button
+                      onClick={() => handleVote(selectedWorker.id, 'down')}
+                      className={"inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors " + (myVote === 'down' ? 'bg-red-50 border-red-300 text-red-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50')}
+                    >
+                      <ThumbsDown className={"w-3.5 h-3.5 " + (myVote === 'down' ? 'fill-red-500 text-red-500' : '')} />
+                      {workerVotes[selectedWorker.id]?.dislikes ?? (Number(selectedWorker.dislikes_count) || 0)}
+                    </button>
                   </div>
                 </div>
                 <button onClick={() => setSelectedWorker(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
@@ -477,6 +515,14 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                       <div className="flex items-center justify-center gap-1">
                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                         <span className="text-xs font-medium text-gray-700">{Number(worker.rating) || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-center gap-3 mt-1.5">
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-green-600">
+                          <ThumbsUp className="w-3 h-3" /> {workerVotes[worker.id]?.likes ?? (Number(worker.likes_count) || 0)}
+                        </span>
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-red-500">
+                          <ThumbsDown className="w-3 h-3" /> {workerVotes[worker.id]?.dislikes ?? (Number(worker.dislikes_count) || 0)}
+                        </span>
                       </div>
                       {worker.verified && (
                         <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-medium rounded-full">
