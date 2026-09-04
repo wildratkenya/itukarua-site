@@ -280,7 +280,7 @@ const AppLayout: React.FC = () => {
     try {
       switch (currentPage) {
         case 'home':
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
           return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
         case 'job-detail':
@@ -308,21 +308,21 @@ const AppLayout: React.FC = () => {
           return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
         case 'dashboard':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
           }
           return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} />;
         case 'inbox':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
           }
           return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
           }
           return <AdminPage />;
         default:
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
       }
     } catch (err: any) {
       console.error('CRITICAL RENDER ERROR:', err);
