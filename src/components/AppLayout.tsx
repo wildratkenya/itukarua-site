@@ -243,7 +243,7 @@ const AppLayout: React.FC = () => {
     setCurrentPage('home');
   }, []);
 
-(() => { loginFromWorkerPopup.current = true; }, []);
+const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current = true; }, []);
   const handleWorkerSearchAuth = useCallback(() => { loginFromWorkerPopup.current = true; setAutoOpenWorkerSearch(true); }, []);
 
   const handleViewJob = useCallback((jobId: string) => {
