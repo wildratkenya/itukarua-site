@@ -36,9 +36,14 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [reviewMsg, setReviewMsg] = useState('');
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const loadUser = async (authUser: any) => {
+      if (!authUser) { setUser(null); return; }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', authUser.id).maybeSingle();
+      setUser({ ...authUser, role: profile?.role || 'employer' });
+    };
+    supabase.auth.getUser().then(({ data }) => loadUser(data.user));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      loadUser(session?.user ?? null);
     });
     return () => listener?.subscription.unsubscribe();
   }, []);
