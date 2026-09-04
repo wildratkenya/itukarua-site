@@ -163,6 +163,7 @@ const AppLayout: React.FC = () => {
               role: refreshedProfile?.role || meta.role || 'employer',
               profile: refreshedProfile,
             });
+            promptEmployerPaymentIfNeeded(refreshedProfile);
             if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
           }
           return;
@@ -179,6 +180,7 @@ const AppLayout: React.FC = () => {
             role: profile?.role || 'employer',
             profile,
           });
+          promptEmployerPaymentIfNeeded(profile);
           if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
         }
       } else if (event === 'SIGNED_OUT') {
@@ -194,6 +196,7 @@ const AppLayout: React.FC = () => {
           role: profile?.role || 'employer',
           profile,
         });
+        promptEmployerPaymentIfNeeded(profile);
       }
       
       if (mounted) setAuthLoading(false);
@@ -264,6 +267,17 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
   const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => {
     setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete });
   }, []);
+
+  // Employers must have a valid paid account (registration paid + active weekly
+  // subscription). If not, auto-prompt the M-Pesa payment right after sign in.
+  const promptEmployerPaymentIfNeeded = useCallback((p: any) => {
+    if (p?.role !== 'employer') return;
+    const paidReg = !!p.registration_paid;
+    const subActive = p.subscription_expires_at ? new Date(p.subscription_expires_at).getTime() > Date.now() : false;
+    if (!paidReg || !subActive) {
+      setTimeout(() => handleOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration'), 400);
+    }
+  }, [handleOpenMpesa]);
 
   const handleCloseMpesa = useCallback(() => {
     setMpesaModal(prev => ({ ...prev, open: false }));
