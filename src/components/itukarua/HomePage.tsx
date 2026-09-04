@@ -44,14 +44,22 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   useEffect(() => {
     const loadUser = async (authUser: any) => {
       if (!authUser) { setUser(null); return; }
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', authUser.id).maybeSingle();
-      setUser({ ...authUser, role: profile?.role || 'employer' });
+      const { data: profile } = await supabase.from('profiles').select('role, registration_paid, subscription_expires_at').eq('id', authUser.id).maybeSingle();
+      setUser({
+        ...authUser,
+        role: profile?.role || 'employer',
+        registration_paid: !!profile?.registration_paid,
+        subscription_expires_at: profile?.subscription_expires_at || null,
+      });
     };
     supabase.auth.getUser().then(({ data }) => loadUser(data.user));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       loadUser(session?.user ?? null);
     });
-    const handleVote = async (profileId: string, type: 'up' | 'down') => {
+    return () => listener?.subscription.unsubscribe();
+  }, []);
+
+  const handleVote = async (profileId: string, type: 'up' | 'down') => {
     if (!user) { onOpenAuth('login'); return; }
     try {
       if (myVote === type) {
@@ -69,9 +77,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       }
     } catch (e) { console.error('Vote failed:', e); }
   };
-
-  return () => listener?.subscription.unsubscribe();
-  }, []);
 
   // "Our Other Services" sticker: pop in 5s after load, then hide for ~1 min
   // and reappear on a loop. A manual close hides it for the current cycle.
@@ -114,7 +119,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       setReviewComment('');
       setReviewMsg('');
       if (user?.role === 'employer') {
-        setHasContactAccess(true);
+        const paidReg = !!user.registration_paid;
+        const subActive = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() > Date.now() : false;
+        setHasContactAccess(paidReg && subActive);
       } else if (user) {
         checkContactAccess(user.id, selectedWorker.id).then(setHasContactAccess);
       }

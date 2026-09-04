@@ -92,7 +92,7 @@ data: {
 },
           },
         });
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 5000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000));
         
         const { data, error } = await Promise.race([signupPromise, timeoutPromise]) as any;
         if (error) throw error;
@@ -116,7 +116,7 @@ data: {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             }, { onConflict: 'id' });
-            const timeoutProfile = new Promise((_, reject) => setTimeout(() => reject(new Error('PROFILE_TIMEOUT')), 8000));
+            const timeoutProfile = new Promise((_, reject) => setTimeout(() => reject(new Error('PROFILE_TIMEOUT')), 15000));
             const { error: profileError } = await Promise.race([profileUpsert, timeoutProfile]) as any;
             if (profileError && profileError.message !== 'PROFILE_TIMEOUT') {
               console.error('[Signup] profile upsert failed:', profileError);
@@ -182,7 +182,7 @@ data: {
           email: formData.email,
           password: formData.password,
         });
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 5000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000));
         
         const { error } = await Promise.race([signinPromise, timeoutPromise]) as any;
         if (error) throw error;
@@ -192,10 +192,8 @@ data: {
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      if (err.message === 'AUTH_TIMEOUT') {
-        console.warn('Auth lock stuck during login! Clearing local storage to self-heal...');
-        localStorage.clear();
-        setServerError('Browser lock cleared. Please try logging in again.');
+      if (err.message === 'AUTH_TIMEOUT' || err.code === 'timeout' || err.name === 'TimeoutError') {
+        setServerError('The request took too long. Please try again.');
       } else if (err.message?.includes('rate limit') || err.status === 429) {
         setServerError('Too many signup attempts. Please wait a few minutes and try again.');
       } else if (err.message?.includes('Email rate limit')) {
