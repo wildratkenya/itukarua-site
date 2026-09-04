@@ -19,9 +19,10 @@ interface HomePageProps {
   onViewJob: (jobId: string) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onWorkerPopupOpen?: () => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa }) => {
+const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onWorkerPopupOpen }) => {
   const pendingAdvertNav = useRef(false);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
   const [user, setUser] = useState<any>(null);
@@ -82,7 +83,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       setReviewRating(0);
       setReviewComment('');
       setReviewMsg('');
-      if (user) {
+      if (user?.role === 'employer') {
+        setHasContactAccess(true);
+      } else if (user) {
         checkContactAccess(user.id, selectedWorker.id).then(setHasContactAccess);
       }
       getProfileReviews(selectedWorker.id).then(setWorkerReviews);
@@ -278,7 +281,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                     }}
                     className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Subscribe to View Contacts
+                    {user ? 'Subscribe to View Contacts' : 'Sign In to View Profile'}
                   </button>
                   {reviewMsg === 'Please sign in first' && <p className="text-xs text-red-500 mt-2">{reviewMsg}</p>}
                 </div>
@@ -449,7 +452,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   {workersData.map((worker) => {
                     const firstSkill = typeof worker.skills === 'string' ? worker.skills.split(',')[0]?.trim() : worker.skills?.[0];
                     return (
-                    <div key={worker.id} onClick={() => { setSelectedWorker(worker); incrementProfileViews(worker.id); }} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer">
+                    <div key={worker.id} onClick={() => { setSelectedWorker(worker); incrementProfileViews(worker.id); onWorkerPopupOpen?.(); }} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer">
                       {worker.profile_image ? (
                         <img src={optimizeImageUrl(worker.profile_image, 96, 96)} alt={worker.full_name} className="w-12 h-12 rounded-full mx-auto mb-3 object-cover ring-2 ring-gray-100 group-hover:ring-green-200 transition-all" onError={handleImageError} />
                       ) : (

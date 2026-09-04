@@ -37,8 +37,14 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user);
       if (data.user) {
-        const active = await checkSubscriptionActive(data.user.id);
-        setHasSubscription(active);
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
+        const isEmployer = profile?.role === 'employer';
+        if (isEmployer) {
+          setHasSubscription(true);
+        } else {
+          const active = await checkSubscriptionActive(data.user.id);
+          setHasSubscription(active);
+        }
       }
     });
   }, []);
