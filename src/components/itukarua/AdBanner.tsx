@@ -69,7 +69,7 @@ const AdBanner: React.FC = () => {
   }, [pageCount]);
 
   useEffect(() => {
-    getAdsForDelivery({ slot: "homepage_banner", limit: 20 }).then(ads => {
+    getAdsForDelivery("homepage_banner", undefined, undefined, 20, true).then(ads => {
       if (ads && ads.length > 0) setAffiliateAds(ads);
     }).catch(() => {});
     getAdCarouselSettings().then(setSettings).catch(() => {});
