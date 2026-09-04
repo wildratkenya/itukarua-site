@@ -17,12 +17,16 @@ interface HomePageProps {
   onNavigate: (page: Page) => void;
   onSearch: (query: string) => void;
   onViewJob: (jobId: string) => void;
+  onViewService: (serviceId: string) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
   onWorkerPopupOpen?: () => void;
+  onWorkerSearchAuth?: () => void;
+  autoOpenWorkerSearch?: boolean;
+  onConsumeAutoOpenWorkerSearch?: () => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onWorkerPopupOpen }) => {
+const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onWorkerPopupOpen, onWorkerSearchAuth, autoOpenWorkerSearch, onConsumeAutoOpenWorkerSearch }) => {
   const pendingAdvertNav = useRef(false);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
   const [user, setUser] = useState<any>(null);
@@ -367,6 +371,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         isOpen={showWorkerSearch}
         onClose={() => setShowWorkerSearch(false)}
         onOpenAuth={onOpenAuth}
+        onOpenMpesa={onOpenMpesa}
+        onNeedAuth={() => onWorkerSearchAuth?.()}
       />
 
 

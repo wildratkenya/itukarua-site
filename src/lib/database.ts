@@ -827,6 +827,21 @@ export async function createProfileReview(
       { onConflict: 'reviewer_id,profile_id' }
     );
   if (error) throw error;
+  await recomputeProfileRating(profileId);
+}
+
+export async function recomputeProfileRating(profileId: string): Promise<void> {
+  const { data: reviews, error: reviewsError } = await supabase
+    .from('profile_reviews')
+    .select('rating')
+    .eq('profile_id', profileId);
+  if (reviewsError || !reviews || reviews.length === 0) {
+    await supabase.from('profiles').update({ rating: 0, reviews_count: 0 }).eq('id', profileId);
+    return;
+  }
+  const total = reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0);
+  const avg = total / reviews.length;
+  await supabase.from('profiles').update({ rating: Math.round(avg * 10) / 10, reviews_count: reviews.length }).eq('id', profileId);
 }
 
 export async function getProfileReviews(profileId: string): Promise<any[]> {

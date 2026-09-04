@@ -10,9 +10,10 @@ interface WorkerSearchModalProps {
   onOpenAuth?: (tab: 'login' | 'signup') => void;
   onNavigate?: (page: string) => void;
   onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onNeedAuth?: () => void;
 }
 
-const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth, onNavigate, onOpenMpesa }) => {
+const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth, onNavigate, onOpenMpesa, onNeedAuth }) => {
   const [query, setQuery] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
   const [location, setLocation] = useState('');
@@ -33,20 +34,28 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   );
   const searchRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      setUser(data.user);
-      if (data.user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-        const isEmployer = profile?.role === 'employer';
-        if (isEmployer) {
-          setHasSubscription(true);
-        } else {
-          const active = await checkSubscriptionActive(data.user.id);
-          setHasSubscription(active);
-        }
+  const refreshAuth = async (authUser: any) => {
+    setUser(authUser);
+    if (authUser) {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', authUser.id).maybeSingle();
+      const isEmployer = profile?.role === 'employer';
+      if (isEmployer) {
+        setHasSubscription(true);
+      } else {
+        const active = await checkSubscriptionActive(authUser.id);
+        setHasSubscription(active);
       }
+    } else {
+      setHasSubscription(false);
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => refreshAuth(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      refreshAuth(session?.user ?? null);
     });
+    return () => listener?.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -148,18 +157,22 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   const handleGuestSignIn = () => {
     setShowGuestPrompt(false);
     onClose();
+    onNeedAuth?.();
     onOpenAuth?.('login');
   };
 
   const handleGuestSubscribe = () => {
     setShowGuestPrompt(false);
     onClose();
+    onNeedAuth?.();
     onOpenAuth?.('signup');
   };
 
   const handleSubscribe = () => {
     setShowSubscriptionPrompt(false);
-    onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration');
+    onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
+      setHasSubscription(true);
+    });
   };
 
   const handleRedeemToken = async () => {
@@ -183,6 +196,20 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
       setRedeemLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen || !hasSubscription || workers.length === 0) return;
+    const load = async () => {
+      const ids = workers.map(w => w.id);
+      const { data } = await supabase.from('profiles').select('*').in('id', ids);
+      if (data) {
+        const map = new Map<string, any>();
+        data.forEach(p => map.set(p.id, p));
+        setWorkerDetails(map);
+      }
+    };
+    load();
+  }, [isOpen, hasSubscription, workers.length]);
 
   const handlePaymentComplete = async () => {
     setHasSubscription(true);
@@ -290,7 +317,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
               <div className="space-y-2">
                 <p className="text-xs text-gray-400 mb-2">{workers.length} worker{workers.length !== 1 ? 's' : ''} found</p>
                 {workers.map(worker => {
-                  const isUnlocked = unlockedIds.has(worker.id);
+                  const isUnlocked = hasSubscription || unlockedIds.has(worker.id);
                   const details = workerDetails.get(worker.id);
                   const skills = typeof worker.skills === 'string' ? worker.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(worker.skills) ? worker.skills : [];
                   return (

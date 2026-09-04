@@ -49,6 +49,7 @@ const AppLayout: React.FC = () => {
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [autoOpenWorkerSearch, setAutoOpenWorkerSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -242,7 +243,8 @@ const AppLayout: React.FC = () => {
     setCurrentPage('home');
   }, []);
 
-  const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current = true; }, []);
+(() => { loginFromWorkerPopup.current = true; }, []);
+  const handleWorkerSearchAuth = useCallback(() => { loginFromWorkerPopup.current = true; setAutoOpenWorkerSearch(true); }, []);
 
   const handleViewJob = useCallback((jobId: string) => {
     setSelectedJobId(jobId);
@@ -283,7 +285,7 @@ const AppLayout: React.FC = () => {
     try {
       switch (currentPage) {
         case 'home':
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onWorkerSearchAuth={handleWorkerSearchAuth} autoOpenWorkerSearch={autoOpenWorkerSearch} onConsumeAutoOpenWorkerSearch={() => setAutoOpenWorkerSearch(false)} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
           return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
         case 'job-detail':
