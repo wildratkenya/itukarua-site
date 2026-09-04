@@ -18,9 +18,10 @@ interface HomePageProps {
   onSearch: (query: string) => void;
   onViewJob: (jobId: string) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth }) => {
+const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa }) => {
   const pendingAdvertNav = useRef(false);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
   const [user, setUser] = useState<any>(null);
@@ -270,10 +271,10 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   <p className="text-sm font-medium text-gray-700 mb-1">Contact & Certifications Locked</p>
                   <p className="text-xs text-gray-500 mb-3">Subscribe to access all jobseeker contacts in your category</p>
                   <button
-                    onClick={async () => {
-                      const { data: { user: currentUser } } = await supabase.auth.getUser();
-                      if (!currentUser) { onOpenAuth('login'); return; }
-                      onOpenAuth('login');
+                    onClick={() => {
+                      if (!user) { onOpenAuth('login'); return; }
+                      setSelectedWorker(null);
+                      onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration');
                     }}
                     className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
