@@ -35,6 +35,7 @@ const AppLayout: React.FC = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const loginJustHappened = useRef(false);
+  const loginFromWorkerPopup = useRef(false);
   const [mpesaModal, setMpesaModal] = useState<{
     open: boolean;
     amount: number;
@@ -161,7 +162,7 @@ const AppLayout: React.FC = () => {
               role: refreshedProfile?.role || meta.role || 'employer',
               profile: refreshedProfile,
             });
-            if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage('dashboard'); }
+            if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
           }
           return;
         }
@@ -177,7 +178,7 @@ const AppLayout: React.FC = () => {
             role: profile?.role || 'employer',
             profile,
           });
-          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage('dashboard'); }
+          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -241,6 +242,8 @@ const AppLayout: React.FC = () => {
     setCurrentPage('home');
   }, []);
 
+  const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current = true; }, []);
+
   const handleViewJob = useCallback((jobId: string) => {
     setSelectedJobId(jobId);
     setCurrentPage('job-detail');
@@ -280,7 +283,7 @@ const AppLayout: React.FC = () => {
     try {
       switch (currentPage) {
         case 'home':
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
           return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
         case 'job-detail':
@@ -291,13 +294,13 @@ const AppLayout: React.FC = () => {
               onBack={() => setCurrentPage('jobs')}
               user={user}
               onOpenAuth={handleOpenAuth}
-              onOpenMpesa={handleOpenMpesa}
+              onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen}
             />
           );
         case 'services':
           return <ServicesPage onNavigate={handleNavigate} />;
         case 'pricing':
-          return <PricingPage onOpenMpesa={handleOpenMpesa} onNavigate={handleNavigate} />;
+          return <PricingPage onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} />;
         case 'about':
           return <AboutPage />;
         case 'contact':
@@ -305,24 +308,24 @@ const AppLayout: React.FC = () => {
         case 'post-job':
           return <PostJobPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} />;
         case 'post-advert':
-          return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
+          return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
         case 'dashboard':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
-          return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} />;
+          return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
         case 'inbox':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <AdminPage />;
         default:
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
       }
     } catch (err: any) {
       console.error('CRITICAL RENDER ERROR:', err);
