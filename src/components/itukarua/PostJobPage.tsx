@@ -13,6 +13,7 @@ interface PostJobPageProps {
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
   onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
 }
 
 const MAX_IMAGES = 3;
@@ -21,7 +22,7 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 
 type Step = 'form' | 'otp' | 'payment' | 'success';
 
-const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
+const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa, onOpenEmployerPayment }) => {
   const [step, setStep] = useState<Step>('form');
   const [formData, setFormData] = useState({ title: '', category: '', description: '', location: '', county: '', subcounty: '', budgetMin: '', budgetMax: '', deadline: '', urgent: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -301,17 +302,24 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
               </div>
               <div>
                 <h3 className="font-bold text-gray-900">Post & Unlock This Job</h3>
-                <p className="text-xs text-gray-500">One-time payment — no commitment</p>
+                <p className="text-xs text-gray-500">1-day access — no commitment</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-3">Pay KES 100 to unlock contact details (phone, email, WhatsApp) for all jobseekers who bid on this job.</p>
+            <p className="text-sm text-gray-600 mb-3">Pay KES 100 for 24 hours to unlock contact details (phone, email, WhatsApp) for all jobseekers who bid on this job.</p>
             <button
               onClick={() => {
-                if (!onOpenMpesa || !user) return;
-                onOpenMpesa(100, `Single Job Post — unlock contacts`, `SJP-${createdJobId.slice(0, 8)}`, 'single_job_post', undefined, createdJobId, undefined, () => {
-                  setShowUpsell(recentSingleCount >= 1);
-                  setStep('success');
-                });
+                if (!user) return;
+                if (onOpenEmployerPayment) {
+                  onOpenEmployerPayment(createdJobId, undefined, () => {
+                    setShowUpsell(recentSingleCount >= 1);
+                    setStep('success');
+                  });
+                } else if (onOpenMpesa) {
+                  onOpenMpesa(100, `Single Job Access — unlock contacts (1 day)`, `SJP-${createdJobId.slice(0, 8)}`, 'employer_day_token', undefined, createdJobId, undefined, () => {
+                    setShowUpsell(recentSingleCount >= 1);
+                    setStep('success');
+                  });
+                }
               }}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
             >
@@ -333,11 +341,18 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
             <p className="text-sm text-gray-600 mb-3">Post unlimited jobs & access all jobseeker contacts in your category. No per-contact fees.</p>
             <button
               onClick={() => {
-                if (!onOpenMpesa || !user) return;
-                onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
-                  setHasSubscription(true);
-                  setStep('success');
-                });
+                if (!user) return;
+                if (onOpenEmployerPayment) {
+                  onOpenEmployerPayment(createdJobId, undefined, () => {
+                    setHasSubscription(true);
+                    setStep('success');
+                  });
+                } else if (onOpenMpesa) {
+                  onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
+                    setHasSubscription(true);
+                    setStep('success');
+                  });
+                }
               }}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
             >

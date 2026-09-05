@@ -112,7 +112,7 @@ export interface DbServiceAd {
 export interface DbPayment {
   id: string;
   user_id: string;
-  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post';
+  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token';
   amount: number;
   mpesa_ref: string;
   mpesa_phone: string;
@@ -918,6 +918,20 @@ export async function checkSingleJobAccess(userId: string, jobId: string): Promi
   return !!data;
 }
 
+export async function checkSingleJobDayToken(userId: string, jobId: string): Promise<boolean> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('payment_type', 'employer_day_token')
+    .eq('related_job_id', jobId)
+    .eq('status', 'completed')
+    .gte('created_at', since)
+    .maybeSingle();
+  return !!data;
+}
+
 export async function countRecentSingleJobs(userId: string): Promise<number> {
   const since = new Date();
   since.setDate(since.getDate() - 30);
@@ -925,7 +939,7 @@ export async function countRecentSingleJobs(userId: string): Promise<number> {
     .from('payments')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('payment_type', 'single_job_post')
+    .eq('payment_type', 'employer_day_token')
     .eq('status', 'completed')
     .gte('created_at', since.toISOString());
   if (error) return 0;

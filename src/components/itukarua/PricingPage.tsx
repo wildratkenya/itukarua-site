@@ -5,10 +5,11 @@ import { PRICING_PLANS } from '@/data/siteData';
 
 interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNavigate?: (page: string) => void;
 }
 
-const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) => {
+const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate }) => {
   const [showComparison, setShowComparison] = useState(false);
 
   return (
@@ -197,7 +198,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
               <Briefcase className="w-3.5 h-3.5" /> For Employers
             </div>
             <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Hire the Best Talent</h2>
-            <p className="text-gray-500 text-lg">Pay once per job, or subscribe for unlimited access</p>
+            <p className="text-gray-500 text-lg">Pay per day for a single job, or subscribe weekly for unlimited access</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
@@ -216,9 +217,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
                 </div>
                 <div className="flex items-baseline gap-1 mt-4 mb-6">
                   <span className="text-5xl font-extrabold text-gray-900">KES 100</span>
-                  <span className="text-gray-400 font-medium">/one-time</span>
+                  <span className="text-gray-400 font-medium">/1 day</span>
                 </div>
-                <p className="text-sm text-gray-500 mb-6 -mt-2">Perfect for one-off hires — a single job listing with contact access</p>
+                <p className="text-sm text-gray-500 mb-6 -mt-2">One day of access — unlock contacts for a single job for 24 hours</p>
                 <ul className="space-y-3 mb-8 flex-1">
                   {PRICING_PLANS.singleJobPost.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-gray-700">
@@ -237,7 +238,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
                     <Briefcase className="w-4 h-4" />
                     Post a Job Now
                   </button>
-                  <p className="text-center text-xs text-gray-400">Pay KES 100 when you post</p>
+                  <p className="text-center text-xs text-gray-400">Pay KES 100 for 1-day access when you view this job</p>
                 </div>
               </div>
             </div>
@@ -275,7 +276,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onNavigate }) =>
                   ))}
                 </ul>
                 <button
-                  onClick={() => onOpenMpesa(PRICING_PLANS.employerSubscription.price, 'Employer Weekly Access', 'EMP-WK', 'registration')}
+                  onClick={() => onOpenEmployerPayment?.()}
                   className="w-full py-4 bg-white hover:bg-blue-50 text-indigo-700 font-bold text-base rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/10 group-hover:scale-[1.02]"
                 >
                   <Phone className="w-4 h-4" />

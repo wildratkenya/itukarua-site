@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobAccess, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -16,9 +16,10 @@ interface JobDetailPageProps {
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string) => void;
+  onOpenEmployerPayment: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
 }
 
-const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack, user, onOpenAuth, onOpenMpesa }) => {
+const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack, user, onOpenAuth, onOpenMpesa, onOpenEmployerPayment }) => {
   const [job, setJob] = useState<DbJob | null>(null);
   const [bids, setBids] = useState<DbBid[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,13 +43,13 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [selectedBidderName, setSelectedBidderName] = useState('');
   const [viewingImage, setViewingImage] = useState<{ images: string[]; index: number } | null>(null);
   const [subscriptionActive, setSubscriptionActive] = useState(true);
-  const [singleJobAccess, setSingleJobAccess] = useState(false);
+  const [dayTokenAccess, setDayTokenAccess] = useState(false);
   const [weeklyBidCount, setWeeklyBidCount] = useState(0);
   const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
   const isEmployer = user?.role === 'employer';
-  const hasJobAccess = isEmployer && (subscriptionActive || singleJobAccess);
+  const hasJobAccess = isEmployer && (subscriptionActive || dayTokenAccess);
 
   useEffect(() => {
     const load = async () => {
@@ -75,8 +76,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
         const subActive = await checkSubscriptionActive(user.id);
         setSubscriptionActive(subActive);
         if (!subActive) {
-          const hasAccess = await checkSingleJobAccess(user.id, jobId);
-          setSingleJobAccess(hasAccess);
+          const hasAccess = await checkSingleJobDayToken(user.id, jobId);
+          setDayTokenAccess(hasAccess);
         }
       }
     };
@@ -474,19 +475,19 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   </div>
                   {!hasJobAccess && bids.length > 0 && (
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
-                      <p className="text-xs text-amber-700 font-medium mb-2">Contacts locked — pay KES 100 once or subscribe for unlimited access.</p>
+                      <p className="text-xs text-amber-700 font-medium mb-2">Contacts locked — pay KES 100 for 1-day access to this job, or KES 200/week for unlimited access.</p>
                       <button
-                        onClick={() => onOpenMpesa(100, `Unlock contacts for: ${job.title}`, `SJP-${job.id.slice(0, 8)}`, 'single_job_post', undefined, job.id, undefined, () => setSingleJobAccess(true))}
+                        onClick={() => onOpenEmployerPayment(job.id, job.title, () => setDayTokenAccess(true))}
                         className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors"
                       >
-                        Unlock Contacts (KES 100)
+                        Unlock Contacts
                       </button>
                     </div>
                   )}
                   {hasJobAccess && (
                     <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-center">
                       <p className="text-xs text-green-700 font-medium">
-                        {subscriptionActive ? 'Employer Access — unlimited contacts' : 'Single Job — contacts unlocked for this job'}
+                        {subscriptionActive ? 'Employer Access — unlimited contacts' : 'Single Job — contacts unlocked for this job (24h)'}
                       </p>
                     </div>
                   )}

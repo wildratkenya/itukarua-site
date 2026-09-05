@@ -142,14 +142,14 @@ export const PRICING_PLANS = {
     ],
   },
   singleJobPost: {
-    name: 'Single Job Post',
+    name: 'Single Job Access',
     price: 100,
-    period: 'one-time',
+    period: '/1 day',
     features: [
-      'Post one job listing (visible for 7 days)',
+      'Unlock contacts for ONE job for 24 hours',
       'See all bids on that job',
       'Unlock bidder contacts — phone, email, WhatsApp',
-      'No subscription commitment',
+      'No weekly subscription commitment',
     ],
   },
   subscriptionPackages: [
