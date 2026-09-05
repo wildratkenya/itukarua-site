@@ -41,10 +41,14 @@ const AppLayout: React.FC = () => {
     amount: number;
     description: string;
     accountRef: string;
-    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost';
+    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token';
     relatedAdId?: string;
     relatedJobId?: string;
+    relatedJobTitle?: string;
     relatedProfileId?: string;
+    employerPlans?: boolean;
+    employerExpired?: boolean;
+    employerExpiredAt?: string | null;
     onComplete?: () => void;
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
@@ -103,6 +107,7 @@ const AppLayout: React.FC = () => {
               role: profile?.role || 'employer',
               profile,
             });
+            promptEmployerPaymentIfNeeded(profile);
           }
         }
       } catch (err: any) {
@@ -268,6 +273,28 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete });
   }, []);
 
+  // Open the employer payment popup offering BOTH plans (KES 100/1-day job token
+  // and KES 200/weekly unlimited), plus an expired-account notice when applicable.
+  const handleOpenEmployerPayment = useCallback((jobId?: string, jobTitle?: string, onComplete?: () => void) => {
+    const profile = user?.profile;
+    const expiredAt = profile?.subscription_expires_at && new Date(profile.subscription_expires_at).getTime() < Date.now()
+      ? (profile.subscription_expires_at as string)
+      : null;
+    setMpesaModal({
+      open: true,
+      amount: 200,
+      description: 'Employer Weekly Access',
+      accountRef: 'EMP-WK',
+      paymentType: 'registration',
+      relatedJobId: jobId,
+      relatedJobTitle: jobTitle,
+      employerPlans: true,
+      employerExpired: !!expiredAt,
+      employerExpiredAt: expiredAt,
+      onComplete,
+    });
+  }, [user]);
+
   // Employers must have a valid paid account (registration paid + active weekly
   // subscription). If not, auto-prompt the M-Pesa payment right after sign in.
   const promptEmployerPaymentIfNeeded = useCallback((p: any) => {
@@ -275,9 +302,9 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     const paidReg = !!p.registration_paid;
     const subActive = p.subscription_expires_at ? new Date(p.subscription_expires_at).getTime() > Date.now() : false;
     if (!paidReg || !subActive) {
-      setTimeout(() => handleOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration'), 400);
+      setTimeout(() => handleOpenEmployerPayment(), 400);
     }
-  }, [handleOpenMpesa]);
+  }, [handleOpenEmployerPayment]);
 
   const handleCloseMpesa = useCallback(() => {
     setMpesaModal(prev => ({ ...prev, open: false }));
@@ -299,7 +326,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     try {
       switch (currentPage) {
         case 'home':
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onWorkerSearchAuth={handleWorkerSearchAuth} autoOpenWorkerSearch={autoOpenWorkerSearch} onConsumeAutoOpenWorkerSearch={() => setAutoOpenWorkerSearch(false)} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onWorkerSearchAuth={handleWorkerSearchAuth} autoOpenWorkerSearch={autoOpenWorkerSearch} onConsumeAutoOpenWorkerSearch={() => setAutoOpenWorkerSearch(false)} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
           return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
         case 'job-detail':
@@ -310,38 +337,39 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
               onBack={() => setCurrentPage('jobs')}
               user={user}
               onOpenAuth={handleOpenAuth}
-              onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen}
+              onOpenMpesa={handleOpenMpesa}
+              onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen}
             />
           );
         case 'services':
           return <ServicesPage onNavigate={handleNavigate} />;
         case 'pricing':
-          return <PricingPage onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} />;
+          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} />;
         case 'about':
           return <AboutPage />;
         case 'contact':
           return <ContactPage />;
         case 'post-job':
-          return <PostJobPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} />;
+          return <PostJobPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} />;
         case 'post-advert':
           return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
         case 'dashboard':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
         case 'inbox':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <AdminPage />;
         default:
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
       }
     } catch (err: any) {
       console.error('CRITICAL RENDER ERROR:', err);
@@ -444,7 +472,11 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         paymentType={mpesaModal.paymentType}
         relatedAdId={mpesaModal.relatedAdId}
         relatedJobId={mpesaModal.relatedJobId}
+        relatedJobTitle={mpesaModal.relatedJobTitle}
         relatedProfileId={mpesaModal.relatedProfileId}
+        employerPlans={mpesaModal.employerPlans}
+        employerExpired={mpesaModal.employerExpired}
+        employerExpiredAt={mpesaModal.employerExpiredAt}
         user={user}
         onPaymentComplete={() => {
           handleCloseMpesa();

@@ -10,10 +10,11 @@ interface WorkerSearchModalProps {
   onOpenAuth?: (tab: 'login' | 'signup') => void;
   onNavigate?: (page: string) => void;
   onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNeedAuth?: () => void;
 }
 
-const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth, onNavigate, onOpenMpesa, onNeedAuth }) => {
+const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, onOpenAuth, onNavigate, onOpenMpesa, onOpenEmployerPayment, onNeedAuth }) => {
   const [query, setQuery] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
   const [location, setLocation] = useState('');
@@ -37,10 +38,12 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   const refreshAuth = async (authUser: any) => {
     setUser(authUser);
     if (authUser) {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', authUser.id).maybeSingle();
+      const { data: profile } = await supabase.from('profiles').select('role, registration_paid, subscription_expires_at').eq('id', authUser.id).maybeSingle();
       const isEmployer = profile?.role === 'employer';
       if (isEmployer) {
-        setHasSubscription(true);
+        const paidReg = !!profile?.registration_paid;
+        const subActive = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at).getTime() > Date.now() : false;
+        setHasSubscription(paidReg && subActive);
       } else {
         const active = await checkSubscriptionActive(authUser.id);
         setHasSubscription(active);
@@ -170,9 +173,15 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
 
   const handleSubscribe = () => {
     setShowSubscriptionPrompt(false);
-    onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
-      setHasSubscription(true);
-    });
+    if (onOpenEmployerPayment) {
+      onOpenEmployerPayment(undefined, undefined, () => {
+        setHasSubscription(true);
+      });
+    } else {
+      onOpenMpesa?.(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
+        setHasSubscription(true);
+      });
+    }
   };
 
   const handleRedeemToken = async () => {
