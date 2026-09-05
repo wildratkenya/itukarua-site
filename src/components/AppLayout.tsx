@@ -485,9 +485,22 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
               boostAd('service_ads', mpesaModal.relatedAdId!).catch(() => {});
             });
           }
-          if (user) getProfile(user.id).then(p => {
-            if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
-          });
+          if (user) {
+            const refreshProfile = () => {
+              getProfile(user.id).then(p => {
+                if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
+              });
+            };
+            if (mpesaModal.paymentType === 'registration') {
+              // A completed registration payment marks the account as paid so the
+              // employer/jobseeker gate passes even for self-service signups.
+              supabase.from('profiles').update({ registration_paid: true }).eq('id', user.id)
+                .then(refreshProfile)
+                .catch(refreshProfile);
+            } else {
+              refreshProfile();
+            }
+          }
           mpesaModal.onComplete?.();
         }}
       />
