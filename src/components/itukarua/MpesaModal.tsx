@@ -236,7 +236,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           <div className="bg-red-50 px-6 py-3 border-b border-red-200 flex items-start gap-2">
             <CalendarX2 className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-red-700 font-medium">
-              Your employer account {formattedExpiry ? <>expired on <span className="font-bold">{formattedExpiry}</span></> : 'has expired'}. Renew to continue accessing worker contacts.
+              Your subscription {formattedExpiry ? <>expired on <span className="font-bold">{formattedExpiry}</span></> : 'has expired'}. Renew to continue accessing your features.
             </p>
           </div>
         )}
