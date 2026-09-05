@@ -204,30 +204,34 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const handleSaveProfile = async () => {
     setSaving(true);
     setProfileSaveError(null);
+    const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) =>
+      Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms))]);
     try {
       let profileImageUrl = profileForm.profile_image;
       if (profilePhotoFile) {
         const compressed = await compressImage(profilePhotoFile);
         const fileName = `${user.id}/avatar.${compressed.name.split('.').pop() || 'jpg'}`;
-        const { error: photoError } = await supabase.storage.from('adverts').upload(fileName, compressed, { upsert: true });
-        if (!photoError) {
-          profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
-        }
+        console.log('[ProfileSave] uploading photo...');
+        const { error: photoError } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed, { upsert: true }), 20000, 'Photo upload');
+        if (photoError) console.warn('[ProfileSave] photo upload failed:', photoError);
+        else profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
       }
       let certUrls: string[] = [];
       if (certFiles.length > 0) {
+        console.log('[ProfileSave] uploading certificates...');
         for (const file of certFiles) {
           const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
           const ext = compressed.name.split('.').pop() || 'jpg';
           const fileName = `${user.id}/certs/${Date.now()}_${crypto.randomUUID()}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('adverts').upload(fileName, compressed);
+          const { error: upErr } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 20000, 'Certificate upload');
           if (!upErr) {
             certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
           }
         }
       }
       const existingCerts = user.profile?.certificates || [];
-      await updateProfile(user.id, {
+      console.log('[ProfileSave] updating profiles row...');
+      await withTimeout(updateProfile(user.id, {
         full_name: profileForm.full_name,
         phone: profileForm.phone,
         location: profileForm.location,
@@ -241,14 +245,20 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         ratings_enabled: ratingsEnabled,
         certificates: [...existingCerts, ...certUrls],
         whatsapp_number: profileForm.whatsapp_number || null,
-      });
-      // Persist selected categories to user metadata so dashboard can filter jobs
-      await supabase.auth.updateUser({ data: { selected_categories: selectedCategories } });
+      }), 25000, 'Profile save');
+      // Persist selected categories to user metadata (best-effort, must never block the confirmation)
+      console.log('[ProfileSave] updating auth metadata...');
+      try {
+        await withTimeout(supabase.auth.updateUser({ data: { selected_categories: selectedCategories } }), 15000, 'Categories metadata');
+      } catch (metaErr: any) {
+        console.warn('[ProfileSave] categories metadata update failed (non-fatal):', metaErr);
+      }
       setCertFiles([]);
       setCategoryFormSaved(true);
       setTimeout(() => setCategoryFormSaved(false), 2000);
+      console.log('[ProfileSave] done');
     } catch (err: any) {
-      console.error(err);
+      console.error('[ProfileSave] error:', err);
       setProfileSaveError((err && (err.message || err.error_description)) || 'Failed to save profile. Please try again.');
     }
     finally { setSaving(false); }
@@ -1415,6 +1425,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                     </button>
+                    {profileSaveError && <p className="text-xs text-red-600 mt-2">{profileSaveError}</p>}
                     <div className="pt-4 mt-4 border-t border-gray-200">
                       <h4 className="font-semibold text-gray-900 mb-4">Update Password</h4>
                       <div className="space-y-3">
