@@ -320,8 +320,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     setCurrentPage('jobs');
   }, []);
 
-  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => {
-    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete });
+  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null) => {
+    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt });
   }, []);
 
   // Open the employer payment popup offering BOTH plans (KES 100/1-day job token
@@ -363,7 +363,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         if (spec.employerChooser) {
           handleOpenEmployerPayment();
         } else {
-          handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined);
+          handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined, undefined, spec.employerChooser, true, notice.expiredAt);
         }
       }, 400);
     }
@@ -527,7 +527,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
                   onClick={() => {
                     const spec = rolePaymentSpec(subNotice.role);
                     if (spec.employerChooser) handleOpenEmployerPayment();
-                    else handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined);
+                    else handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined, undefined, false, true, subNotice.expiredAt);
                   }}
                   className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors"
                 >
