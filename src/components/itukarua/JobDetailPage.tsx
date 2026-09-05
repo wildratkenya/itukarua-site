@@ -521,26 +521,32 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                 </form>
               ) : user?.role === 'jobseeker' && !subscriptionActive ? (
                 <div>
-                  {weeklyBidCount >= FREE_BID_LIMIT ? (
-                    <div className="text-center mb-4">
-                      <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-2" />
-                      <p className="font-semibold text-gray-900">Weekly Bid Limit Reached</p>
-                      <p className="text-sm text-gray-500 mt-1">You've used all {FREE_BID_LIMIT} free bids this week. Upgrade to Premium for unlimited bids.</p>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm text-gray-600">Free plan</p>
+                      <span className={`text-xs font-medium ${weeklyBidCount >= FREE_BID_LIMIT ? 'text-red-600' : 'text-green-700'}`}>{FREE_BID_LIMIT - weeklyBidCount}/{FREE_BID_LIMIT} bids left</span>
                     </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className={`h-2 rounded-full transition-all ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-red-500' : weeklyBidCount >= 3 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (weeklyBidCount / FREE_BID_LIMIT) * 100)}%` }} />
+                    </div>
+                    {weeklyBidCount >= FREE_BID_LIMIT && (
+                      <p className="text-xs text-red-600 mt-1.5">You've used all {FREE_BID_LIMIT} free bids this week. Upgrade to Premium for unlimited bids.</p>
+                    )}
+                  </div>
+                  {weeklyBidCount < FREE_BID_LIMIT ? (
+                    <>
+                      <button onClick={() => setShowBidForm(true)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 mb-2">
+                        <Send className="w-4 h-4" /> Bid on This Job
+                      </button>
+                      <button disabled onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined)} className="w-full py-3 bg-gray-200 text-gray-400 font-semibold rounded-lg transition-colors cursor-not-allowed">
+                        Upgrade to Premium — KES 100/mo
+                      </button>
+                    </>
                   ) : (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-sm text-gray-600">Free plan</p>
-                        <span className="text-xs font-medium text-green-700">{FREE_BID_LIMIT - weeklyBidCount}/{FREE_BID_LIMIT} bids left</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className={`h-2 rounded-full transition-all ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-red-500' : weeklyBidCount >= 3 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (weeklyBidCount / FREE_BID_LIMIT) * 100)}%` }} />
-                      </div>
-                    </div>
+                    <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
+                      Upgrade to Premium — KES 100/mo
+                    </button>
                   )}
-                  <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
-                    Upgrade to Premium — KES 100/mo
-                  </button>
                 </div>
               ) : (
                 <div>
