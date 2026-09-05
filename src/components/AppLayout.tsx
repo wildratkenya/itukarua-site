@@ -51,16 +51,27 @@ const rolePaymentSpec = (role: string) => {
 };
 
 // Evaluate the subscription status shown after login for payable profiles.
+// Employers must hold a paid account (nag if unpaid/expired). Jobseekers only
+// get a notice once they've had a premium subscription (free plan = quiet).
+// Advertisers pay per advert, so no login subscription notice.
 const evaluateSubscriptionNotice = (profile: any): SubscriptionNotice | null => {
   if (!profile || !PAYABLE_ROLES.includes(profile.role)) return null;
   const paidReg = !!profile.registration_paid;
   const expires = profile.subscription_expires_at ? new Date(profile.subscription_expires_at) : null;
-  const active = paidReg && !!expires && expires.getTime() > Date.now();
+  const hasExpiry = !!expires;
+  const active = paidReg && hasExpiry && expires.getTime() > Date.now();
+
   if (active && expires) {
     const days = Math.max(1, Math.ceil((expires.getTime() - Date.now()) / 86400000));
     return { role: profile.role, status: 'active', days, expiredAt: expires.toISOString() };
   }
-  return { role: profile.role, status: 'expired', expiredAt: expires ? expires.toISOString() : null };
+  if (profile.role === 'employer') {
+    return { role: profile.role, status: 'expired', expiredAt: hasExpiry ? expires!.toISOString() : null };
+  }
+  if (profile.role === 'jobseeker' && hasExpiry) {
+    return { role: profile.role, status: 'expired', expiredAt: expires!.toISOString() };
+  }
+  return null;
 };
 
 const AppLayout: React.FC = () => {
@@ -548,6 +559,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         onClose={() => setAuthModalOpen(false)}
         initialTab={authTab}
         onAuth={handleAuthComplete}
+        onOpenMpesa={(amount, description, accountRef, paymentType) => handleOpenMpesa(amount, description, accountRef, paymentType)}
       />
 
       <MpesaModal
