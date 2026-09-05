@@ -461,7 +461,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
               <Crown className="w-6 h-6 text-indigo-600" />
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Employer Subscription</h3>
-            <p className="text-sm text-gray-600 mb-1 text-center">Subscribe for <span className="font-bold text-indigo-600">KES 200/week</span> to access all jobseeker contacts in your category.</p>
+            <p className="text-sm text-gray-600 mb-1 text-center">Subscribe for <span className="font-bold text-indigo-600">KES 200/week</span> (or <span className="font-bold text-blue-600">KES 100</span> for 1 day) to access jobseeker contacts in your category.</p>
             <p className="text-sm text-gray-500 mb-5 text-center">No per-contact fees — one flat rate.</p>
             <div className="space-y-3">
               <button onClick={() => { setShowSubscriptionPrompt(false); handleSubscribe(); }} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">

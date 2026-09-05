@@ -112,7 +112,7 @@ export interface DbServiceAd {
 export interface DbPayment {
   id: string;
   user_id: string;
-  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token';
+  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access';
   amount: number;
   mpesa_ref: string;
   mpesa_phone: string;

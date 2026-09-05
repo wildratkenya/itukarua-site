@@ -10,7 +10,7 @@ interface MpesaModalProps {
   accountRef: string;
   user?: { id: string; name: string; email: string; role: string } | null;
   onPaymentComplete?: () => void;
-  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token';
+  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access';
   relatedJobId?: string;
   relatedAdId?: string;
   relatedProfileId?: string;
@@ -60,6 +60,15 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
 
   const planFor = (p: 'weekly' | 'day') => {
     if (p === 'day') {
+      if (!relatedJobId) {
+        return {
+          amount: EMPLOYER_DAY.amount,
+          description: 'Worker Day Access',
+          accountRef: EMPLOYER_DAY.accountRef,
+          paymentType: 'employer_day_access' as const,
+          relatedJobId: undefined as string | undefined,
+        };
+      }
       const jobLabel = relatedJobTitle ? ` — ${relatedJobTitle}` : '';
       return {
         amount: EMPLOYER_DAY.amount,
@@ -203,7 +212,6 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   if (!isOpen) return null;
 
   const formattedExpiry = employerExpiredAt ? new Date(employerExpiredAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
-  const dayTokenDisabled = employerPlans && !relatedJobId;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={resetAndClose}>
@@ -258,7 +266,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                 </button>
               </div>
 
-              <div className={`border-2 rounded-xl p-5 ${dayTokenDisabled ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-blue-300 bg-blue-50'}`}>
+              <div className="border-2 rounded-xl p-5 border-blue-300 bg-blue-50">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-3xl font-extrabold text-blue-700">KES 100</span>
                   <Zap className="w-6 h-6 text-blue-600" />
@@ -266,20 +274,25 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                 <p className="text-sm font-semibold text-gray-900">Single Job Token</p>
                 <p className="text-xs text-gray-500 mt-0.5">1 day access</p>
                 <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
-                  <li>• Unlock contacts for ONE job for 24 hours</li>
-                  <li>• See all bids on that job</li>
+                  {relatedJobId ? (
+                    <>
+                      <li>• Unlock contacts for ONE job for 24 hours</li>
+                      <li>• See all bids on that job</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>• Unlock worker contacts for 24 hours</li>
+                      <li>• View contact details in search results</li>
+                    </>
+                  )}
                   <li>• No weekly commitment</li>
                 </ul>
                 <button
-                  disabled={dayTokenDisabled}
                   onClick={() => { setSelectedPlan('day'); setStep('instructions'); }}
-                  className="mt-4 w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
+                  className="mt-4 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
-                  {dayTokenDisabled ? 'Open a job to use' : 'Choose Day Token'}
+                  Choose Day Token
                 </button>
-                {dayTokenDisabled && (
-                  <p className="text-[10px] text-gray-400 mt-2 text-center">This token unlocks contacts for one specific job — browse a job first.</p>
-                )}
               </div>
             </div>
             {relatedJobTitle && (
@@ -293,7 +306,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
               <div className="text-center">
                 <p className="text-sm text-green-700 font-medium">Amount to Pay</p>
                 <p className="text-3xl font-bold text-green-800">KES {effective.amount.toLocaleString()}</p>
-                <p className="text-xs text-green-600 mt-1">{selectedPlan === 'day' ? '1-day access · expires in 24 hours' : selectedPlan === 'weekly' ? '7-day unlimited access' : description}</p>
+                <p className="text-xs text-green-600 mt-1">{selectedPlan === 'day' ? (relatedJobId ? '1-day job access · expires in 24 hours' : '1-day worker access · expires in 24 hours') : selectedPlan === 'weekly' ? '7-day unlimited access' : description}</p>
               </div>
             </div>
 

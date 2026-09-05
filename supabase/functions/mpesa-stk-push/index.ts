@@ -21,6 +21,7 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   featured_boost: 'Featured Boost',
   single_job_post: 'Single Job Access',
   employer_day_token: 'Employer Day Token',
+  employer_day_access: 'Employer Day Access',
 }
 
 async function sendPaymentReceipt(supabase: any, payment: any, mpesaRef: string) {
@@ -123,9 +124,11 @@ async function applySubscriptionExtension(supabase: any, payment: any) {
   const { data: profile } = await supabase.from('profiles').select('subscription_expires_at').eq('id', payment.user_id).maybeSingle()
   const base = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date()
   if (base.getTime() < Date.now()) base.setTime(Date.now())
-  // Employer weekly ("Employer Weekly Access" / EMP-WK) = 7 days; all other
-  // registration-type payments (jobseeker premium, etc.) = 30 days.
-  const days = payment.description?.includes('Employer Weekly') ? 7 : 30
+  // Employer weekly ("Employer Weekly Access" / EMP-WK) = 7 days; worker day
+  // access = 1 day; all other registration payments (jobseeker premium, etc.) = 30 days.
+  const days = payment.payment_type === 'employer_day_access'
+    ? 1
+    : payment.description?.includes('Employer Weekly') ? 7 : 30
   base.setDate(base.getDate() + days)
   await supabase.from('profiles').update({
     subscription_expires_at: base.toISOString(),
@@ -140,7 +143,7 @@ async function completePayment(supabase: any, payment: any) {
     mpesa_ref: mpesaRef,
   }).eq('id', payment.id)
 
-  if (payment.payment_type === 'registration') {
+  if (payment.payment_type === 'registration' || payment.payment_type === 'employer_day_access') {
     await applySubscriptionExtension(supabase, payment)
   } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
     await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
@@ -303,7 +306,7 @@ Deno.serve(async (req) => {
         await supabase.from('payments').update(updates).eq('id', payment.id)
 
         if (newStatus === 'completed') {
-          if (payment.payment_type === 'registration') {
+          if (payment.payment_type === 'registration' || payment.payment_type === 'employer_day_access') {
             await applySubscriptionExtension(supabase, payment)
           } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
             await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
