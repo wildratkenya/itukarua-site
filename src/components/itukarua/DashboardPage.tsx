@@ -38,6 +38,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '', whatsapp_number: '' });
   const [saving, setSaving] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [certFiles, setCertFiles] = useState<File[]>([]);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
@@ -202,6 +203,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
 
   const handleSaveProfile = async () => {
     setSaving(true);
+    setProfileSaveError(null);
     try {
       let profileImageUrl = profileForm.profile_image;
       if (profilePhotoFile) {
@@ -245,7 +247,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setCertFiles([]);
       setCategoryFormSaved(true);
       setTimeout(() => setCategoryFormSaved(false), 2000);
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      console.error(err);
+      setProfileSaveError((err && (err.message || err.error_description)) || 'Failed to save profile. Please try again.');
+    }
     finally { setSaving(false); }
   };
 
@@ -1546,6 +1551,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                     </button>
+                    {profileSaveError && <p className="text-xs text-red-600 mt-2">{profileSaveError}</p>}
                   </>
                 )}
               </div>
