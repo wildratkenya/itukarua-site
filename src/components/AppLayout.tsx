@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { CheckCircle, CalendarX2, X } from 'lucide-react';
+import { CheckCircle, CalendarX2, X, Lock } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
 import { getProfile, boostAd, type DbProfile } from '@/lib/database';
 import Header, { type Page } from './itukarua/Header';
@@ -83,6 +83,7 @@ const AppLayout: React.FC = () => {
   const loginFromWorkerPopup = useRef(false);
   const [subNotice, setSubNotice] = useState<SubscriptionNotice | null>(null);
   const [subNoticeDismissed, setSubNoticeDismissed] = useState(false);
+  const [expiredLock, setExpiredLock] = useState(false);
   const [mpesaModal, setMpesaModal] = useState<{
     open: boolean;
     amount: number;
@@ -239,6 +240,7 @@ const AppLayout: React.FC = () => {
         setUser(null);
         setSubNotice(null);
         setSubNoticeDismissed(false);
+        setExpiredLock(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         // Handle token refresh - update user state
         const profile = await getProfile(session.user.id);
@@ -299,6 +301,7 @@ const AppLayout: React.FC = () => {
     setUser(null);
     setSubNotice(null);
     setSubNoticeDismissed(false);
+    setExpiredLock(false);
     setCurrentPage('home');
   }, []);
 
@@ -349,13 +352,21 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
   // Payable profiles (jobseeker/employer/advertiser) must have a valid paid
   // account. After login: show a status notice (days remaining, or expired) and
   // auto-prompt the payment flow when the account is expired / unpaid.
-  const syncSubscriptionNotice = useCallback((p: any) => {
-    setSubNotice(evaluateSubscriptionNotice(p));
+  // Apply the subscription notice AND the employer expired-lock together so they
+  // can never disagree about whether the employer behind the notes is paid up.
+  const applySubscriptionState = useCallback((p: any) => {
+    const n = evaluateSubscriptionNotice(p);
+    setSubNotice(n);
+    setExpiredLock(p?.role === 'employer' && !(n && n.status === 'active'));
   }, []);
 
+  const syncSubscriptionNotice = useCallback((p: any) => {
+    applySubscriptionState(p);
+  }, [applySubscriptionState]);
+
   const promptLoginSubscriptionCheck = useCallback((p: any) => {
+    applySubscriptionState(p);
     const notice = evaluateSubscriptionNotice(p);
-    setSubNotice(notice);
     if (notice?.status === 'expired') {
       setSubNoticeDismissed(false);
       const spec = rolePaymentSpec(notice.role);
@@ -367,7 +378,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         }
       }, 400);
     }
-  }, [handleOpenEmployerPayment, handleOpenMpesa]);
+  }, [applySubscriptionState, handleOpenEmployerPayment, handleOpenMpesa]);
 
   const handleCloseMpesa = useCallback(() => {
     setMpesaModal(prev => ({ ...prev, open: false }));
@@ -552,6 +563,29 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         )}
       </main>
 
+      {expiredLock && user?.role === 'employer' && (
+        <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 text-center border border-gray-100">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Account Expired</h2>
+            <p className="text-sm text-gray-600 mt-2">
+              Your employer subscription has expired{subNotice?.expiredAt ? <> on <span className="font-semibold">{new Date(subNotice.expiredAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span></> : ''}. Renew to unlock posting jobs and accessing worker contacts.
+            </p>
+            <button onClick={handleOpenEmployerPayment} className="w-full mt-5 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors">
+              Renew Now — Weekly Plan
+            </button>
+            <button onClick={() => handleOpenMpesa(100, 'Employer 1-Day Access', 'EMP-DAY', 'employer_day_access')} className="w-full mt-2 py-3 border border-green-200 text-green-700 font-semibold rounded-xl transition-colors hover:bg-green-50">
+              Or Unlock 1 Day — KES 100
+            </button>
+            <button onClick={handleLogout} className="w-full mt-4 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+              Log out instead
+            </button>
+          </div>
+        </div>
+      )}
+
       <Footer onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} />
 
       <AuthModal
@@ -604,7 +638,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           mpesaModal.onComplete?.();
         }}
       />
-      <ChatBot />
+      {!expiredLock && <ChatBot />}
     </div>
   );
 };
