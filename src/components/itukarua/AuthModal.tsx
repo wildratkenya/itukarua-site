@@ -11,12 +11,15 @@ interface AuthModalProps {
   onClose: () => void;
   initialTab?: 'login' | 'signup';
   onAuth: () => void;
+  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string) => void;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', onAuth }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', onAuth, onOpenMpesa }) => {
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<'advertiser' | 'employer' | 'jobseeker'>('employer');
+  const [showPlanChoice, setShowPlanChoice] = useState(false);
+  const [chosenRole, setChosenRole] = useState<'advertiser' | 'employer' | 'jobseeker' | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -170,8 +173,14 @@ data: {
           setServerError('');
 
           if (hasSession) {
-            // No email confirmation required — account is live now
-            onClose();
+            // No email confirmation required — account is live now.
+            // Jobseekers choose their subscription plan (Free / Premium) right here.
+            if (role === 'jobseeker') {
+              setChosenRole(role);
+              setShowPlanChoice(true);
+            } else {
+              onClose();
+            }
           } else {
             setEmailSent(true);
           }
@@ -239,8 +248,61 @@ data: {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {serverError && (
+<form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {showPlanChoice && chosenRole === 'jobseeker' ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Account Created!</h3>
+                <p className="text-sm text-gray-500">Welcome to Itukarua. Choose your jobseeker plan to finish setting up.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border-2 border-gray-200 rounded-xl p-5">
+                  <p className="font-bold text-gray-900">Free</p>
+                  <p className="text-xs text-gray-500">Basic visibility</p>
+                  <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
+                    <li>• 10 job bids per week</li>
+                    <li>• Basic search visibility</li>
+                    <li>• Job notifications</li>
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPlanChoice(false); setChosenRole(null); onClose(); }}
+                    className="mt-4 w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Start Free
+                  </button>
+                </div>
+                <div className="border-2 border-green-500 bg-green-50 rounded-xl p-5 relative">
+                  <span className="absolute -top-2.5 right-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
+                  <p className="font-bold text-gray-900">Premium</p>
+                  <p className="text-xs text-gray-500">KES 100 · 30 days</p>
+                  <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
+                    <li>• Unlimited job bids</li>
+                    <li>• Priority visibility & featured badge</li>
+                    <li>• Direct messaging with employers</li>
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlanChoice(false);
+                      setChosenRole(null);
+                      onClose();
+                      onOpenMpesa?.(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration');
+                    }}
+                    className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Pay KES 100 via M-Pesa
+                  </button>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 text-center">You can upgrade or switch plans anytime from your dashboard.</p>
+            </div>
+          ) : (
+            <>
+            {serverError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {serverError}
             </div>
@@ -571,10 +633,12 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
             </button>
           )}
 
-          {!emailSent && tab === 'signup' && role === 'jobseeker' && (
+{!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
               Jobseeker membership is <span className="font-semibold text-green-700">KES 100/mo</span> — a 30-day subscription. Pay now to start bidding on jobs and connecting with employers.
             </p>
+          )}
+            </>
           )}
         </form>
       </div>
