@@ -41,7 +41,7 @@ const AppLayout: React.FC = () => {
     amount: number;
     description: string;
     accountRef: string;
-    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token';
+    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access';
     relatedAdId?: string;
     relatedJobId?: string;
     relatedJobTitle?: string;
