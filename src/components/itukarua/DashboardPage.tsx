@@ -39,6 +39,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '', whatsapp_number: '' });
   const [saving, setSaving] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [certFiles, setCertFiles] = useState<File[]>([]);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
@@ -204,6 +205,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const handleSaveProfile = async () => {
     setSaving(true);
     setProfileSaveError(null);
+    setProfileSaveNotice(null);
     const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) =>
       Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms))]);
     try {
@@ -217,14 +219,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         else profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
       }
       let certUrls: string[] = [];
+      const certUploadErrors: string[] = [];
       if (certFiles.length > 0) {
-        console.log('[ProfileSave] uploading certificates...');
+        console.log(`[ProfileSave] uploading ${certFiles.length} certificate(s)...`);
         for (const file of certFiles) {
           const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
           const ext = compressed.name.split('.').pop() || 'jpg';
           const fileName = `${user.id}/certs/${Date.now()}_${crypto.randomUUID()}.${ext}`;
           const { error: upErr } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 20000, 'Certificate upload');
-          if (!upErr) {
+          if (upErr) {
+            console.warn(`[ProfileSave] cert upload failed (${file.name}):`, upErr);
+            certUploadErrors.push(`${file.name}: ${upErr.message || (upErr.error ?? 'upload failed')}`);
+          } else {
             certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
           }
         }
@@ -256,6 +262,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setCertFiles([]);
       setCategoryFormSaved(true);
       setTimeout(() => setCategoryFormSaved(false), 2000);
+      if (certUploadErrors.length > 0) {
+        setProfileSaveNotice(`Profile saved, but ${certUploadErrors.length} certificate file(s) were not uploaded (${certUploadErrors.join('; ')}).`);
+      }
       console.log('[ProfileSave] done');
     } catch (err: any) {
       console.error('[ProfileSave] error:', err);
@@ -1426,6 +1435,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                     </button>
                     {profileSaveError && <p className="text-xs text-red-600 mt-2">{profileSaveError}</p>}
+                    {profileSaveNotice && <p className="text-xs text-amber-600 mt-2">{profileSaveNotice}</p>}
                     <div className="pt-4 mt-4 border-t border-gray-200">
                       <h4 className="font-semibold text-gray-900 mb-4">Update Password</h4>
                       <div className="space-y-3">
@@ -1563,6 +1573,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                     </button>
                     {profileSaveError && <p className="text-xs text-red-600 mt-2">{profileSaveError}</p>}
+                    {profileSaveNotice && <p className="text-xs text-amber-600 mt-2">{profileSaveNotice}</p>}
                   </>
                 )}
               </div>
