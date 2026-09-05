@@ -7,3 +7,6 @@ major_version = 15
 
 [edge_runtime]
 enabled = true
+
+[functions.mpesa-stk-push]
+verify_jwt = false
