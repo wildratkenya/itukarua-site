@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { CheckCircle, CalendarX2, X } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
 import { getProfile, boostAd, type DbProfile } from '@/lib/database';
 import Header, { type Page } from './itukarua/Header';
@@ -29,6 +30,39 @@ export interface UserState {
   profile?: DbProfile | null;
 }
 
+const PAYABLE_ROLES = ['jobseeker', 'employer', 'advertiser'];
+
+interface SubscriptionNotice {
+  role: string;
+  status: 'active' | 'expired';
+  days?: number;
+  expiredAt?: string | null;
+}
+
+// Payment spec shown on login when the account's subscription has expired/not paid.
+const rolePaymentSpec = (role: string) => {
+  if (role === 'employer') {
+    return { employerChooser: true, amount: 0, description: '', accountRef: '', paymentType: 'registration' as const };
+  }
+  if (role === 'jobseeker') {
+    return { employerChooser: false, amount: 100, description: 'Jobseeker Premium Subscription', accountRef: 'PREM-NEW', paymentType: 'registration' as const };
+  }
+  return { employerChooser: false, amount: 100, description: 'Advertiser Subscription', accountRef: 'ADV-SUB', paymentType: 'registration' as const };
+};
+
+// Evaluate the subscription status shown after login for payable profiles.
+const evaluateSubscriptionNotice = (profile: any): SubscriptionNotice | null => {
+  if (!profile || !PAYABLE_ROLES.includes(profile.role)) return null;
+  const paidReg = !!profile.registration_paid;
+  const expires = profile.subscription_expires_at ? new Date(profile.subscription_expires_at) : null;
+  const active = paidReg && !!expires && expires.getTime() > Date.now();
+  if (active && expires) {
+    const days = Math.max(1, Math.ceil((expires.getTime() - Date.now()) / 86400000));
+    return { role: profile.role, status: 'active', days, expiredAt: expires.toISOString() };
+  }
+  return { role: profile.role, status: 'expired', expiredAt: expires ? expires.toISOString() : null };
+};
+
 const AppLayout: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [user, setUser] = useState<UserState | null>(null);
@@ -36,6 +70,8 @@ const AppLayout: React.FC = () => {
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const loginJustHappened = useRef(false);
   const loginFromWorkerPopup = useRef(false);
+  const [subNotice, setSubNotice] = useState<SubscriptionNotice | null>(null);
+  const [subNoticeDismissed, setSubNoticeDismissed] = useState(false);
   const [mpesaModal, setMpesaModal] = useState<{
     open: boolean;
     amount: number;
@@ -107,7 +143,7 @@ const AppLayout: React.FC = () => {
               role: profile?.role || 'employer',
               profile,
             });
-            promptEmployerPaymentIfNeeded(profile);
+            promptLoginSubscriptionCheck(profile);
           }
         }
       } catch (err: any) {
@@ -168,7 +204,7 @@ const AppLayout: React.FC = () => {
               role: refreshedProfile?.role || meta.role || 'employer',
               profile: refreshedProfile,
             });
-            promptEmployerPaymentIfNeeded(refreshedProfile);
+            promptLoginSubscriptionCheck(refreshedProfile);
             if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
           }
           return;
@@ -185,11 +221,13 @@ const AppLayout: React.FC = () => {
             role: profile?.role || 'employer',
             profile,
           });
-          promptEmployerPaymentIfNeeded(profile);
+          promptLoginSubscriptionCheck(profile);
           if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setSubNotice(null);
+        setSubNoticeDismissed(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         // Handle token refresh - update user state
         const profile = await getProfile(session.user.id);
@@ -201,7 +239,7 @@ const AppLayout: React.FC = () => {
           role: profile?.role || 'employer',
           profile,
         });
-        promptEmployerPaymentIfNeeded(profile);
+        promptLoginSubscriptionCheck(profile);
       }
       
       if (mounted) setAuthLoading(false);
@@ -248,6 +286,8 @@ const AppLayout: React.FC = () => {
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setSubNotice(null);
+    setSubNoticeDismissed(false);
     setCurrentPage('home');
   }, []);
 
@@ -295,16 +335,28 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     });
   }, [user]);
 
-  // Employers must have a valid paid account (registration paid + active weekly
-  // subscription). If not, auto-prompt the M-Pesa payment right after sign in.
-  const promptEmployerPaymentIfNeeded = useCallback((p: any) => {
-    if (p?.role !== 'employer') return;
-    const paidReg = !!p.registration_paid;
-    const subActive = p.subscription_expires_at ? new Date(p.subscription_expires_at).getTime() > Date.now() : false;
-    if (!paidReg || !subActive) {
-      setTimeout(() => handleOpenEmployerPayment(), 400);
+  // Payable profiles (jobseeker/employer/advertiser) must have a valid paid
+  // account. After login: show a status notice (days remaining, or expired) and
+  // auto-prompt the payment flow when the account is expired / unpaid.
+  const syncSubscriptionNotice = useCallback((p: any) => {
+    setSubNotice(evaluateSubscriptionNotice(p));
+  }, []);
+
+  const promptLoginSubscriptionCheck = useCallback((p: any) => {
+    const notice = evaluateSubscriptionNotice(p);
+    setSubNotice(notice);
+    if (notice?.status === 'expired') {
+      setSubNoticeDismissed(false);
+      const spec = rolePaymentSpec(notice.role);
+      setTimeout(() => {
+        if (spec.employerChooser) {
+          handleOpenEmployerPayment();
+        } else {
+          handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined);
+        }
+      }, 400);
     }
-  }, [handleOpenEmployerPayment]);
+  }, [handleOpenEmployerPayment, handleOpenMpesa]);
 
   const handleCloseMpesa = useCallback(() => {
     setMpesaModal(prev => ({ ...prev, open: false }));
@@ -444,6 +496,41 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         onLogout={handleLogout}
       />
 
+      {subNotice && !subNoticeDismissed && (
+        <div className={`border-b px-4 py-2.5 flex items-center justify-between gap-3 text-sm ${subNotice.status === 'active' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          <div className="flex flex-wrap items-center gap-2 font-medium">
+            {subNotice.status === 'active' ? (
+              <>
+                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span>
+                  Your <span className="capitalize font-semibold">{subNotice.role}</span> subscription is active — <span className="font-bold">{subNotice.days} day{subNotice.days === 1 ? '' : 's'} remaining</span>.
+                </span>
+              </>
+            ) : (
+              <>
+                <CalendarX2 className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <span>
+                  Your subscription has {subNotice.expiredAt ? <>expired on <span className="font-bold">{new Date(subNotice.expiredAt!).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span></> : 'expired'}. Renew to continue accessing your <span className="capitalize">{subNotice.role}</span> features.
+                </span>
+                <button
+                  onClick={() => {
+                    const spec = rolePaymentSpec(subNotice.role);
+                    if (spec.employerChooser) handleOpenEmployerPayment();
+                    else handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined);
+                  }}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  Renew now
+                </button>
+              </>
+            )}
+          </div>
+          <button onClick={() => setSubNoticeDismissed(true)} className="flex-shrink-0 p-1 hover:opacity-70 transition-opacity" aria-label="Dismiss">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <main className="flex-1">
         {authLoading ? (
           <div className="flex items-center justify-center py-32">
@@ -489,6 +576,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             const refreshProfile = () => {
               getProfile(user.id).then(p => {
                 if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
+                syncSubscriptionNotice(p);
               });
             };
             if (mpesaModal.paymentType === 'registration') {
