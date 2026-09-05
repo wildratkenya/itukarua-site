@@ -33,7 +33,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [dbJobCategories, setDbJobCategories] = useState<string[]>([]);
-  const [certFiles, setCertFiles] = useState<FileList | null>(null);
+  const [certFiles, setCertFiles] = useState<File[]>([]);
+  const [certPickError, setCertPickError] = useState<string | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState('');
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
@@ -143,9 +144,9 @@ data: {
           }
 
           // Upload certificates if jobseeker
-          if (certFiles && certFiles.length > 0 && role === 'jobseeker') {
+          if (certFiles.length > 0 && role === 'jobseeker') {
             const certUrls: string[] = [];
-            const filesToUpload = Array.from(certFiles).slice(0, 3);
+            const filesToUpload = certFiles.slice(0, 3);
             for (const file of filesToUpload) {
               const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
               const ext = compressed.name.split('.').pop() || (file.type.startsWith('image/') ? 'jpg' : file.name.split('.').pop());
@@ -325,7 +326,7 @@ data: {
               <button
                 type="button"
                 onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
-county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]); setCertFiles(null); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
+county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]); setCertFiles([]); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
                 Back to Sign In
@@ -491,16 +492,25 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Certificates (Max 3, PDF or Image)
+                  Certificates (Max 3, PDF only)
                 </label>
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,image/*"
-                  onChange={e => setCertFiles(e.target.files)}
+                  accept=".pdf"
+                  onChange={e => {
+                    const picks = e.target.files ? Array.from(e.target.files) : [];
+                    const pdfs = picks.filter(f => f.type === 'application/pdf');
+                    const rejected = picks.filter(f => f.type !== 'application/pdf');
+                    setCertPickError(rejected.length > 0
+                      ? `Only PDF certificates are supported. Skipped: ${rejected.map(f => f.name).join(', ')}`
+                      : null);
+                    setCertFiles(pdfs.slice(0, 3));
+                  }}
                   className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                 />
-                {certFiles && (
+                {certPickError && <p className="text-[10px] text-red-600 mt-1">{certPickError}</p>}
+                {certFiles.length > 0 && (
                   <p className="text-[10px] text-green-600 mt-1">
                     {certFiles.length} file(s) selected (max 3 will be uploaded)
                   </p>

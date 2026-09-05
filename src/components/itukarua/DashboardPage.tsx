@@ -42,6 +42,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [certFiles, setCertFiles] = useState<File[]>([]);
+  const [certPickError, setCertPickError] = useState<string | null>(null);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
   const [notifications, setNotifications] = useState<DbNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -1550,8 +1551,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                       <textarea value={profileForm.resume} onChange={e => setProfileForm({ ...profileForm, resume: e.target.value })} rows={4} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none resize-none text-sm" placeholder="Paste your resume here..." />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Certificates / Referral Letters</label>
-                      <input type="file" multiple accept=".pdf,image/png,image/jpeg" onChange={e => { if (e.target.files) setCertFiles(Array.from(e.target.files)); }} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Certificates / Referral Letters <span className="text-gray-400 text-xs">(PDF only)</span></label>
+                      <input type="file" multiple accept=".pdf" onChange={e => { if (!e.target.files) return; const picks = Array.from(e.target.files); const pdfs = picks.filter(f => f.type === 'application/pdf'); const rejected = picks.filter(f => f.type !== 'application/pdf'); setCertPickError(rejected.length > 0 ? `Only PDF certificates are supported. Skipped: ${rejected.map(f => f.name).join(', ')}` : null); if (pdfs.length > 0) setCertFiles(prev => [...prev, ...pdfs].slice(0, 3)); }} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                      {certPickError && <p className="text-xs text-red-600 mt-1">{certPickError}</p>}
                       {certFiles.length > 0 && <p className="text-xs text-green-600 mt-1">{certFiles.length} file(s) selected</p>}
                       {(user.profile?.certificates?.length || 0) > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">

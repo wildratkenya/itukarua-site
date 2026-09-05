@@ -164,6 +164,7 @@ const AdminPage: React.FC = () => {
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [certFiles, setCertFiles] = useState<File[]>([]);
+  const [certPickError, setCertPickError] = useState<string | null>(null);
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [ratingsEnabled, setRatingsEnabled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -3341,25 +3342,33 @@ const AdminPage: React.FC = () => {
               <Textarea name="resume" placeholder="Paste resume here..." rows={3} />
             </div>
             <div className="jobseeker-fields col-span-2" style={{ display: 'none' }}>
-              <Label>Certificates / Recommendation Letters (Max 3, Optional)</Label>
+              <Label>Certificates / Recommendation Letters (Max 3, PDF only)</Label>
               {certFiles.length > 0 && (
                 <div className="flex gap-2 mb-2 flex-wrap">
                   {certFiles.map((file, i) => (
-                    <div key={i} className="relative flex-shrink-0 w-16 h-16 rounded border border-blue-500 overflow-hidden">
-                      <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                    <div key={i} className="relative flex-shrink-0 rounded border border-blue-500 overflow-hidden">
+                      {file.type.startsWith('image/') ? (
+                        <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 object-cover" />
+                      ) : (
+                        <div className="w-16 h-16 flex items-center justify-center text-[10px] text-blue-700 font-semibold bg-blue-50 p-1 break-all text-center">{file.name}</div>
+                      )}
                       <button type="button" onClick={() => setCertFiles(certFiles.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center text-[10px]">X</button>
                     </div>
                   ))}
                 </div>
               )}
+              {certPickError && <p className="text-xs text-red-600 mb-1">{certPickError}</p>}
               <input 
                 type="file" 
                 multiple 
-                accept="image/png,image/jpeg,.pdf"
+                accept=".pdf"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                 onChange={(e) => {
-                  const files = e.target.files;
-                  if (files) setCertFiles([...certFiles, ...Array.from(files)].slice(0, 3));
+                  const files = e.target.files ? Array.from(e.target.files) : [];
+                  const pdfs = files.filter(f => f.type === 'application/pdf');
+                  const rejected = files.filter(f => f.type !== 'application/pdf');
+                  setCertPickError(rejected.length > 0 ? `Only PDF certificates are supported. Skipped: ${rejected.map(f => f.name).join(', ')}` : null);
+                  if (pdfs.length > 0) setCertFiles([...certFiles, ...pdfs].slice(0, 3));
                 }} 
               />
             </div>
