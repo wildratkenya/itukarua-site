@@ -581,9 +581,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         {(!subscriptionActive || subscriptionDays <= 7) && (
                           <div className="flex gap-2 flex-wrap">
                             {!subscriptionActive && (
-                              <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap bg-green-600 hover:bg-green-700 text-white">
-                                Upgrade — KES 100/mo
-                              </button>
+                              <>
+                                <button onClick={() => onNavigate('search-jobs')} disabled={weeklyBidCount >= FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                                  <Briefcase className="w-4 h-4" /> Bid on Jobs
+                                </button>
+                                <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} disabled={weeklyBidCount < FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${weeklyBidCount < FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+                                  Upgrade — KES 100/mo
+                                </button>
+                              </>
                             )}
                             {subscriptionActive && subscriptionDays <= 7 && PRICING_PLANS.subscriptionPackages.map(pkg => (
                               <button key={pkg.id} onClick={() => onOpenMpesa(pkg.price, `Subscription renewal — ${pkg.name} (${pkg.days} days)`, user.id, 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, pkg.days))} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${pkg.popular ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white border border-green-200 text-green-700 hover:bg-green-50'}`}>
