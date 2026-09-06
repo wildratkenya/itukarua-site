@@ -1420,6 +1420,7 @@ const AdminPage: React.FC = () => {
                   <TableBody>
                     {(showTrash ? trashedUsers : users).filter(u => !searchUsers || u.full_name?.toLowerCase().includes(searchUsers.toLowerCase()) || u.email?.toLowerCase().includes(searchUsers.toLowerCase())).map((user) => {
                       const uChecked = selectedUsers.has(user.id);
+                      const subActive = !!user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now();
                       return (
                       <>
                       <TableRow key={user.id} className={uChecked ? 'bg-green-50' : ''}>
@@ -1529,25 +1530,30 @@ const AdminPage: React.FC = () => {
                                   </Button>
                                 </div>
                                 <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
-                                  <span className="text-[10px] text-gray-400 font-medium">Add days</span>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={30}
-                                    value={addUserDays[user.id] ?? 30}
-                                    onChange={e => {
-                                      const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
-                                      setAddUserDays(prev => ({ ...prev, [user.id]: v }));
-                                    }}
-                                    className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
-                                    disabled={showTrash}
-                                  />
-                                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendUserSubscription(user.id, addUserDays[user.id] ?? 30, user.full_name || user.email)}>
-                                    Add Days
-                                  </Button>
-                                  <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
-                                    +1 Day
-                                  </Button>
+                                  {subActive ? (
+                                    <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
+                                  ) : (
+                                    <>
+                                      <span className="text-[10px] text-gray-400 font-medium">Revive·add days</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={addUserDays[user.id] ?? 30}
+                                        onChange={e => {
+                                          const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                          setAddUserDays(prev => ({ ...prev, [user.id]: v }));
+                                        }}
+                                        className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                      />
+                                      <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendUserSubscription(user.id, addUserDays[user.id] ?? 30, user.full_name || user.email)}>
+                                        Add Days
+                                      </Button>
+                                      <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
+                                        +1 Day
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                                 <Button variant="outline" size="sm" onClick={() => {
                                   setEditingUser(user);
