@@ -2,7 +2,7 @@
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Key } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount } from '@/lib/database';
 
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -137,6 +137,8 @@ interface Message {
 
 const AdminPage: React.FC = () => {
   const [users, setUsers] = useState<Profile[]>([]);
+  const [weeklyBidCounts, setWeeklyBidCounts] = useState<Record<string, number>>({});
+  const [addUserDays, setAddUserDays] = useState<Record<string, number>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -453,6 +455,7 @@ const AdminPage: React.FC = () => {
           const all = data || [];
           setUsers(all.filter(u => !u.deleted_at));
           setTrashedUsers(all.filter(u => u.deleted_at).sort((a, b) => (b.deleted_at || '').localeCompare(a.deleted_at || '')));
+          loadWeeklyBids(all.filter(u => !u.deleted_at));
         }),
         loadJobs(),
         loadAds(),
@@ -655,10 +658,11 @@ const AdminPage: React.FC = () => {
   const extendUserSubscription = async (userId: string, days: number, userName: string) => {
     try {
       await extendSubscription(userId, days);
-      toast({ title: 'Success', description: `Extended ${userName}'s subscription by ${days} day${days !== 1 ? 's' : ''}.` });
-    } catch (error) {
+      toast({ title: 'Success', description: `Added ${days} day${days !== 1 ? 's' : ''} to ${userName}'s subscription.` });
+      await reloadUsers();
+    } catch (error: any) {
       console.error('Error extending subscription:', error);
-      toast({ title: 'Error', description: 'Failed to extend subscription', variant: 'destructive' });
+      toast({ title: 'Error', description: error?.message || 'Failed to extend subscription', variant: 'destructive' });
     }
   };
 
@@ -810,6 +814,15 @@ const AdminPage: React.FC = () => {
     const all = data || [];
     setUsers(all.filter(u => !u.deleted_at));
     setTrashedUsers(all.filter(u => u.deleted_at).sort((a, b) => (b.deleted_at || '').localeCompare(a.deleted_at || '')));
+    loadWeeklyBids(all.filter(u => !u.deleted_at));
+  };
+
+  const loadWeeklyBids = async (profileList: Profile[]) => {
+    const jobseekers = profileList.filter(u => u.role === 'jobseeker');
+    const entries = await Promise.all(
+      jobseekers.map(async u => [u.id, await getWeeklyBidCount(u.id)] as [string, number])
+    );
+    setWeeklyBidCounts(Object.fromEntries(entries));
   };
 
   const trashUser = async (userId: string) => {
@@ -1408,6 +1421,7 @@ const AdminPage: React.FC = () => {
                     {(showTrash ? trashedUsers : users).filter(u => !searchUsers || u.full_name?.toLowerCase().includes(searchUsers.toLowerCase()) || u.email?.toLowerCase().includes(searchUsers.toLowerCase())).map((user) => {
                       const uChecked = selectedUsers.has(user.id);
                       return (
+                      <>
                       <TableRow key={user.id} className={uChecked ? 'bg-green-50' : ''}>
                         <TableCell className="w-10">
                           <input type="checkbox" checked={uChecked} onChange={() => {
@@ -1446,24 +1460,37 @@ const AdminPage: React.FC = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now() ? (
-                            <Badge variant="default" className="bg-green-600">
-                              Premium · {Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))}d left
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-600">Free</Badge>
-                          )}
-                          {user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now() && (
-                            <div className="text-[10px] text-gray-400 mt-0.5">Expires {new Date(user.subscription_expires_at).toLocaleDateString()}</div>
-                          )}
+                          {(() => {
+                            const exp = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() : 0;
+                            if (exp > Date.now()) {
+                              const daysLeft = Math.ceil((exp - Date.now()) / (1000 * 60 * 60 * 24));
+                              return (
+                                <>
+                                  <Badge variant="success">
+                                    Premium · {daysLeft}d left
+                                  </Badge>
+                                  {!user.registration_paid && (
+                                    <div className="text-[10px] text-red-400 mt-0.5">Unpaid (paid flag missing)</div>
+                                  )}
+                                  <div className="text-[10px] text-gray-400 mt-0.5">Expires {new Date(user.subscription_expires_at!).toLocaleDateString()}</div>
+                                </>
+                              );
+                            }
+                            if (exp > 0) {
+                              const ago = Math.max(0, Math.ceil((Date.now() - exp) / (1000 * 60 * 60 * 24)));
+                              return <Badge variant="destructive">Expired · {ago}d ago</Badge>;
+                            }
+                            return <Badge variant="secondary" className="bg-gray-100 text-gray-600">Free</Badge>;
+                          })()}
                         </TableCell>
                         <TableCell>
                           {user.role === 'jobseeker' ? (
-                            user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now() ? (
-                              <span className="text-xs text-green-600 font-medium">Unlimited</span>
-                            ) : (
-                              <span className="text-xs text-gray-500">—</span>
-                            )
+                            <div className="flex items-center gap-1">
+                              <Badge variant={(weeklyBidCounts[user.id] ?? 0) >= 10 ? 'destructive' : 'secondary'}>
+                                {weeklyBidCounts[user.id] ?? 0}
+                              </Badge>
+                              <span className="text-[10px] text-gray-400">/ 10</span>
+                            </div>
                           ) : (
                             <span className="text-xs text-gray-400">—</span>
                           )}
@@ -1473,53 +1500,71 @@ const AdminPage: React.FC = () => {
                             {user.deleted_at ? new Date(user.deleted_at).toLocaleDateString() : '—'}
                           </TableCell>
                         )}
-                        <TableCell className="flex gap-2 flex-wrap">
-                          {showTrash ? (
-                            <>
-                              <Button variant="outline" size="sm" onClick={() => restoreUser(user.id)}>Restore</Button>
-                              <Button variant="destructive" size="sm" onClick={() => {
-                                setDeletingUser(user);
-                                setIsDeleteDialogOpen(true);
-                              }}>Delete Permanently</Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button variant="outline" size="sm" onClick={() => toggleUserVerification(user.id, user.verified)}>
-                                {user.verified ? 'Unverify' : 'Verify'}
-                              </Button>
-                              <Button variant={user.is_featured ? 'default' : 'outline'} size="sm" onClick={() => toggleUserFeatured(user.id, !!user.is_featured)} className={user.is_featured ? 'bg-amber-500 hover:bg-amber-600' : ''}>
-                                {user.is_featured ? '★ Featured' : 'Feature'}
-                              </Button>
-                              <div className="flex gap-1">
-                                <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email} title="Send reset email">
-                                  Send Email
+                      </TableRow>
+                      <TableRow key={`${user.id}-actions`} className="bg-muted/20">
+                        <TableCell colSpan={showTrash ? 8 : 7}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {showTrash ? (
+                              <>
+                                <Button variant="outline" size="sm" onClick={() => restoreUser(user.id)}>Restore</Button>
+                                <Button variant="destructive" size="sm" onClick={() => {
+                                  setDeletingUser(user);
+                                  setIsDeleteDialogOpen(true);
+                                }}>Delete Permanently</Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button variant="outline" size="sm" onClick={() => toggleUserVerification(user.id, user.verified)}>
+                                  {user.verified ? 'Unverify' : 'Verify'}
                                 </Button>
-                                <Button variant="secondary" size="sm" onClick={() => { setResetPwUser(user); setResetPwPassword(''); setIsResetPwDialogOpen(true); }}>
-                                  Set PW
+                                <Button variant={user.is_featured ? 'default' : 'outline'} size="sm" onClick={() => toggleUserFeatured(user.id, !!user.is_featured)} className={user.is_featured ? 'bg-amber-500 hover:bg-amber-600' : ''}>
+                                  {user.is_featured ? '★ Featured' : 'Feature'}
                                 </Button>
-                              </div>
-                              <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
-                                +1 Day
-                              </Button>
-                              {user.role === 'jobseeker' && (!user.subscription_expires_at || new Date(user.subscription_expires_at).getTime() <= Date.now()) && (
-                                <Button variant="default" size="sm" onClick={() => extendUserSubscription(user.id, 30, user.full_name || user.email)} className="bg-green-600 hover:bg-green-700">
-                                  Upgrade 30d
+                                <div className="flex gap-1">
+                                  <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email} title="Send reset email">
+                                    Send Email
+                                  </Button>
+                                  <Button variant="secondary" size="sm" onClick={() => { setResetPwUser(user); setResetPwPassword(''); setIsResetPwDialogOpen(true); }}>
+                                    Set PW
+                                  </Button>
+                                </div>
+                                <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
+                                  <span className="text-[10px] text-gray-400 font-medium">Add days</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={30}
+                                    value={addUserDays[user.id] ?? 30}
+                                    onChange={e => {
+                                      const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                      setAddUserDays(prev => ({ ...prev, [user.id]: v }));
+                                    }}
+                                    className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                    disabled={showTrash}
+                                  />
+                                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendUserSubscription(user.id, addUserDays[user.id] ?? 30, user.full_name || user.email)}>
+                                    Add Days
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
+                                    +1 Day
+                                  </Button>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                  setEditingUser(user);
+                                  setRatingsEnabled(!!user.ratings_enabled);
+                                  setIsEditUserModalOpen(true);
+                                }}>
+                                  Edit
                                 </Button>
-                              )}
-                              <Button variant="outline" size="sm" onClick={() => {
-                                setEditingUser(user);
-                                setRatingsEnabled(!!user.ratings_enabled);
-                                setIsEditUserModalOpen(true);
-                              }}>
-                                Edit
-                              </Button>
-                              <Button variant="destructive" size="sm" onClick={() => trashUser(user.id)}>
-                                Trash
-                              </Button>
-                            </>
-                          )}
+                                <Button variant="destructive" size="sm" onClick={() => trashUser(user.id)}>
+                                  Trash
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
+                      </>
                     )})}
                   </TableBody>
                 </Table>
