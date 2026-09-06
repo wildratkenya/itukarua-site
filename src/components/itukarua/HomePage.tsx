@@ -119,7 +119,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       setReviewRating(0);
       setReviewComment('');
       setReviewMsg('');
-      if (user?.role === 'employer') {
+      if (user?.role === 'super_admin' || user?.role === 'admin') {
+        setHasContactAccess(true);
+      } else if (user?.role === 'employer') {
         const paidReg = !!user.registration_paid;
         const subActive = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() > Date.now() : false;
         setHasContactAccess(paidReg && subActive);

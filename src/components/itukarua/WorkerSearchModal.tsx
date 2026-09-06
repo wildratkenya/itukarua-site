@@ -39,14 +39,19 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
     setUser(authUser);
     if (authUser) {
       const { data: profile } = await supabase.from('profiles').select('role, registration_paid, subscription_expires_at').eq('id', authUser.id).maybeSingle();
-      const isEmployer = profile?.role === 'employer';
-      if (isEmployer) {
-        const paidReg = !!profile?.registration_paid;
-        const subActive = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at).getTime() > Date.now() : false;
-        setHasSubscription(paidReg && subActive);
+      const isAdminOrSuper = profile?.role === 'admin' || profile?.role === 'super_admin';
+      if (isAdminOrSuper) {
+        setHasSubscription(true);
       } else {
-        const active = await checkSubscriptionActive(authUser.id);
-        setHasSubscription(active);
+        const isEmployer = profile?.role === 'employer';
+        if (isEmployer) {
+          const paidReg = !!profile?.registration_paid;
+          const subActive = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at).getTime() > Date.now() : false;
+          setHasSubscription(paidReg && subActive);
+        } else {
+          const active = await checkSubscriptionActive(authUser.id);
+          setHasSubscription(active);
+        }
       }
     } else {
       setHasSubscription(false);
@@ -151,6 +156,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
       setShowGuestPrompt(true);
       return;
     }
+    if (user?.role === 'admin' || user?.role === 'super_admin') return;
     if (!hasSubscription) {
       setShowSubscriptionPrompt(true);
       return;
