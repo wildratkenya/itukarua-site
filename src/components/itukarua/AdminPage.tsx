@@ -137,11 +137,13 @@ interface Message {
 }
 
 const AdminPage: React.FC = () => {
+  const [currentRole, setCurrentRole] = useState<string>('admin');
   const [users, setUsers] = useState<Profile[]>([]);
   const [weeklyBidCounts, setWeeklyBidCounts] = useState<Record<string, number>>({});
   const [addUserDays, setAddUserDays] = useState<Record<string, number>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
+  const [addAdDays, setAddAdDays] = useState<Record<string, number>>({});
   const [payments, setPayments] = useState<Payment[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -454,6 +456,11 @@ const AdminPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        if (me?.role) setCurrentRole(me.role);
+      }
       // Load everything initially
       await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }).then(({data}) => {
@@ -1254,6 +1261,32 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const extendAdDays = async (adId: string, days: number, adName: string) => {
+    const clamped = Math.max(1, Math.min(30, days));
+    try {
+      const start = new Date();
+      const end = new Date(start);
+      end.setDate(end.getDate() + clamped);
+      const expiryDate = end.toISOString().split('T')[0];
+      const { error } = await proxyTable('service_ads').update(
+        {
+          expiry_date: expiryDate,
+          billing_end: new Date(`${expiryDate}T00:00:00`).toISOString(),
+          billing_start: new Date().toISOString(),
+          billing_cycle: 'extended',
+        },
+        'id',
+        adId
+      );
+      if (error) throw error;
+      setAds(ads.map(ad => ad.id === adId ? { ...ad, expiry_date: expiryDate } : ad));
+      toast({ title: 'Success', description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${adName}". New expiry ${expiryDate}.` });
+    } catch (error: any) {
+      console.error('Error extending ad:', error);
+      toast({ title: 'Error', description: error?.message || 'Failed to extend ad', variant: 'destructive' });
+    }
+  };
+
   const updatePaymentStatus = async (paymentId: string, status: string) => {
     try {
       const payment = payments.find(p => p.id === paymentId);
@@ -1549,6 +1582,7 @@ const AdminPage: React.FC = () => {
                                     Set PW
                                   </Button>
                                 </div>
+                                {currentRole === 'super_admin' && (
                                 <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
                                   {subActive ? (
                                     <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
@@ -1575,6 +1609,7 @@ const AdminPage: React.FC = () => {
                                     </>
                                   )}
                                 </div>
+                                )}
                                 <Button variant="outline" size="sm" onClick={() => {
                                   setEditingUser(user);
                                   setRatingsEnabled(!!user.ratings_enabled);
@@ -1697,11 +1732,14 @@ const AdminPage: React.FC = () => {
                       <TableHead>Phone</TableHead>
                       <TableHead>Expiry</TableHead>
                       <TableHead>Featured</TableHead>
-                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ads.filter(a => !searchAds || a.business_name?.toLowerCase().includes(searchAds.toLowerCase()) || a.title?.toLowerCase().includes(searchAds.toLowerCase()) || a.category?.toLowerCase().includes(searchAds.toLowerCase()) || a.location?.toLowerCase().includes(searchAds.toLowerCase()) || a.contact_person?.toLowerCase().includes(searchAds.toLowerCase())).map((ad) => (
+                    {ads.filter(a => !searchAds || a.business_name?.toLowerCase().includes(searchAds.toLowerCase()) || a.title?.toLowerCase().includes(searchAds.toLowerCase()) || a.category?.toLowerCase().includes(searchAds.toLowerCase()) || a.location?.toLowerCase().includes(searchAds.toLowerCase()) || a.contact_person?.toLowerCase().includes(searchAds.toLowerCase())).map((ad) => {
+                      const expMs = ad.expiry_date ? new Date(`${ad.expiry_date}T23:59:59`).getTime() : 0;
+                      const adActive = expMs > Date.now();
+                      return (
+                      <>
                       <TableRow key={ad.id}>
                         <TableCell>
                           <img src={optimizeImageUrl(ad.image || ad.images?.[0] || '/images/services.png', 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
@@ -1713,44 +1751,91 @@ const AdminPage: React.FC = () => {
                         <TableCell>{ad.category}</TableCell>
                         <TableCell>{ad.contact_person || '-'}</TableCell>
                         <TableCell>{ad.contact || '-'}</TableCell>
-                        <TableCell>{ad.expiry_date}</TableCell>
+                        <TableCell>
+                          {!ad.expiry_date ? (
+                            <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
+                          ) : adActive ? (
+                            <>
+                              <Badge variant="success">Active · {Math.ceil((expMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
+                              <div className="text-[10px] text-gray-400 mt-0.5">Expires {ad.expiry_date}</div>
+                            </>
+                          ) : (
+                            <>
+                              <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - expMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
+                              <div className="text-[10px] text-gray-400 mt-0.5">Expired {ad.expiry_date}</div>
+                            </>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={ad.featured ? 'default' : 'secondary'}>
                             {ad.featured ? 'Featured' : 'Regular'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="flex gap-2 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateAdStatus(ad.id, !ad.featured)}
-                          >
-                            {ad.featured ? 'Unfeature' : 'Feature'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateAdPaymentStatus(ad.id, !ad.payment_confirmed)}
-                          >
-                            {ad.payment_confirmed ? 'Unconfirm' : 'Confirm'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => { setEditingAd(ad); setIsAdModalOpen(true); }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteAd(ad.id)}
-                          >
-                            Delete
-                          </Button>
+                      </TableRow>
+                      <TableRow key={`${ad.id}-actions`} className="bg-muted/20">
+                        <TableCell colSpan={7}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {currentRole === 'super_admin' && (
+                            <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
+                              {adActive ? (
+                                <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
+                              ) : (
+                                <>
+                                  <span className="text-[10px] text-gray-400 font-medium">Revive·add days</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={30}
+                                    value={addAdDays[ad.id] ?? 30}
+                                    onChange={e => {
+                                      const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                      setAddAdDays(prev => ({ ...prev, [ad.id]: v }));
+                                    }}
+                                    className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                  />
+                                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdDays(ad.id, addAdDays[ad.id] ?? 30, ad.business_name || ad.title || 'Ad')}>
+                                    Add Days
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => extendAdDays(ad.id, 1, ad.business_name || ad.title || 'Ad')}>
+                                    +1 Day
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateAdStatus(ad.id, !ad.featured)}
+                            >
+                              {ad.featured ? 'Unfeature' : 'Feature'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateAdPaymentStatus(ad.id, !ad.payment_confirmed)}
+                            >
+                              {ad.payment_confirmed ? 'Unconfirm' : 'Confirm'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { setEditingAd(ad); setIsAdModalOpen(true); }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteAd(ad.id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      </>
+                    )})}
                   </TableBody>
                 </Table>
               </CardContent>
