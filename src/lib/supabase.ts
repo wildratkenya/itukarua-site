@@ -302,21 +302,6 @@ export function restoreStorageUrl(proxyPath: string): string {
   return `${STORAGE_PREFIX}${bucket}/${rest}`;
 }
 
-export function certificateObjectUrl(url: string): string {
-  // Returns a same-origin /api/<path> URL that streams the object bytes
-  // server-side (api/cert.js), so the Supabase storage URL is never exposed
-  // to the browser. Falls back to the raw URL for non-Storage paths.
-  if (!url || !url.startsWith(STORAGE_PREFIX) || typeof window === 'undefined') {
-    return url;
-  }
-  const path = url.substring(STORAGE_PREFIX.length);
-  const slash = path.indexOf('/');
-  const bucket = slash > 0 ? path.slice(0, slash) : path;
-  if (bucket !== 'adverts') return url;
-  const rest = slash > 0 ? path.slice(slash + 1) : '';
-  return `${window.location.origin}/api/${rest.split('/').map(encodeURIComponent).join('/')}`;
-}
-
 export function handleImageError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.target as HTMLImageElement;
   if (!img.src.includes(FALLBACK_IMAGE)) {
