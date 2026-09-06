@@ -8,6 +8,7 @@ import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
 import JobListingsTopBanner from './JobListingsTopBanner';
+import CertificateViewer from './CertificateViewer';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -31,6 +32,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [sortBids, setSortBids] = useState<'rating' | 'price-low' | 'price-high'>('rating');
   const [selectedBid, setSelectedBid] = useState<string | null>(null);
   const [contactUnlocked, setContactUnlocked] = useState(false);
+  const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -713,7 +715,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     </h4>
                     <div className="flex flex-wrap gap-2">
                       {viewingBidder.certificates.map((cert, i) => (
-                        <a key={i} href={cert} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">Certificate {i + 1}</a>
+                        <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">Certificate {i + 1}</button>
                       ))}
                     </div>
                   </div>
@@ -733,6 +735,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           </div>
         </div>
       )}
+
+      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </div>
   );
 };

@@ -6,6 +6,7 @@ import AdBanner from './AdBanner';
 import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
 import WorkerSearchModal from './WorkerSearchModal';
+import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
@@ -41,6 +42,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [reviewMsg, setReviewMsg] = useState('');
   const [myVote, setMyVote] = useState<'up' | 'down' | null>(null);
   const [workerVotes, setWorkerVotes] = useState<Record<string, { likes: number; dislikes: number }>>({});
+  const [viewerCert, setViewerCert] = useState<string | null>(null);
 
   useEffect(() => {
     const loadUser = async (authUser: any) => {
@@ -311,9 +313,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                       <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><Award className="w-4 h-4" /> Certifications</h4>
                       <div className="flex gap-2 flex-wrap">
                         {selectedWorker.certificates.map((cert: string, i: number) => (
-                          <a key={i} href={cert} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">
+                          <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">
                             📄 Certificate {i + 1}
-                          </a>
+                          </button>
                         ))}
                       </div>
                     </>
@@ -427,6 +429,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         onOpenEmployerPayment={onOpenEmployerPayment}
         onNeedAuth={() => onWorkerSearchAuth?.()}
       />
+
+      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
 
 
       {/* Featured Jobs */}
