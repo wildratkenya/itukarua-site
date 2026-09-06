@@ -15,6 +15,7 @@ import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
 import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
+import CertificateViewer from './CertificateViewer';
 
 interface DashboardPageProps {
   user: UserState;
@@ -43,6 +44,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [certFiles, setCertFiles] = useState<File[]>([]);
   const [certPickError, setCertPickError] = useState<string | null>(null);
+  const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
   const [notifications, setNotifications] = useState<DbNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -1558,7 +1560,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                       {(user.profile?.certificates?.length || 0) > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {user.profile?.certificates?.slice(0, 3).map((url, i) => (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">Certificate {i + 1}</a>
+                            <button key={i} type="button" onClick={() => setViewerCert(url)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">Certificate {i + 1}</button>
                           ))}
                           {(user.profile?.certificates?.length || 0) > 3 && <span className="text-xs text-gray-400">+{(user.profile?.certificates?.length || 0) - 3} more</span>}
                         </div>
@@ -1622,6 +1624,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           </div>
         )}
       </div>
+      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </div>
   );
 };

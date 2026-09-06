@@ -23,6 +23,7 @@ import { toast } from '@/hooks/use-toast';
 import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
 import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
+import CertificateViewer from './CertificateViewer';
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -178,6 +179,7 @@ const AdminPage: React.FC = () => {
   const [editCerts, setEditCerts] = useState<string[]>([]);
   const [editCertFiles, setEditCertFiles] = useState<File[]>([]);
   const [editCertPickError, setEditCertPickError] = useState<string | null>(null);
+  const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [resetPwUser, setResetPwUser] = useState<Profile | null>(null);
@@ -3237,12 +3239,11 @@ const AdminPage: React.FC = () => {
                     {selectedUser.certificates && selectedUser.certificates.length > 0 ? (
                       <div className="grid grid-cols-3 gap-3">
                         {selectedUser.certificates.map((cert, i) => (
-                          <a 
-                            key={i} 
-                            href={cert} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="group relative h-24 rounded-lg overflow-hidden border border-gray-200 hover:border-green-500 transition-all"
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setViewerCert(cert)}
+                            className="group relative h-24 rounded-lg overflow-hidden border border-gray-200 hover:border-green-500 transition-all cursor-pointer"
                           >
                             {cert.toLowerCase().endsWith('.pdf') ? (
                               <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-500">
@@ -3255,7 +3256,7 @@ const AdminPage: React.FC = () => {
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <span className="text-white text-[10px] font-bold">View Full</span>
                             </div>
-                          </a>
+                          </button>
                         ))}
                       </div>
                     ) : (
@@ -3509,9 +3510,9 @@ const AdminPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2 mb-2">
                     {editCerts.map((url, i) => (
                       <div key={`cert-${i}`} className="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2 py-1">
-                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-700 font-medium hover:underline max-w-[180px] truncate">
+                        <button type="button" onClick={() => setViewerCert(url)} className="text-xs text-green-700 font-medium hover:underline max-w-[180px] truncate cursor-pointer">
                           {url.toLowerCase().endsWith('.pdf') ? 'PDF' : ''} Cert {i + 1}
-                        </a>
+                        </button>
                         <button type="button" onClick={() => setEditCerts(editCerts.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700 text-xs font-bold" title="Remove certificate">X</button>
                       </div>
                     ))}
@@ -3768,6 +3769,7 @@ const NewsletterSection: React.FC<NewsletterSectionProps> = ({ title, icon, item
           </label>
         ))}
       </div>
+      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </div>
   );
 };

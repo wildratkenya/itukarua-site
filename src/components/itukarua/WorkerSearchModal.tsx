@@ -3,6 +3,7 @@ import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, S
 import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
+import CertificateViewer from './CertificateViewer';
 
 interface WorkerSearchModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   const [dbJobCats, setDbJobCats] = useState<string[]>([]);
   const [dbServiceCats, setDbServiceCats] = useState<string[]>([]);
   const [expandedCv, setExpandedCv] = useState<Set<string>>(new Set());
+  const [viewerCert, setViewerCert] = useState<string | null>(null);
   const allSkills = React.useMemo(
     () => [...new Set([...dbJobCats, ...dbServiceCats])].sort(),
     [dbJobCats, dbServiceCats]
@@ -405,7 +407,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                               <h5 className="text-xs font-semibold text-gray-700 flex items-center gap-1 mb-1"><Award className="w-3 h-3" /> Certifications</h5>
                               <div className="flex gap-1.5 flex-wrap">
                                 {details.certificates.map((cert: string, i: number) => (
-                                  <a key={i} href={cert} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800">📄 Certificate {i+1}</a>
+                                  <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">📄 Certificate {i+1}</button>
                                 ))}
                               </div>
                             </div>
@@ -480,6 +482,8 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
           </div>
         </div>
       )}
+
+      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </>
   );
 };
