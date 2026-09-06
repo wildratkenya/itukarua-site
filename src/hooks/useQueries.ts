@@ -47,10 +47,11 @@ export function useServiceAds(filters?: {
   search?: string;
   featured?: boolean;
   limit?: number;
+  activeOnly?: boolean;
 }) {
   return useQuery({
     queryKey: ['serviceAds', filters],
-    queryFn: () => getServiceAds({ ...filters, limit: filters?.limit || 50 }), // Default limit of 50
+    queryFn: () => getServiceAds({ ...filters, activeOnly: filters?.activeOnly ?? true, limit: filters?.limit || 50 }), // Default limit of 50, expired hidden
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
