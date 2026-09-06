@@ -175,6 +175,9 @@ const AdminPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
   const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
+  const [editCerts, setEditCerts] = useState<string[]>([]);
+  const [editCertFiles, setEditCertFiles] = useState<File[]>([]);
+  const [editCertPickError, setEditCertPickError] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [resetPwUser, setResetPwUser] = useState<Profile | null>(null);
@@ -945,10 +948,26 @@ const AdminPage: React.FC = () => {
       });
       if (rpcError) throw rpcError;
 
+      // Upload new certificates and save the full cert list
+      const certsChanged = editCertFiles.length > 0 || editCerts.join('\n') !== (editingUser.certificates || []).join('\n');
+      if (certsChanged) {
+        const uploaded: string[] = [];
+        for (const file of editCertFiles) {
+          const fileName = `${editingUser.id}/certificates/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, file, { upsert: true, contentType: 'application/pdf' });
+          if (uploadError) throw uploadError;
+          uploaded.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+        }
+        const { error: certError } = await proxyTable('profiles').update({ certificates: [...editCerts, ...uploaded] }, 'id', editingUser.id);
+        if (certError) throw certError;
+      }
+
       toast({ title: 'Success', description: `User ${fullName} updated` });
       setIsEditUserModalOpen(false);
       setEditingUser(null);
       setEditProfileImageFile(null);
+      setEditCerts([]);
+      setEditCertFiles([]);
       await loadData();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
@@ -1558,6 +1577,9 @@ const AdminPage: React.FC = () => {
                                 <Button variant="outline" size="sm" onClick={() => {
                                   setEditingUser(user);
                                   setRatingsEnabled(!!user.ratings_enabled);
+                                  setEditCerts(user.certificates || []);
+                                  setEditCertFiles([]);
+                                  setEditCertPickError(null);
                                   setIsEditUserModalOpen(true);
                                 }}>
                                   Edit
@@ -3460,7 +3482,7 @@ const AdminPage: React.FC = () => {
       </Dialog>
 
       {/* Edit User Modal */}
-      <Dialog open={isEditUserModalOpen} onOpenChange={(open) => { if (!open) { setEditingUser(null); setIsEditUserModalOpen(false); } }}>
+      <Dialog open={isEditUserModalOpen} onOpenChange={(open) => { if (!open) { setEditingUser(null); setIsEditUserModalOpen(false); setEditProfileImageFile(null); setEditCerts([]); setEditCertFiles([]); setEditCertPickError(null); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
@@ -3534,12 +3556,45 @@ const AdminPage: React.FC = () => {
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                   onChange={(e) => setEditProfileImageFile(e.target.files?.[0] || null)} />
               </div>
+              <div className="col-span-2">
+                <Label>Certificates (PDF)</Label>
+                {(editCerts.length > 0 || editCertFiles.length > 0) && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {editCerts.map((url, i) => (
+                      <div key={`cert-${i}`} className="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2 py-1">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-700 font-medium hover:underline max-w-[180px] truncate">
+                          {url.toLowerCase().endsWith('.pdf') ? 'PDF' : ''} Cert {i + 1}
+                        </a>
+                        <button type="button" onClick={() => setEditCerts(editCerts.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700 text-xs font-bold" title="Remove certificate">X</button>
+                      </div>
+                    ))}
+                    {editCertFiles.map((f, i) => (
+                      <div key={`new-${i}`} className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2 py-1">
+                        <span className="text-xs text-green-700 font-medium max-w-[180px] truncate">{f.name}</span>
+                        <button type="button" onClick={() => setEditCertFiles(editCertFiles.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700 text-xs font-bold" title="Remove new certificate">X</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <input type="file" multiple accept=".pdf"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  onChange={e => {
+                    if (!e.target.files) return;
+                    const picks = Array.from(e.target.files);
+                    const pdfs = picks.filter(f => f.type === 'application/pdf');
+                    const rejected = picks.filter(f => f.type !== 'application/pdf');
+                    setEditCertPickError(rejected.length > 0 ? `Only PDF certificates are supported. Skipped: ${rejected.map(f => f.name).join(', ')}` : null);
+                    if (pdfs.length > 0) setEditCertFiles(prev => [...prev, ...pdfs].slice(0, 3 - editCerts.length));
+                  }} />
+                {editCertPickError && <p className="text-xs text-red-500 mt-1">{editCertPickError}</p>}
+                <p className="text-[10px] text-gray-400 mt-1">Removing a chip removes the certificate on save. Max 3 certificates.</p>
+              </div>
               <div className="flex items-center gap-2 pt-6">
                 <Switch id="edit_ratings_enabled" checked={ratingsEnabled} onCheckedChange={setRatingsEnabled} />
                 <Label htmlFor="edit_ratings_enabled">Enable ratings</Label>
               </div>
               <div className="col-span-2 flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => { setEditingUser(null); setIsEditUserModalOpen(false); setEditProfileImageFile(null); }}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setEditingUser(null); setIsEditUserModalOpen(false); setEditProfileImageFile(null); setEditCerts([]); setEditCertFiles([]); setEditCertPickError(null); }}>Cancel</Button>
                 <Button type="submit">Update User</Button>
               </div>
             </form>
