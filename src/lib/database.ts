@@ -1225,7 +1225,12 @@ export async function extendSubscription(userId: string, days: number): Promise<
   const base = data?.subscription_expires_at ? new Date(data.subscription_expires_at) : new Date();
   if (base.getTime() < Date.now()) base.setTime(Date.now());
   base.setDate(base.getDate() + days);
-  await supabase.from('profiles').update({ subscription_expires_at: base.toISOString() }).eq('id', userId);
+  // registration_paid must be true for the login gate / lock to accept the account.
+  const { error } = await supabase
+    .from('profiles')
+    .update({ subscription_expires_at: base.toISOString(), registration_paid: true })
+    .eq('id', userId);
+  if (error) throw error;
 }
 
 // ─── Weekly Bid Counter ─────────────────────────────────────────────────────
