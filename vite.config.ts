@@ -8,11 +8,6 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      '/api/': {
-        target: 'https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\//, ''),
-      },
       '/img/a/': {
         target: 'https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/',
         changeOrigin: true,
