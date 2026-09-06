@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Key } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount } from '@/lib/database';
@@ -1366,7 +1366,6 @@ const AdminPage: React.FC = () => {
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
                 { id: 'ads', label: 'Ads', icon: <Newspaper className="w-4 h-4" /> },
                 { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
-                { id: 'guest-tokens', label: 'Guest Tokens', icon: <Key className="w-4 h-4" /> },
                 { id: 'billing', label: 'Billing', icon: <Receipt className="w-4 h-4" /> },
                 { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
@@ -1830,58 +1829,6 @@ const AdminPage: React.FC = () => {
                 </Table>
                 {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter) && (!searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
                   <p className="text-center text-gray-500 text-sm py-8">No payments match the current filter.</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {activeTab === 'guest-tokens' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Guest Contact Access Tokens</CardTitle>
-                <p className="text-sm text-gray-500 mt-1">
-                  Payments from unauthenticated users (anonymous). Each token grants access to one worker contact.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" value={searchPayments} onChange={e => setSearchPayments(e.target.value)} placeholder="Search by token, phone, or description..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Token</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Worker</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>M-Pesa Ref</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payments.filter(p => !p.user_id && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>
-                          <span className="font-mono text-sm font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded">{payment.token || 'N/A'}</span>
-                        </TableCell>
-                        <TableCell>KSh {payment.amount}</TableCell>
-                        <TableCell className="text-xs">{payment.description?.replace('Unlock contact for ', '') || 'N/A'}</TableCell>
-                        <TableCell className="text-xs">{payment.mpesa_phone || 'N/A'}</TableCell>
-                        <TableCell>
-                          <Badge variant={payment.status === 'completed' ? 'default' : payment.status === 'pending' ? 'secondary' : 'destructive'}>
-                            {payment.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">{payment.mpesa_ref || 'N/A'}</TableCell>
-                        <TableCell className="text-xs">{new Date(payment.created_at).toLocaleDateString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {payments.filter(p => !p.user_id && p.payment_type === 'contact_access' && (!searchPayments || p.token?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_phone?.includes(searchPayments) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
-                  <p className="text-center text-gray-500 text-sm py-8">No guest transactions found.</p>
                 )}
               </CardContent>
             </Card>
