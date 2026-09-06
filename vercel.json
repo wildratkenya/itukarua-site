@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/cert?p=:path" },
     { "source": "/img/a/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/:match*" },
     { "source": "/img/:bucket/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:bucket/:match*" },
     { "source": "/supabase-storage/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:match*" },

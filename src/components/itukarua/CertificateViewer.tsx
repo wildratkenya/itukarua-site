@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import { proxyImageUrl } from '@/lib/supabase';
+import { certificateObjectUrl } from '@/lib/supabase';
 
 interface CertificateViewerProps {
   url: string | null;
@@ -24,7 +24,7 @@ const CertificateViewer: React.FC<CertificateViewerProps> = ({ url, onClose, lab
 
   if (!url) return null;
 
-  const src = proxyImageUrl(url);
+  const src = certificateObjectUrl(url);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
