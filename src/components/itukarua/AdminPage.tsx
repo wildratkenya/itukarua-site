@@ -219,6 +219,7 @@ const AdminPage: React.FC = () => {
   const [searchUsers, setSearchUsers] = useState('');
   const [searchJobs, setSearchJobs] = useState('');
   const [searchAds, setSearchAds] = useState('');
+  const [showExpiredAds, setShowExpiredAds] = useState(false);
   const [searchPayments, setSearchPayments] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed' | 'refunded'>('all');
   const [searchMessages, setSearchMessages] = useState('');
@@ -1714,8 +1715,13 @@ const AdminPage: React.FC = () => {
           {activeTab === 'ads' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Advertisement Management</CardTitle>
-                <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>
+                <div className="flex items-center gap-3">
+                  <CardTitle>{showExpiredAds ? `Expired Ads (${ads.filter(a => a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now()).length})` : `Advertisement Management (${ads.filter(a => !a.expiry_date || new Date(`${a.expiry_date}T23:59:59`).getTime() > Date.now()).length})`}</CardTitle>
+                  <button onClick={() => { setShowExpiredAds(!showExpiredAds); }} className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${showExpiredAds ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {showExpiredAds ? 'Active Ads' : `Expired (${ads.filter(a => a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now()).length})`}
+                  </button>
+                </div>
+                {!showExpiredAds && <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>}
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -1735,7 +1741,11 @@ const AdminPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ads.filter(a => (!a.expiry_date || new Date(`${a.expiry_date}T23:59:59`).getTime() > Date.now()) && (!searchAds || a.business_name?.toLowerCase().includes(searchAds.toLowerCase()) || a.title?.toLowerCase().includes(searchAds.toLowerCase()) || a.category?.toLowerCase().includes(searchAds.toLowerCase()) || a.location?.toLowerCase().includes(searchAds.toLowerCase()) || a.contact_person?.toLowerCase().includes(searchAds.toLowerCase()))).map((ad) => {
+                    {ads.filter(a => {
+                      const isExpired = !!a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now();
+                      if (showExpiredAds ? !isExpired : isExpired) return false;
+                      return !searchAds || a.business_name?.toLowerCase().includes(searchAds.toLowerCase()) || a.title?.toLowerCase().includes(searchAds.toLowerCase()) || a.category?.toLowerCase().includes(searchAds.toLowerCase()) || a.location?.toLowerCase().includes(searchAds.toLowerCase()) || a.contact_person?.toLowerCase().includes(searchAds.toLowerCase());
+                    }).map((ad) => {
                       const expMs = ad.expiry_date ? new Date(`${ad.expiry_date}T23:59:59`).getTime() : 0;
                       const adActive = expMs > Date.now();
                       return (
@@ -1754,10 +1764,15 @@ const AdminPage: React.FC = () => {
                         <TableCell>
                           {!ad.expiry_date ? (
                             <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
-                          ) : (
+                          ) : adActive ? (
                             <>
                               <Badge variant="success">Active · {Math.ceil((expMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
                               <div className="text-[10px] text-gray-400 mt-0.5">Expires {ad.expiry_date}</div>
+                            </>
+                          ) : (
+                            <>
+                              <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - expMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
+                              <div className="text-[10px] text-gray-400 mt-0.5">Expired {ad.expiry_date}</div>
                             </>
                           )}
                         </TableCell>
