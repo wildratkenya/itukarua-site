@@ -23,7 +23,7 @@ const BANNER_PLANS = [
   {
     name: 'Homepage Banner',
     duration: '7 days',
-    price: 500,
+    price: 200,
     slot: 'homepage_banner' as const,
     accountRef: 'ADV-HP-WEEK',
     paymentDesc: 'Homepage Advert (1 week)',

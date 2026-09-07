@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import AppLayout from "./components/AppLayout";
+import { AppProvider } from "./contexts/AppContext";
 import AdminPage from "./components/itukarua/AdminPage";
 import { supabase, restoreSession } from "@/lib/supabase";
 import { getProfile } from "@/lib/database";
@@ -70,6 +72,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/advertise" element={<AppProvider><AppLayout initialPage="advertise" /></AppProvider>} />
             <Route path="/admin" element={<AdminRoute />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

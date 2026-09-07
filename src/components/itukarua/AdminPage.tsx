@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount } from '@/lib/database';
@@ -229,7 +229,7 @@ const AdminPage: React.FC = () => {
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '7 days' });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string; corporate_tier?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined });
   const [advUploading, setAdvUploading] = useState(false);
   const [advUploadKey, setAdvUploadKey] = useState(0);
   const [advUrlInput, setAdvUrlInput] = useState('');
@@ -270,6 +270,34 @@ const AdminPage: React.FC = () => {
   const loadAdverts = async () => {
     const { data } = await supabase.from('advertisements').select('*').order('sort_order');
     setAdverts(data || []);
+  };
+
+  const [leads, setLeads] = useState<any[]>([]);
+  const loadLeads = async () => {
+    const { data } = await proxyRequest('/advert_leads?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
+    setLeads(Array.isArray(data) ? data : []);
+  };
+
+  const corporateAds = adverts.filter(a => a.corporate_tier || a.slot === 'sitewide_strip' || a.slot === 'category_strip');
+
+  const toggleCorporateAd = async (ad: any) => {
+    try {
+      await proxyTable('advertisements').update({ active: !ad.active }, 'id', ad.id);
+      setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, active: !ad.active } : a));
+      toast({ title: ad.active ? 'Paused' : 'Now live', description: `"${ad.title}" is ${ad.active ? 'no longer serving' : 'live on the site'}` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const updateLeadStatus = async (leadId: string, status: string) => {
+    try {
+      await proxyTable('advert_leads').update({ status }, 'id', leadId);
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status } : l));
+      toast({ title: 'Lead updated', description: `Marked as ${status}` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
   };
 
   const loadBilling = async () => {
@@ -478,6 +506,7 @@ const AdminPage: React.FC = () => {
         proxyRequest('/messages?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setMessages(Array.isArray(data) ? data : [])),
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
+        loadLeads(),
         getAdCarouselSettings().then(setCarouselSettings),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
@@ -1437,6 +1466,7 @@ const AdminPage: React.FC = () => {
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
                 { id: 'testimonials', label: 'Testimonials', icon: <MessageSquare className="w-4 h-4" /> },
                 { id: 'adverts', label: 'Banners', icon: <MonitorPlay className="w-4 h-4" /> },
+                { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {item.icon}
@@ -2781,7 +2811,7 @@ const AdminPage: React.FC = () => {
                       </button>
                     );})}
                   </div>
-                  <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
+                  <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -2829,14 +2859,23 @@ const AdminPage: React.FC = () => {
                       <select value={adForm.slot || 'homepage_banner'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         <option value="homepage_banner">Homepage Carousel Banner</option>
                         <option value="job_listings_top">Job Listings Top Banner</option>
+                        <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
+                        <option value="category_strip">Category Strip (corporate Silver)</option>
                       </select>
                       <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="7 days">7 Days (KES 100)</option>
+                        <option value="7 days">7 Days (KES 200)</option>
                         <option value="10 days">10 Days (KES 300)</option>
                         <option value="20 days">20 Days (KES 500)</option>
                         <option value="30 days">30 Days (KES 800)</option>
                       </select>
                       <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                      <select value={adForm.corporate_tier || ''} onChange={e => setAdForm({ ...adForm, corporate_tier: e.target.value === '' ? undefined : e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="">Regular advert</option>
+                        <option value="bronze">Corporate — Bronze</option>
+                        <option value="silver">Corporate — Silver</option>
+                        <option value="gold">Corporate — Gold</option>
+                        <option value="custom">Corporate — Custom</option>
+                      </select>
                       <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
                         <label className="flex items-center gap-2 text-sm text-gray-700">
                           <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
@@ -2849,7 +2888,7 @@ const AdminPage: React.FC = () => {
                           Featured <span className="text-xs text-gray-400">(shows on homepage carousel and side rail)</span>
                         </label>
                       </div>
-                      <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '7 days'} cycle — KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : adForm.billing_cycle === '10 days' ? '300' : adForm.featured ? '500' : '100'}/week. Renewal alerts & invoices are sent from the Billing tab.</p>
+                      <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '7 days'} cycle — KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : adForm.billing_cycle === '10 days' ? '300' : '200'}/week. Renewal alerts & invoices are sent from the Billing tab.</p>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={async () => {
@@ -2968,7 +3007,7 @@ const AdminPage: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             <div>{ad.title}</div>
-                            <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Job Listings Top' : 'Homepage Carousel'}</div>
+                            <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Job Listings Top' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
                           </TableCell>
                           <TableCell className="max-w-[160px]"><span className="block truncate text-gray-500">{ad.destination_url || '-'}</span></TableCell>
                           <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>
@@ -3069,7 +3108,7 @@ const AdminPage: React.FC = () => {
                                 )}
                               </div>
                               )}
-                              <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }}>
+                              <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
                                 Edit
                               </Button>
                               <Button variant="destructive" size="sm" onClick={async () => {
@@ -3095,6 +3134,80 @@ const AdminPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {activeTab === 'corporate' && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Corporate Placements ({corporateAds.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500 mb-4">Tiered placements (Bronze/Silver/Gold/Custom) are admin-created. Bronze shows on the homepage strip; Silver shows across Jobs & Services. Toggling an advert live/paused starts or stops it serving.</p>
+                  {corporateAds.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-400">No corporate placements yet. Create one via the Banners tab with slot <b>sitewide_strip</b> or <b>category_strip</b>.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {corporateAds.map(ad => (
+                        <div key={ad.id} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl">
+                          <img src={proxyImageUrl(ad.image_url)} alt="" className="w-20 h-11 object-cover rounded-lg bg-gray-100 flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">{ad.title}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant={ad.active ? 'default' : 'secondary'}>{ad.active ? 'LIVE' : 'PAUSED'}</Badge>
+                              {ad.corporate_tier && <Badge variant="outline" className="capitalize">{ad.corporate_tier}</Badge>}
+                              {!ad.corporate_tier && <Badge variant="outline">{ad.slot}</Badge>}
+                            </div>
+                          </div>
+                          <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>
+                            {ad.active ? 'Pause' : 'Activate'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+                  <CardTitle>Advert Leads ({leads.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500 mb-4">Quote requests submitted through the /advertise form.</p>
+                  {leads.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <Inbox className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-400">No quote requests yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {leads.map(lead => (
+                        <div key={lead.id} className="border border-gray-100 rounded-xl p-4">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="font-semibold text-gray-900">{lead.company}</p>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={lead.status === 'new' ? 'default' : lead.status === 'contacted' ? 'outline' : 'secondary'} className="capitalize">{lead.status}</Badge>
+                              <select value={lead.status} onChange={e => updateLeadStatus(lead.id, e.target.value)} className="text-xs px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+                                <option value="new">new</option>
+                                <option value="contacted">contacted</option>
+                                <option value="closed">closed</option>
+                              </select>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1.5">{lead.contact_name} · {lead.phone} · {lead.email} · <span className="capitalize">{lead.package}</span> package{lead.start_date ? ` · start ${lead.start_date}` : ''}</p>
+                          {lead.message && <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{lead.message}</p>}
+                          <p className="text-[11px] text-gray-400 mt-2">Submitted {new Date(lead.created_at).toLocaleString('en-KE', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
           </div>
         </div>

@@ -136,6 +136,68 @@ async function applySubscriptionExtension(supabase: any, payment: any) {
   }).eq('id', payment.user_id)
 }
 
+function cycleDays(cycle?: string | null): number {
+  const days = parseInt(String(cycle || '').replace(/[^0-9]/g, ''), 10)
+  return days > 0 ? days : 30
+}
+
+// Activate a paid placement regardless of which table owns it:
+//  - service_ads  -> confirm payment (self-serve "promote" / advert renewal)
+//  - advertisements -> bring the banner/carousel advert live so it starts serving
+async function activateAdvertPlacement(supabase: any, payment: any): Promise<void> {
+  if (!payment.related_ad_id) return
+
+  const { data: srv } = await supabase
+    .from('service_ads')
+    .update({ payment_confirmed: true })
+    .eq('id', payment.related_ad_id)
+    .select('id')
+    .maybeSingle()
+  if (srv) return
+
+  const { data: ad } = await supabase
+    .from('advertisements')
+    .select('id, billing_cycle')
+    .eq('id', payment.related_ad_id)
+    .maybeSingle()
+  if (!ad) return
+
+  const start = new Date()
+  const end = new Date()
+  end.setDate(end.getDate() + cycleDays(ad.billing_cycle))
+  await supabase
+    .from('advertisements')
+    .update({ active: true, billing_start: start.toISOString(), billing_end: end.toISOString() })
+    .eq('id', payment.related_ad_id)
+}
+
+// Paid "Featured Boost" — activate featured status on whichever table owns the ad.
+async function applyFeaturedBoost(supabase: any, payment: any): Promise<void> {
+  if (!payment.related_ad_id) return
+  const boostUntil = new Date()
+  boostUntil.setDate(boostUntil.getDate() + 7)
+
+  const { data: srv } = await supabase
+    .from('service_ads')
+    .update({ featured: true, boost_until: boostUntil.toISOString() })
+    .eq('id', payment.related_ad_id)
+    .select('id')
+    .maybeSingle()
+  if (srv) return
+
+  const { data: ad } = await supabase
+    .from('advertisements')
+    .select('id')
+    .eq('id', payment.related_ad_id)
+    .maybeSingle()
+  if (ad) {
+    await supabase
+      .from('advertisements')
+      .update({ featured: true, boost_until: boostUntil.toISOString() })
+      .eq('id', payment.related_ad_id)
+  }
+}
+
 async function completePayment(supabase: any, payment: any) {
   const mpesaRef = `MPE${Date.now().toString().slice(-8)}`
   await supabase.from('payments').update({
@@ -145,8 +207,10 @@ async function completePayment(supabase: any, payment: any) {
 
   if (payment.payment_type === 'registration' || payment.payment_type === 'employer_day_access') {
     await applySubscriptionExtension(supabase, payment)
-  } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
-    await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
+  } else if (payment.payment_type === 'advert') {
+    await activateAdvertPlacement(supabase, payment)
+  } else if (payment.payment_type === 'featured_boost') {
+    await applyFeaturedBoost(supabase, payment)
   }
 
   await sendPaymentReceipt(supabase, payment, mpesaRef)
@@ -308,8 +372,10 @@ Deno.serve(async (req) => {
         if (newStatus === 'completed') {
           if (payment.payment_type === 'registration' || payment.payment_type === 'employer_day_access') {
             await applySubscriptionExtension(supabase, payment)
-          } else if (payment.payment_type === 'advert' && payment.related_ad_id) {
-            await supabase.from('service_ads').update({ payment_confirmed: true }).eq('id', payment.related_ad_id)
+          } else if (payment.payment_type === 'advert') {
+            await activateAdvertPlacement(supabase, payment)
+          } else if (payment.payment_type === 'featured_boost') {
+            await applyFeaturedBoost(supabase, payment)
           }
 
           await sendPaymentReceipt(supabase, payment, mpesaRef)
