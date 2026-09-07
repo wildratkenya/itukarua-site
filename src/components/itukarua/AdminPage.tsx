@@ -287,7 +287,7 @@ const AdminPage: React.FC = () => {
 
   const openBillingPreview = (item: BillingItem) => {
     if (!item.owner_email) {
-      toast({ title: 'No email', description: `${item.business_name} has no advertiser email on record. Add one to the ${item.item_type === 'advert' ? 'Adverts' : 'Ads'} tab first.`, variant: 'destructive' });
+      toast({ title: 'No email', description: `${item.business_name} has no advertiser email on record. Add one to the ${item.item_type === 'advert' ? 'Banners' : 'Ads'} tab first.`, variant: 'destructive' });
       return;
     }
     const opts = {
@@ -306,7 +306,7 @@ const AdminPage: React.FC = () => {
 
   const sendBillingInvoice = async (item: BillingItem) => {
     if (!item.owner_email) {
-      toast({ title: 'No email', description: `${item.business_name} has no advertiser email on record. Add one to the ${item.item_type === 'advert' ? 'Adverts' : 'Ads'} tab first.`, variant: 'destructive' });
+      toast({ title: 'No email', description: `${item.business_name} has no advertiser email on record. Add one to the ${item.item_type === 'advert' ? 'Banners' : 'Ads'} tab first.`, variant: 'destructive' });
       return;
     }
     setBillingSendingId(`${item.item_type}:${item.id}`);
@@ -1436,7 +1436,7 @@ const AdminPage: React.FC = () => {
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
                 { id: 'testimonials', label: 'Testimonials', icon: <MessageSquare className="w-4 h-4" /> },
-                { id: 'adverts', label: 'Adverts', icon: <MonitorPlay className="w-4 h-4" /> },
+                { id: 'adverts', label: 'Banners', icon: <MonitorPlay className="w-4 h-4" /> },
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {item.icon}
@@ -2769,7 +2769,7 @@ const AdminPage: React.FC = () => {
           {activeTab === 'adverts' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-                <CardTitle>Advertisements ({adverts.length})</CardTitle>
+                <CardTitle>Banners ({adverts.length})</CardTitle>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
                     {(['all', 'active', 'expired'] as const).map(v => {
@@ -2787,7 +2787,7 @@ const AdminPage: React.FC = () => {
               <CardContent>
                 <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                  <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search banners by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
                 {showAdForm && (
                   <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
@@ -2941,9 +2941,10 @@ const AdminPage: React.FC = () => {
                         <TableHead>Destination</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Expiry</TableHead>
-                        <TableHead className="text-center">Clicks</TableHead>
+                        <TableHead>Clicks</TableHead>
                         <TableHead className="text-center">Impr.</TableHead>
                         <TableHead className="text-center">Featured</TableHead>
+                        <TableHead className="text-center">Boosted</TableHead>
                         <TableHead className="text-center">Active</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2957,6 +2958,8 @@ const AdminPage: React.FC = () => {
                         const advEndMs = ad.billing_end ? new Date(ad.billing_end).getTime() : 0;
                         const advActive = advEndMs > Date.now();
                         const advExpired = !!ad.billing_end && advEndMs <= Date.now();
+                        const isBoosted = !!ad.featured && !!ad.boost_until && new Date(ad.boost_until).getTime() > Date.now();
+                        const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
                         return (
                         <>
                         <TableRow key={ad.id}>
@@ -3000,6 +3003,13 @@ const AdminPage: React.FC = () => {
                             </button>
                           </TableCell>
                           <TableCell className="text-center">
+                            {isBoosted ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full"><Zap className="w-3 h-3" /> Boosted · {boostDaysLeft}d left</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
                             <button onClick={async () => {
                               await proxyTable('advertisements').update({ active: !(ad.active ?? false) }, 'id', ad.id);
                               loadAdverts();
@@ -3009,7 +3019,7 @@ const AdminPage: React.FC = () => {
                           </TableCell>
                         </TableRow>
                         <TableRow key={`${ad.id}-actions`} className="bg-muted/20">
-                          <TableCell colSpan={9}>
+                          <TableCell colSpan={10}>
                             <div className="flex flex-wrap items-center gap-2">
                               {currentRole === 'super_admin' && (
                               <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
@@ -3036,6 +3046,26 @@ const AdminPage: React.FC = () => {
                                   </>
                                 ) : (
                                   <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
+                                )}
+                              </div>
+                              )}
+                              {currentRole === 'super_admin' && (
+                              <div className="flex items-center gap-1.5">
+                                {isBoosted ? (
+                                  <>
+                                    <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg"><Zap className="w-3 h-3" /> Boosted · {boostDaysLeft}d left</span>
+                                    <Button variant="outline" size="sm" onClick={async () => {
+                                      const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
+                                      if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                      else loadAdverts();
+                                    }}>Unboost</Button>
+                                  </>
+                                ) : (
+                                  <Button variant="outline" size="sm" onClick={async () => {
+                                    const { error } = await proxyTable('advertisements').update({ featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }, 'id', ad.id);
+                                    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                    else { loadAdverts(); toast({ title: 'Boosted', description: `"${ad.title}" boosted for 7 days` }); }
+                                  }} className="bg-amber-500 hover:bg-amber-600 text-white">Boost +7d</Button>
                                 )}
                               </div>
                               )}
