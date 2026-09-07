@@ -144,6 +144,7 @@ const AdminPage: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [addAdDays, setAddAdDays] = useState<Record<string, number>>({});
+  const [addAdvertDays, setAddAdvertDays] = useState<Record<string, number>>({});
   const [payments, setPayments] = useState<Payment[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -220,6 +221,7 @@ const AdminPage: React.FC = () => {
   const [searchJobs, setSearchJobs] = useState('');
   const [searchAds, setSearchAds] = useState('');
   const [adsView, setAdsView] = useState<'all' | 'active' | 'expired'>('all');
+  const [advertsView, setAdvertsView] = useState<'all' | 'active' | 'expired'>('all');
   const [searchPayments, setSearchPayments] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed' | 'refunded'>('all');
   const [searchMessages, setSearchMessages] = useState('');
@@ -1285,6 +1287,32 @@ const AdminPage: React.FC = () => {
     } catch (error: any) {
       console.error('Error extending ad:', error);
       toast({ title: 'Error', description: error?.message || 'Failed to extend ad', variant: 'destructive' });
+    }
+  };
+
+  const extendAdvertDays = async (adId: string, days: number, advertTitle: string) => {
+    const clamped = Math.max(1, Math.min(30, days));
+    try {
+      const start = new Date();
+      const end = new Date(start);
+      end.setDate(end.getDate() + clamped);
+      const billingEnd = end.toISOString();
+      const { error } = await proxyTable('advertisements').update(
+        {
+          billing_end: billingEnd,
+          billing_start: new Date().toISOString(),
+          billing_cycle: 'extended',
+          active: true,
+        },
+        'id',
+        adId
+      );
+      if (error) throw error;
+      setAdverts(adverts.map(a => a.id === adId ? { ...a, billing_end: billingEnd, active: true } : a));
+      toast({ title: 'Success', description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${advertTitle}". Now live until ${end.toISOString().split('T')[0]}.` });
+    } catch (error: any) {
+      console.error('Error extending advert:', error);
+      toast({ title: 'Error', description: error?.message || 'Failed to extend advert', variant: 'destructive' });
     }
   };
 
@@ -2740,9 +2768,21 @@ const AdminPage: React.FC = () => {
 
           {activeTab === 'adverts' && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                 <CardTitle>Advertisements ({adverts.length})</CardTitle>
-                <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    {(['all', 'active', 'expired'] as const).map(v => {
+                      const expCount = adverts.filter(a => a.billing_end && new Date(a.billing_end).getTime() <= Date.now()).length;
+                      const actCount = adverts.filter(a => !a.billing_end || new Date(a.billing_end).getTime() > Date.now()).length;
+                      return (
+                      <button key={v} onClick={() => setAdvertsView(v)} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors capitalize ${advertsView === v ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+                        {v === 'all' ? `All (${adverts.length})` : v === 'active' ? `Active (${actCount})` : `Expired (${expCount})`}
+                      </button>
+                    );})}
+                  </div>
+                  <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -2893,56 +2933,116 @@ const AdminPage: React.FC = () => {
                 {adverts.length === 0 ? (
                   <p className="text-sm text-gray-400">No advertisements yet.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-3 font-medium text-gray-600">Image</th>
-                          <th className="text-left py-2 px-3 font-medium text-gray-600">Title</th>
-                          <th className="text-left py-2 px-3 font-medium text-gray-600">Destination</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-600">Type</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-600">Featured</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-600">Clicks</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-600">Impr.</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-600">Active</th>
-                          <th className="text-right py-2 px-3 font-medium text-gray-600">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {adverts.filter(a => !searchAdverts || a.title?.toLowerCase().includes(searchAdverts.toLowerCase())).map(ad => (
-                          <tr key={ad.id} className="border-b border-gray-50 hover:bg-gray-50">
-                            <td className="py-2 px-3">
-                              <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                            </td>
-                            <td className="py-2 px-3 text-gray-800 font-medium">{ad.title}</td>
-                            <td className="py-2 px-3 text-gray-500 truncate max-w-[140px]">{ad.destination_url}</td>
-                            <td className="py-2 px-3 text-center">{ad.is_affiliate ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded">Affiliate</span> : <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded">Managed</span>}</td>
-                            <td className="py-2 px-3 text-center">
-                              <button onClick={async () => {
-                                try {
-                                  const { error } = await proxyTable('advertisements').update({ featured: !(ad.featured ?? false) }, 'id', ad.id);
-                                  if (error) throw error;
-                                  loadAdverts();
-                                } catch (err: any) {
-                                  toast({ title: 'Error', description: err.message, variant: 'destructive' });
-                                }
-                              }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
-                                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-                              </button>
-                            </td>
-                            <td className="py-2 px-3 text-center text-gray-600 text-xs font-mono">{ad.clicks || 0}</td>
-                            <td className="py-2 px-3 text-center text-gray-600 text-xs font-mono">{ad.display_count || 0}</td>
-                            <td className="py-2 px-3 text-center">
-                              <button onClick={async () => {
-                                await proxyTable('advertisements').update({ active: !ad.active }, 'id', ad.id);
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Image</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Destination</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Expiry</TableHead>
+                        <TableHead className="text-center">Clicks</TableHead>
+                        <TableHead className="text-center">Impr.</TableHead>
+                        <TableHead className="text-center">Featured</TableHead>
+                        <TableHead className="text-center">Active</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adverts.filter(a => {
+                        const isExpired = !!a.billing_end && new Date(a.billing_end).getTime() <= Date.now();
+                        if (advertsView === 'active' && isExpired) return false;
+                        if (advertsView === 'expired' && !isExpired) return false;
+                        return !searchAdverts || a.title?.toLowerCase().includes(searchAdverts.toLowerCase());
+                      }).map(ad => {
+                        const advEndMs = ad.billing_end ? new Date(ad.billing_end).getTime() : 0;
+                        const advActive = advEndMs > Date.now();
+                        const advExpired = !!ad.billing_end && advEndMs <= Date.now();
+                        return (
+                        <>
+                        <TableRow key={ad.id}>
+                          <TableCell>
+                            <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          </TableCell>
+                          <TableCell>
+                            <div>{ad.title}</div>
+                            <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Job Listings Top' : 'Homepage Carousel'}</div>
+                          </TableCell>
+                          <TableCell className="max-w-[160px]"><span className="block truncate text-gray-500">{ad.destination_url || '-'}</span></TableCell>
+                          <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>
+                          <TableCell>
+                            {!ad.billing_end ? (
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
+                            ) : advActive ? (
+                              <>
+                                <Badge variant="success">Active · {Math.ceil((advEndMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
+                                <div className="text-[10px] text-gray-400 mt-0.5">Billing ends {ad.billing_end ? ad.billing_end.split('T')[0] : ''}</div>
+                              </>
+                            ) : (
+                              <>
+                                <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - advEndMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
+                                <div className="text-[10px] text-gray-400 mt-0.5">Billing ended {ad.billing_end ? ad.billing_end.split('T')[0] : ''}</div>
+                              </>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center text-gray-600 text-xs font-mono">{ad.clicks || 0}</TableCell>
+                          <TableCell className="text-center text-gray-600 text-xs font-mono">{ad.display_count || 0}</TableCell>
+                          <TableCell className="text-center">
+                            <button onClick={async () => {
+                              try {
+                                const { error } = await proxyTable('advertisements').update({ featured: !(ad.featured ?? false) }, 'id', ad.id);
+                                if (error) throw error;
                                 loadAdverts();
-                              }} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
-                                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-                              </button>
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <button onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</button>
-                              <button onClick={async () => {
+                              } catch (err: any) {
+                                toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                              }
+                            }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                            </button>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <button onClick={async () => {
+                              await proxyTable('advertisements').update({ active: !(ad.active ?? false) }, 'id', ad.id);
+                              loadAdverts();
+                            }} title={ad.active ? 'Published — visible on the site' : 'Unpublished — hidden'} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow key={`${ad.id}-actions`} className="bg-muted/20">
+                          <TableCell colSpan={9}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {currentRole === 'super_admin' && (
+                              <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
+                                {advExpired ? (
+                                  <>
+                                    <span className="text-[10px] text-gray-400 font-medium">Revive·add days</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={30}
+                                      value={addAdvertDays[ad.id] ?? 30}
+                                      onChange={e => {
+                                        const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                        setAddAdvertDays(prev => ({ ...prev, [ad.id]: v }));
+                                      }}
+                                      className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                    />
+                                    <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdvertDays(ad.id, addAdvertDays[ad.id] ?? 30, ad.title || 'Advert')}>
+                                      Add Days
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => extendAdvertDays(ad.id, 1, ad.title || 'Advert')}>
+                                      +1 Day
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
+                                )}
+                              </div>
+                              )}
+                              <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days' }); setAdvUrlInput(''); setShowAdForm(true); }}>
+                                Edit
+                              </Button>
+                              <Button variant="destructive" size="sm" onClick={async () => {
                                 if (!window.confirm(`Delete "${ad.title}"?`)) return;
                                 try {
                                   const { error } = await proxyTable('advertisements').delete('id', ad.id);
@@ -2952,13 +3052,16 @@ const AdminPage: React.FC = () => {
                                 } catch (err: any) {
                                   toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
                                 }
-                              }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                              }}>
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        </>
+                      )})}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>
