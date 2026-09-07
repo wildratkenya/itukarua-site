@@ -137,7 +137,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
 
   // Load homepage data with retry logic
   const { data: jobsData = [], isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useJobs({ limit: 6 });
-  const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ limit: 4 });
+  const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ featured: true, limit: 4 });
   const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 4, ratings_enabled: true });
 
   const [timedOut, setTimedOut] = useState(false);
@@ -566,7 +566,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
           <p className="text-green-100 max-w-2xl mx-auto mb-8">Join thousands of Kenyans building stronger local economies through ITUKARUA Solutions.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button onClick={() => onNavigate('post-job')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
-            <button onClick={handleAdvertiseClick} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise Your Service</button>
+            <button onClick={handleAdvertiseClick} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
           </div>
         </div>
       </section>

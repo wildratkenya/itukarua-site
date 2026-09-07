@@ -1166,7 +1166,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ad Placement *</label>
                   <select value={adForm.slot} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm">
-                    <option value="homepage_banner">Homepage Carousel Banner — KES 500/week</option>
+                    <option value="homepage_banner">Homepage Carousel Banner — KES 200/week</option>
                     <option value="job_listings_top">Job Listings Top Banner — KES 500/week</option>
                   </select>
                   <p className="text-xs text-gray-400 mt-1">{adForm.slot === 'job_listings_top' ? 'Full-width banner above all job listings — premium slot, exclusive to one advertiser per week.' : 'Rotating carousel banner at the top of the homepage.'}</p>

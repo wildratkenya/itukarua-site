@@ -15,11 +15,13 @@ import AboutPage from './itukarua/AboutPage';
 import ContactPage from './itukarua/ContactPage';
 import PostJobPage from './itukarua/PostJobPage';
 import PostAdvertPage from './itukarua/PostAdvertPage';
+import AdvertisePage from './itukarua/AdvertisePage';
 import DashboardPage from './itukarua/DashboardPage';
 import InboxPage from './itukarua/InboxPage';
 import AuthModal from './itukarua/AuthModal';
 import MpesaModal from './itukarua/MpesaModal';
 import AdminPage from './itukarua/AdminPage';
+import SitewideAnchorStrip from './itukarua/SitewideAnchorStrip';
 import ChatBot from './itukarua/ChatBot';
 
 export interface UserState {
@@ -74,8 +76,8 @@ const evaluateSubscriptionNotice = (profile: any): SubscriptionNotice | null => 
   return null;
 };
 
-const AppLayout: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
+const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
+  const [currentPage, setCurrentPage] = useState<Page>(initialPage || 'home');
   const [user, setUser] = useState<UserState | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
@@ -427,6 +429,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           return <PostJobPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} />;
         case 'post-advert':
           return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
+        case 'advertise':
+          return <AdvertisePage onNavigate={handleNavigate} />;
         case 'dashboard':
           if (!user) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
@@ -551,6 +555,10 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             <X className="w-4 h-4" />
           </button>
         </div>
+      )}
+
+      {['home', 'jobs', 'services'].includes(currentPage) && (
+        <SitewideAnchorStrip page={currentPage} />
       )}
 
       <main className="flex-1">

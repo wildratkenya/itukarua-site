@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import SEO from '@/lib/seo';
 import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, Crown, Briefcase, ArrowRight } from 'lucide-react';
-import { PRICING_PLANS } from '@/data/siteData';
+import { PRICING_PLANS, CORPORATE_PACKAGES } from '@/data/siteData';
 
 interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
@@ -377,11 +377,11 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </p>
                 <p className="text-amber-100 text-xs mb-6">Live for 7 full days — Exclusive of ad design — user to provide</p>
                 <button
-                  onClick={() => onOpenMpesa(PRICING_PLANS.homepageAdvert.price, 'Homepage Advert (1 week)', 'ADV-HP-WEEK', 'advert')}
+                  onClick={() => onNavigate?.('post-advert')}
                   className="w-full py-3.5 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Phone className="w-4 h-4" />
-                  Pay with M-Pesa
+                  <ArrowRight className="w-4 h-4" />
+                  Create your advert
                 </button>
               </div>
             </div>
@@ -414,11 +414,11 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </p>
                 <p className="text-emerald-100 text-xs mb-6">Live for 7 full days — Exclusive of ad design — user to provide</p>
                 <button
-                  onClick={() => onOpenMpesa(PRICING_PLANS.jobListingsBanner.price, 'Job Listings Banner (1 week)', 'ADV-JL-WEEK', 'advert')}
+                  onClick={() => onNavigate?.('post-advert')}
                   className="w-full py-3.5 bg-white hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Phone className="w-4 h-4" />
-                  Pay with M-Pesa
+                  <ArrowRight className="w-4 h-4" />
+                  Create your advert
                 </button>
               </div>
             </div>
@@ -479,6 +479,45 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
             <button onClick={() => onNavigate('dashboard')} className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-md shadow-amber-200 hover:shadow-lg flex items-center justify-center gap-2">
               <Zap className="w-4 h-4" /> Boost My Ad Now
             </button>
+          </div>
+        </div>
+
+        {/* ═══ CORPORATE & COMMUNITY PLACEMENTS ═══ */}
+        <div className="max-w-7xl mx-auto mb-16">
+          <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 via-neutral-900 to-gray-900 text-white p-8 lg:p-10 shadow-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Crown className="w-5 h-5 text-amber-300" />
+              <p className="text-xs font-bold tracking-widest uppercase text-amber-300">Partnerships</p>
+            </div>
+            <h2 className="text-2xl lg:text-3xl font-bold mb-2">Corporate & Community Placements</h2>
+            <p className="text-gray-300 max-w-2xl text-sm mb-8">
+              For co-operatives, churches, SACCOs, institutions and businesses that want a steady, branded presence on Itukarua — not a one-off advert. Our team manages copy, imagery and scheduling for you. <span className="text-white font-semibold">Custom-priced based on your region, reach and term.</span>
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {CORPORATE_PACKAGES.map(pkg => (
+                <div key={pkg.id} className="rounded-xl bg-white/5 border border-white/10 p-5 flex flex-col hover:bg-white/10 hover:border-amber-300/40 transition-colors">
+                  <p className="text-xs font-bold tracking-widest uppercase text-amber-300 mb-1">{pkg.tier}</p>
+                  <h3 className="font-bold text-base mb-2">{pkg.headline}</h3>
+                  <ul className="space-y-1.5 mb-4 flex-1">
+                    {pkg.features.map((f, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs text-gray-300">
+                        <Check className="w-3.5 h-3.5 text-amber-300 mt-0.5 flex-shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => { sessionStorage.setItem('advertise_package', pkg.id); onNavigate('advertise'); }}
+                    className="w-full py-2.5 rounded-lg bg-amber-300 hover:bg-amber-200 text-gray-900 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    Request a quote <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-6">
+              Phase 1 guiding rates: Bronze from KES 3,000/mo · Silver from KES 6,000/mo · Gold from KES 10,000/mo · Custom from KES 12,000/mo. Ad design & copywriting included.
+            </p>
           </div>
         </div>
 

@@ -434,6 +434,7 @@ export async function getServiceAds(filters?: {
   search?: string;
   ownerId?: string;
   activeOnly?: boolean;
+  featured?: boolean;
   limit?: number;
 }): Promise<DbServiceAd[]> {
   let query = supabase.from('service_ads').select('*');
@@ -455,6 +456,9 @@ export async function getServiceAds(filters?: {
   }
   if (filters?.activeOnly) {
     query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
+  }
+  if (filters?.featured) {
+    query = query.eq('featured', true);
   }
   if (filters?.search) {
     const terms = filters.search.split(/\s+/).filter(Boolean);
@@ -514,11 +518,14 @@ export async function createServiceAd(ad: {
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + days);
   const billingCycle = ad.plan === '10-day' ? '10 days' : ad.plan === '20-day' ? '20 days' : '30 days';
+  const featured = ad.plan === '30-day';
 
   const { data, error } = await supabase
     .from('service_ads')
     .insert({
       ...ad,
+      featured,
+      boost_until: featured ? expiryDate.toISOString() : null,
       expiry_date: expiryDate.toISOString().split('T')[0],
       billing_cycle: billingCycle,
       billing_start: new Date().toISOString(),
@@ -556,8 +563,11 @@ export async function renewServiceAd(adId: string, plan: '10-day' | '20-day' | '
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + days);
   const expiryDateStr = expiryDate.toISOString().split('T')[0];
+  const featured = plan === '30-day';
   const update = await updateServiceAd(adId, {
     plan,
+    featured,
+    boost_until: featured ? new Date(`${expiryDateStr}T00:00:00`).toISOString() : null,
     expiry_date: expiryDateStr,
     billing_cycle: plan === '10-day' ? '10 days' : plan === '20-day' ? '20 days' : '30 days',
     billing_start: new Date().toISOString(),

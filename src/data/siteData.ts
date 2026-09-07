@@ -202,7 +202,7 @@ export const PRICING_PLANS = {
   ],
   homepageAdvert: {
     name: 'Homepage Advert',
-    price: 500,
+    price: 200,
     period: 'per week',
     features: [
       'Prime banner placement at the very top of the homepage',
@@ -213,7 +213,7 @@ export const PRICING_PLANS = {
       'Optional button linking to your website or listing',
       'Advert displays in the rotating carousel with other ads',
       'Clicks & views tracked in your analytics',
-      'Live for 7 full days (KES 500 per week)',
+      'Live for 7 full days (KES 200 per week)',
       'Disclaimer: Exclusive of ad design — user to provide',
     ],
   },
@@ -248,4 +248,56 @@ export const PRICING_PLANS = {
     description: 'Boost your advert to the top of search results and homepage carousel.',
   },
 };
+
+// Corporate placements (Phase 1 pricing — quoted via /advertise, no price listed on page).
+export const CORPORATE_PACKAGES = [
+  {
+    id: 'bronze',
+    tier: 'Bronze',
+    slot: 'sitewide_strip',
+    headline: 'Site-wide recognition',
+    features: [
+      'Slim branded strip under the header on the homepage',
+      'Your business name + tagline shown to every visitor',
+      'One-line description with WhatsApp / website CTA',
+      'Ideal for co-ops, churches, schools & foundations',
+    ],
+  },
+  {
+    id: 'silver',
+    tier: 'Silver',
+    slot: 'category_strip',
+    headline: 'Jobs & Services visibility',
+    features: [
+      'Branded strip across the Jobs and Services pages',
+      'Reach employers and job seekers as they engage',
+      'Direct WhatsApp + website buttons in the strip',
+      'Perfect for recruiters, trainers & sector suppliers',
+    ],
+  },
+  {
+    id: 'gold',
+    tier: 'Gold',
+    slot: 'homepage_banner',
+    headline: 'Homepage dominance',
+    features: [
+      'Premium carousel rotation on the homepage',
+      'Large banner with up to 5 images + full popup',
+      'Featured boost included for the entire term',
+      'Clicks & views tracked in the analytics dashboard',
+    ],
+  },
+  {
+    id: 'custom',
+    tier: 'Custom',
+    slot: 'custom',
+    headline: 'Made for your goals',
+    features: [
+      'Multi-location or county-wide campaigns',
+      'Campaigns timed around launches & events',
+      'Bundle: homepage + jobs + services + newsletter',
+      'Ongoing partnership & loyalty pricing',
+    ],
+  },
+];
 
