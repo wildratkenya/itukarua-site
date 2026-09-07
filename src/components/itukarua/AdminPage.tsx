@@ -219,7 +219,7 @@ const AdminPage: React.FC = () => {
   const [searchUsers, setSearchUsers] = useState('');
   const [searchJobs, setSearchJobs] = useState('');
   const [searchAds, setSearchAds] = useState('');
-  const [showExpiredAds, setShowExpiredAds] = useState(false);
+  const [adsView, setAdsView] = useState<'all' | 'active' | 'expired'>('all');
   const [searchPayments, setSearchPayments] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed' | 'refunded'>('all');
   const [searchMessages, setSearchMessages] = useState('');
@@ -1714,14 +1714,18 @@ const AdminPage: React.FC = () => {
 
           {activeTab === 'ads' && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CardTitle>{showExpiredAds ? `Expired Ads (${ads.filter(a => a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now()).length})` : `Advertisement Management (${ads.filter(a => !a.expiry_date || new Date(`${a.expiry_date}T23:59:59`).getTime() > Date.now()).length})`}</CardTitle>
-                  <button onClick={() => { setShowExpiredAds(!showExpiredAds); }} className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${showExpiredAds ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    {showExpiredAds ? 'Active Ads' : `Expired (${ads.filter(a => a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now()).length})`}
-                  </button>
+              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+                <CardTitle>Advertisement Management ({ads.length})</CardTitle>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    {(['all', 'active', 'expired'] as const).map(v => (
+                      <button key={v} onClick={() => setAdsView(v)} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors capitalize ${adsView === v ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+                        {v === 'all' ? `All (${ads.length})` : v === 'active' ? `Active (${ads.filter(a => !a.expiry_date || new Date(`${a.expiry_date}T23:59:59`).getTime() > Date.now()).length})` : `Expired (${ads.filter(a => a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now()).length})`}
+                      </button>
+                    ))}
+                  </div>
+                  <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>
                 </div>
-                {!showExpiredAds && <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>}
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -1743,7 +1747,8 @@ const AdminPage: React.FC = () => {
                   <TableBody>
                     {ads.filter(a => {
                       const isExpired = !!a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now();
-                      if (showExpiredAds ? !isExpired : isExpired) return false;
+                      if (adsView === 'active' && isExpired) return false;
+                      if (adsView === 'expired' && !isExpired) return false;
                       return !searchAds || a.business_name?.toLowerCase().includes(searchAds.toLowerCase()) || a.title?.toLowerCase().includes(searchAds.toLowerCase()) || a.category?.toLowerCase().includes(searchAds.toLowerCase()) || a.location?.toLowerCase().includes(searchAds.toLowerCase()) || a.contact_person?.toLowerCase().includes(searchAds.toLowerCase());
                     }).map((ad) => {
                       const expMs = ad.expiry_date ? new Date(`${ad.expiry_date}T23:59:59`).getTime() : 0;
