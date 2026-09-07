@@ -541,6 +541,31 @@ export async function updateServiceAd(adId: string, updates: Partial<DbServiceAd
   return data as DbServiceAd;
 }
 
+export async function getMyServiceAds(userId: string): Promise<DbServiceAd[]> {
+  const { data, error } = await supabase
+    .from('service_ads')
+    .select('*')
+    .eq('owner_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getMyServiceAds error:', error); return []; }
+  return data || [];
+}
+
+export async function renewServiceAd(adId: string, plan: '10-day' | '20-day' | '30-day'): Promise<DbServiceAd> {
+  const days = plan === '10-day' ? 10 : plan === '20-day' ? 20 : 30;
+  const expiryDate = new Date();
+  expiryDate.setDate(expiryDate.getDate() + days);
+  const expiryDateStr = expiryDate.toISOString().split('T')[0];
+  const update = await updateServiceAd(adId, {
+    plan,
+    expiry_date: expiryDateStr,
+    billing_cycle: plan === '10-day' ? '10 days' : plan === '20-day' ? '20 days' : '30 days',
+    billing_start: new Date().toISOString(),
+    billing_end: new Date(`${expiryDateStr}T00:00:00`).toISOString(),
+  });
+  return update;
+}
+
 // ─── Payments ───────────────────────────────────────────────────────────────
 
 export async function getPayments(filters?: {

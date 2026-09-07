@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
@@ -14,6 +14,7 @@ import ProfileViewsChart from './ProfileViewsChart';
 import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
+import { Badge } from '@/components/ui/badge';
 import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
 import CertificateViewer from './CertificateViewer';
 
@@ -34,6 +35,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [acceptingBidId, setAcceptingBidId] = useState<string | null>(null);
   const [ads, setAds] = useState<DbServiceAd[]>([]);
   const [myAds, setMyAds] = useState<DbAdvertisement[]>([]);
+  const [myServiceAds, setMyServiceAds] = useState<DbServiceAd[]>([]);
+  const [renewAd, setRenewAd] = useState<DbServiceAd | null>(null); // service ad pending renewal picker
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [profiles, setProfiles] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
@@ -102,7 +105,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         } else if (isJobseeker) {
           promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getWeeklyBidCount(user.id), getMonthlyBidCount(user.id));
         } else if (isAdvertiser) {
-          promises.push(getMyAds(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id));
+          promises.push(getMyAds(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getMyServiceAds(user.id));
         } else {
           promises.push(getJobs({ postedBy: user.id }), getBidsReceivedOnMyJobs(user.id));
         }
@@ -133,6 +136,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setMyAds(results[offset] || []);
           setSubscriptionActive(results[offset + 1] || false);
           setSubscriptionDays(results[offset + 2] || 0);
+          setMyServiceAds(results[offset + 3] || []);
           getAdAnalyticsByAd(user.id, 30).then(setAdAnalyticsByAd);
         } else {
           setJobs(results[offset] || []);
@@ -473,6 +477,37 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     } catch (err: any) {
       alert(err.message || 'Failed to delete advert.');
     }
+  };
+
+  const loadMyServiceAds = async () => {
+    const list = await getMyServiceAds(user.id);
+    setMyServiceAds(list);
+  };
+
+  const handleRenewServiceAd = (ad: DbServiceAd, plan: '10-day' | '20-day' | '30-day') => {
+    const price = plan === '10-day' ? 300 : plan === '20-day' ? 500 : 800;
+    const label = plan === '10-day' ? '10-Day' : plan === '20-day' ? '20-Day' : '30-Day';
+    const days = plan === '10-day' ? 10 : plan === '20-day' ? 20 : 30;
+    setRenewAd(null);
+    onOpenMpesa(
+      price,
+      `Service ad renewal — ${ad.business_name} (${label})`,
+      `ADV-${ad.id.slice(0, 8).toUpperCase()}`,
+      'advert',
+      ad.id,
+      undefined,
+      undefined,
+      async () => {
+        try {
+          await renewServiceAd(ad.id, plan);
+          alert(`${ad.business_name} renewed for ${days} days. Expires ${new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString()}.`);
+          await loadMyServiceAds();
+        } catch (err: any) {
+          console.error('Error renewing service ad:', err);
+          alert(err.message || 'Failed to renew ad');
+        }
+      }
+    );
   };
 
   const handleMarkRead = async (id: string) => {
@@ -1288,6 +1323,98 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               </div>
               );
             }) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet. Create your first banner advert!</p>}
+
+            {/* Business Service Ads — renewal */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Business Service Ads</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Your business listings posted under the Services section. Expired listings disappear from the site — renew to bring them back live.</p>
+                </div>
+                <button onClick={() => onNavigate('post-advert')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> New Service Ad
+                </button>
+              </div>
+              {myServiceAds.length > 0 ? myServiceAds.map(sa => {
+                const expMs = sa.expiry_date ? new Date(`${sa.expiry_date}T23:59:59`).getTime() : 0;
+                const active = expMs > Date.now();
+                return (
+                  <div key={sa.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4 mb-3">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      <img src={optimizeImageUrl(sa.image || sa.images?.[0] || '/images/services.png', 128, 128)} alt={sa.business_name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-gray-900 truncate">{sa.business_name}</h4>
+                        {sa.featured && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">★ Featured</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <span>{sa.category}</span>
+                        <span>{sa.location}</span>
+                        <span>{sa.plan}</span>
+                      </div>
+                      <div className="mt-1">
+                        {!sa.expiry_date ? (
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
+                        ) : active ? (
+                          <Badge variant="success">Active · {Math.ceil((expMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
+                        ) : (
+                          <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - expMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
+                        )}
+                        {sa.expiry_date && <span className="text-[10px] text-gray-400 ml-2">Expires {sa.expiry_date}</span>}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {!active && (
+                        <button onClick={() => setRenewAd(sa)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                          Renew
+                        </button>
+                      )}
+                      {active && <span className="text-xs text-gray-400">Live on site</span>}
+                    </div>
+                  </div>
+                );
+              }) : <p className="text-gray-500 text-sm py-4 text-center">No service ads yet. Post one to reach the local community!</p>}
+            </div>
+
+            {/* Renewal plan picker */}
+            {renewAd && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setRenewAd(null)}>
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-green-600 to-green-700 rounded-t-2xl">
+                    <div>
+                      <h2 className="text-lg font-bold text-white">Renew "{renewAd.business_name}"</h2>
+                      <p className="text-green-100 text-sm">Choose a plan to re-publish your listing</p>
+                    </div>
+                    <button onClick={() => setRenewAd(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-white" /></button>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    {([
+                      { plan: '10-day' as const, name: '10-Day Advert', days: 10, desc: 'Up to 3 images · basic analytics', price: 300 },
+                      { plan: '20-day' as const, name: '20-Day Advert', days: 20, desc: 'Up to 5 images · priority placement', price: 500 },
+                      { plan: '30-day' as const, name: '30-Day Advert', days: 30, desc: 'Best value · featured boost options', price: 800 },
+                    ]).map(opt => (
+                      <button
+                        key={opt.plan}
+                        onClick={() => handleRenewServiceAd(renewAd, opt.plan)}
+                        className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-colors text-left"
+                      >
+                        <div>
+                          <p className="font-semibold text-gray-900">{opt.name}</p>
+                          <p className="text-xs text-gray-500">{opt.days} days · {opt.desc}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-700">KES {opt.price}</p>
+                          <p className="text-[10px] text-gray-400">via M-Pesa</p>
+                        </div>
+                      </button>
+                    ))}
+                    <p className="text-[11px] text-gray-400 text-center pt-1">Your listing goes live immediately after payment is confirmed.</p>
+                    <button onClick={() => setRenewAd(null)} className="w-full py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
