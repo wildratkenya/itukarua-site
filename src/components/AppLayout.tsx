@@ -22,6 +22,7 @@ import AuthModal from './itukarua/AuthModal';
 import MpesaModal from './itukarua/MpesaModal';
 import AdminPage from './itukarua/AdminPage';
 import SitewideAnchorStrip from './itukarua/SitewideAnchorStrip';
+import CorporateDashboard from './itukarua/CorporateDashboard';
 import ChatBot from './itukarua/ChatBot';
 
 export interface UserState {
@@ -158,6 +159,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
               profile,
             });
             promptLoginSubscriptionCheck(profile);
+            if (profile?.role === 'corporate') setCurrentPage('corporate');
           }
         }
       } catch (err: any) {
@@ -219,7 +221,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
               profile: refreshedProfile,
             });
             promptLoginSubscriptionCheck(refreshedProfile);
-            if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
+            if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(profile?.role === 'corporate' || refreshedProfile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard')); loginFromWorkerPopup.current = false; }
           }
           return;
         }
@@ -236,7 +238,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
             profile,
           });
           promptLoginSubscriptionCheck(profile);
-          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(loginFromWorkerPopup.current ? 'home' : 'dashboard'); loginFromWorkerPopup.current = false; }
+          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(profile?.role === 'corporate' || refreshedProfile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard')); loginFromWorkerPopup.current = false; }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -441,6 +443,11 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
+        case 'corporate':
+          if (!user || user.role !== 'corporate') {
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+          }
+          return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;

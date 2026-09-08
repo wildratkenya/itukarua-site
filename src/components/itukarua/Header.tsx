@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X, User, LogOut, ChevronDown, Send } from 'lucide-react';
 
-export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise';
+export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate';
 
 interface HeaderProps {
   currentPage: Page;
@@ -85,10 +85,10 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                       <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium capitalize">{user.role}</span>
                     </div>
                     <button
-                      onClick={() => { handleNav('dashboard'); setUserMenuOpen(false); }}
+                      onClick={() => { handleNav(user.role === 'corporate' ? 'corporate' : 'dashboard'); setUserMenuOpen(false); }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                     >
-                      <User className="w-4 h-4" /> Dashboard
+                      <User className="w-4 h-4" /> {user.role === 'corporate' ? 'Corporate Panel' : 'Dashboard'}
                     </button>
                     <button
                       onClick={() => { handleNav('inbox'); setUserMenuOpen(false); }}
@@ -160,12 +160,12 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
             ))}
             {user && (
               <button
-                onClick={() => handleNav('dashboard')}
+                onClick={() => handleNav(user.role === 'corporate' ? 'corporate' : 'dashboard')}
                 className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  currentPage === 'dashboard' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'
+                  currentPage === 'dashboard' || currentPage === 'corporate' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                Dashboard
+                {user.role === 'corporate' ? 'Corporate Panel' : 'Dashboard'}
               </button>
             )}
           </div>

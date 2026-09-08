@@ -7,7 +7,7 @@ export interface DbProfile {
   full_name: string;
   email: string;
   phone: string;
-  role: 'super_admin' | 'admin' | 'advertiser' | 'jobseeker' | 'employer';
+  role: 'super_admin' | 'admin' | 'advertiser' | 'jobseeker' | 'employer' | 'corporate';
   location: string;
   county?: string;
   subcounty?: string;
@@ -2093,4 +2093,106 @@ export async function deletePortfolioSite(id: string): Promise<{ error?: string 
   const { error } = await supabase.from('portfolio_sites').delete().eq('id', id);
   if (error) return { error: error.message };
   return {};
+}
+
+// ─── Corporate Accounts ─────────────────────────────────────────────────────
+
+export interface DbCorporateAccount {
+  id: string;
+  company_name: string;
+  tier: 'bronze' | 'silver' | 'gold' | 'custom';
+  is_active: boolean;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  billing_email?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbCorporateMember {
+  id: string;
+  account_id: string;
+  profile_id: string;
+  member_role: 'owner' | 'member';
+  created_at: string;
+  full_name?: string;
+  email?: string;
+}
+
+export async function getCorporateAccounts(): Promise<DbCorporateAccount[]> {
+  const { data, error } = await proxyRequest('/rest/v1/corporate_accounts?select=*&order=company_name');
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []) as DbCorporateAccount[];
+}
+
+export async function getMyCorporateAccount(userId: string): Promise<DbCorporateAccount | null> {
+  const { data: membership } = await proxyRequest(`/rest/v1/corporate_members?profile_id=eq.${userId}&select=account_id`);
+  const arr = Array.isArray(membership) ? membership : [];
+  if (arr.length === 0) return null;
+  const accountId = arr[0].account_id;
+  const { data } = await proxyRequest(`/rest/v1/corporate_accounts?id=eq.${accountId}`);
+  const accounts = Array.isArray(data) ? data : [];
+  return (accounts[0] as DbCorporateAccount) || null;
+}
+
+export async function getCorporateMembers(accountId: string): Promise<DbCorporateMember[]> {
+  const { data, error } = await proxyRequest(`/rest/v1/corporate_members?account_id=eq.${accountId}&select=*,profiles(full_name,email)`, 'GET', undefined, { Prefer: 'return=representation' });
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map((r: any) => ({ ...r, full_name: r.profiles?.full_name, email: r.profiles?.email })) as DbCorporateMember[];
+}
+
+export async function getCorporateAccountAds(accountId: string) {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .eq('corporate_account_id', accountId)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getCorporateAdAnalytics(accountId: string, days = 30): Promise<AdAnalyticsByAd[]> {
+  const ads = await getCorporateAccountAds(accountId);
+  if (ads.length === 0) return [];
+  const adIds = ads.map(a => a.id);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { data: rows } = await supabase
+    .from('advert_analytics')
+    .select('ad_id, event_type, created_at')
+    .in('ad_id', adIds)
+    .gte('created_at', since);
+  const analytics = rows || [];
+  return ads.map(ad => {
+    const adAnalytics = analytics.filter(a => a.ad_id === ad.id);
+    const byDate: Record<string, { clicks: number; impressions: number }> = {};
+    let totalClicks = 0;
+    let totalImpressions = 0;
+    for (const row of adAnalytics) {
+      const d = new Date(row.created_at).toISOString().slice(0, 10);
+      if (!byDate[d]) byDate[d] = { clicks: 0, impressions: 0 };
+      if (row.event_type === 'click') { byDate[d].clicks++; totalClicks++; }
+      else if (row.event_type === 'impression') { byDate[d].impressions++; totalImpressions++; }
+    }
+    return {
+      adId: ad.id,
+      title: ad.title,
+      active: ad.active,
+      created_at: ad.created_at,
+      data: Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v })),
+      totalClicks,
+      totalImpressions,
+    };
+  });
+}
+
+export async function getCorporateInvoices(accountId: string) {
+  const ads = await getCorporateAccountAds(accountId);
+  if (ads.length === 0) return [];
+  const adIds = ads.map(a => a.id);
+  const { data } = await proxyRequest(`/rest/v1/payments?select=*&order=created_at.desc`, 'GET');
+  const all = Array.isArray(data) ? data : [];
+  return all.filter((p: any) => p.related_ad_id && adIds.includes(String(p.related_ad_id)));
 }

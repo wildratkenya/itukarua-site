@@ -301,3 +301,45 @@ export const CORPORATE_PACKAGES = [
   },
 ];
 
+export const CORPORATE_TIER_FEATURES: Record<string, {
+  slots: string[];
+  maxPlacements: number;
+  analyticsDepth: 'basic' | 'full';
+  teamSeats: number;
+  featured: boolean;
+  multiImages: boolean;
+}> = {
+  bronze: {
+    slots: ['sitewide_strip'],
+    maxPlacements: 1,
+    analyticsDepth: 'basic',
+    teamSeats: 1,
+    featured: false,
+    multiImages: false,
+  },
+  silver: {
+    slots: ['sitewide_strip', 'category_strip'],
+    maxPlacements: 2,
+    analyticsDepth: 'basic',
+    teamSeats: 2,
+    featured: false,
+    multiImages: false,
+  },
+  gold: {
+    slots: ['sitewide_strip', 'category_strip', 'homepage_banner'],
+    maxPlacements: 4,
+    analyticsDepth: 'full',
+    teamSeats: 5,
+    featured: true,
+    multiImages: true,
+  },
+  custom: {
+    slots: ['sitewide_strip', 'category_strip', 'homepage_banner', 'job_listings_top'],
+    maxPlacements: 99,
+    analyticsDepth: 'full',
+    teamSeats: 20,
+    featured: true,
+    multiImages: true,
+  },
+};
+
