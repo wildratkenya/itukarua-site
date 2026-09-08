@@ -1,6 +1,7 @@
 -- DEMO SEED: realistic sample advertisements so the team can preview every placement.
 -- Rows carry owner_id = NULL on purpose (corporate/admin-created demo placements).
--- Delete before public launch:  DELETE FROM advertisements WHERE owner_id IS NULL;
+-- Delete BEFORE public launch (matches ONLY these 7 demo rows by their picsum URLs):
+--   DELETE FROM advertisements WHERE image_url LIKE 'https://picsum.photos/%';
 
 INSERT INTO advertisements (
   title, image_url, description, cta_text, whatsapp_number,
