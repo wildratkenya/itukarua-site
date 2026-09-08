@@ -2,9 +2,9 @@
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
 
-import { KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -229,7 +229,7 @@ const AdminPage: React.FC = () => {
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string; corporate_tier?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string; corporate_tier?: string; corporate_account_id?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined });
   const [advUploading, setAdvUploading] = useState(false);
   const [advUploadKey, setAdvUploadKey] = useState(0);
   const [advUrlInput, setAdvUrlInput] = useState('');
@@ -299,6 +299,196 @@ const AdminPage: React.FC = () => {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
+
+  const [corporateAccounts, setCorporateAccounts] = useState<DbCorporateAccount[]>([]);
+  const [corporateMembersByAccount, setCorporateMembersByAccount] = useState<Record<string, DbCorporateMember[]>>({});
+  const [isCorporateModalOpen, setIsCorporateModalOpen] = useState(false);
+  const [creatingCorporate, setCreatingCorporate] = useState(false);
+  const [selectedCorporate, setSelectedCorporate] = useState<DbCorporateAccount | null>(null);
+  const [corporateMsg, setCorporateMsg] = useState('');
+  const [corporateSuspendingId, setCorporateSuspendingId] = useState<string | null>(null);
+  const [editingCorporate, setEditingCorporate] = useState(false);
+  const [corporateEditForm, setCorporateEditForm] = useState({ tier: 'bronze', contact_person: '', contact_phone: '', contact_email: '', billing_email: '', notes: '' });
+  const [savingCorporate, setSavingCorporate] = useState(false);
+  const [addMemberForm, setAddMemberForm] = useState<{ email: string; password: string; full_name: string }>({ email: '', password: '', full_name: '' });
+  const [addingMember, setAddingMember] = useState(false);
+
+  const loadCorporateAccounts = async () => {
+    try {
+      const accounts = await getCorporateAccounts();
+      setCorporateAccounts(accounts);
+      const membersMap: Record<string, DbCorporateMember[]> = {};
+      await Promise.all(accounts.map(async (acct) => {
+        try { membersMap[acct.id] = await getCorporateMembers(acct.id); } catch (err) { console.error('corporate members load failed', err); }
+      }));
+      setCorporateMembersByAccount(membersMap);
+    } catch (err: any) {
+      console.error('Failed to load corporate accounts:', err);
+    }
+  };
+
+  const createCorporate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setCreatingCorporate(true);
+    setCorporateMsg('');
+    const fd = new FormData(e.currentTarget);
+    const email = (fd.get('admin_email') as string || '').trim();
+    const password = (fd.get('admin_password') as string || '');
+    const company_name = (fd.get('company_name') as string || '').trim();
+    if (!email || !password || !company_name) {
+      setCorporateMsg('Company name, login email and password are required');
+      setCreatingCorporate(false);
+      return;
+    }
+    const payload = {
+      email, password, company_name,
+      tier: fd.get('tier') as string || 'bronze',
+      contact_person: (fd.get('contact_person') as string || '').trim() || undefined,
+      contact_phone: (fd.get('contact_phone') as string || '').trim() || undefined,
+      contact_email: (fd.get('contact_email') as string || '').trim() || undefined,
+      billing_email: (fd.get('billing_email') as string || '').trim() || undefined,
+      notes: (fd.get('notes') as string || '').trim() || undefined,
+    };
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to create corporate account');
+      toast({ title: 'Success', description: `Corporate account created — welcome email sent to ${email}` });
+      setIsCorporateModalOpen(false);
+      await loadCorporateAccounts();
+    } catch (err: any) {
+      setCorporateMsg(err.message || 'Failed to create corporate account');
+    } finally {
+      setCreatingCorporate(false);
+    }
+  };
+
+  const toggleCorporateActive = async (acct: DbCorporateAccount) => {
+    setCorporateSuspendingId(acct.id);
+    try {
+      await proxyTable('corporate_accounts').update({ is_active: !acct.is_active }, 'id', acct.id);
+      setCorporateAccounts(prev => prev.map(a => a.id === acct.id ? { ...a, is_active: !acct.is_active } : a));
+      if (selectedCorporate?.id === acct.id) setSelectedCorporate({ ...selectedCorporate, is_active: !acct.is_active });
+      toast({ title: acct.is_active ? 'Account suspended' : 'Account reactivated', description: `${acct.company_name} is ${!acct.is_active ? 'now live' : 'now paused'}` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setCorporateSuspendingId(null);
+    }
+  };
+
+  const sendOwnerReset = async (acct: DbCorporateAccount) => {
+    const owner = corporateMembersByAccount[acct.id]?.find(m => m.member_role === 'owner');
+    const email = owner?.email;
+    if (!email) {
+      toast({ title: 'No owner email', description: `${acct.company_name} has no owner email on record.`, variant: 'destructive' });
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      toast({ title: 'Reset email sent', description: `Password reset link pushed to ${email}` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to send reset email', variant: 'destructive' });
+    }
+  };
+
+  const deleteCorporateAccount = async (acct: DbCorporateAccount) => {
+    if (!window.confirm(`Permanently delete ${acct.company_name}? This removes all team members and unlinks its ${adverts.filter(a => a.corporate_account_id === acct.id).length} placement(s). This cannot be undone.`)) return;
+    try {
+      const memberProfiles = (corporateMembersByAccount[acct.id] || []).map(m => m.profile_id);
+      try { await proxyRequest(`/rest/v1/advertisements?corporate_account_id=eq.${acct.id}`, 'PATCH', { corporate_account_id: null }, { Prefer: 'return=representation' }); } catch (e) { console.error('unlink ads failed', e); }
+      try { await proxyRequest('/rest/v1/corporate_members?account_id=eq.' + acct.id, 'DELETE'); } catch (e) { console.error('delete members failed', e); }
+      if (memberProfiles.length) {
+        for (const pid of memberProfiles) {
+          try { await proxyTable('profiles').update({ suspended: true }, 'id', pid); } catch (e) { console.error('suspend member failed', e); }
+        }
+      }
+      await proxyRequest('/rest/v1/corporate_accounts?id=eq.' + acct.id, 'DELETE');
+      setCorporateAccounts(prev => prev.filter(a => a.id !== acct.id));
+      if (selectedCorporate?.id === acct.id) setSelectedCorporate(null);
+      toast({ title: 'Deleted', description: `${acct.company_name} was deleted and its team logins disabled.` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Delete failed', variant: 'destructive' });
+    }
+  };
+
+  const openCorporateEdit = (acct: DbCorporateAccount) => {
+    setCorporateEditForm({
+      tier: acct.tier,
+      contact_person: acct.contact_person || '',
+      contact_phone: acct.contact_phone || '',
+      contact_email: acct.contact_email || '',
+      billing_email: acct.billing_email || '',
+      notes: acct.notes || '',
+    });
+    setEditingCorporate(true);
+  };
+
+  const saveCorporate = async () => {
+    setSavingCorporate(true);
+    try {
+      await proxyTable('corporate_accounts').update({
+        tier: corporateEditForm.tier,
+        contact_person: corporateEditForm.contact_person || null,
+        contact_phone: corporateEditForm.contact_phone || null,
+        contact_email: corporateEditForm.contact_email || null,
+        billing_email: corporateEditForm.billing_email || null,
+        notes: corporateEditForm.notes || null,
+      }, 'id', selectedCorporate!.id);
+      setSelectedCorporate({ ...selectedCorporate!, ...corporateEditForm });
+      setCorporateAccounts(prev => prev.map(a => a.id === selectedCorporate!.id ? { ...a, ...corporateEditForm } : a));
+      setEditingCorporate(false);
+      toast({ title: 'Saved', description: 'Corporate account updated' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingCorporate(false);
+    }
+  };
+
+  const addCorporateMember = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedCorporate || !addMemberForm.email || !addMemberForm.password) {
+      toast({ title: 'Missing fields', description: 'Email and password are required', variant: 'destructive' });
+      return;
+    }
+    setAddingMember(true);
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate-member`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        body: JSON.stringify({ account_id: selectedCorporate.id, email: addMemberForm.email.trim(), password: addMemberForm.password, full_name: addMemberForm.full_name.trim() }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to add member');
+      toast({ title: 'Member added', description: `Invite email sent to ${addMemberForm.email}` });
+      setAddMemberForm({ email: '', password: '', full_name: '' });
+      await loadCorporateAccounts();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const removeCorporateMember = async (member: DbCorporateMember) => {
+    if (!window.confirm(`Remove ${member.email || member.full_name || 'this member'} from the team? Their login is disabled.`)) return;
+    try {
+      await proxyRequest(`/rest/v1/corporate_members?id=eq.${member.id}`, 'DELETE');
+      try { await proxyTable('profiles').update({ suspended: true }, 'id', member.profile_id); } catch (e) { console.error('suspend removed member failed', e); }
+      await loadCorporateAccounts();
+      toast({ title: 'Removed', description: 'Team member removed' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const accountPlacements = selectedCorporate ? adverts.filter(a => a.corporate_account_id === selectedCorporate.id) : [];
 
   const loadBilling = async () => {
     setBillingLoading(true);
@@ -507,6 +697,7 @@ const AdminPage: React.FC = () => {
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
         loadLeads(),
+        loadCorporateAccounts(),
         getAdCarouselSettings().then(setCarouselSettings),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
@@ -2811,7 +3002,7 @@ const AdminPage: React.FC = () => {
                       </button>
                     );})}
                   </div>
-                  <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
+                  <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -2876,6 +3067,12 @@ const AdminPage: React.FC = () => {
                         <option value="gold">Corporate — Gold</option>
                         <option value="custom">Corporate — Custom</option>
                       </select>
+                      <select value={adForm.corporate_account_id || ''} onChange={e => setAdForm({ ...adForm, corporate_account_id: e.target.value === '' ? undefined : e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="">No corporate account (personal/regular)</option>
+                        {corporateAccounts.map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.company_name} — {acc.tier} {acc.is_active ? '' : '(suspended)'}</option>
+                        ))}
+                      </select>
                       <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
                         <label className="flex items-center gap-2 text-sm text-gray-700">
                           <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
@@ -2923,6 +3120,7 @@ const AdminPage: React.FC = () => {
                           if (adForm.id) {
                             const { id, image_url, images: _oldImages, ...updateData } = adForm;
                             const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: updateData.slot || 'homepage_banner' };
+                            patch.corporate_account_id = patch.corporate_account_id || null;
                             if (!adForm.is_affiliate) {
                               patch.billing_cycle = adForm.billing_cycle || '7 days';
                               if (!patch.billing_start) patch.billing_start = nowIso;
@@ -2938,6 +3136,7 @@ const AdminPage: React.FC = () => {
                               return;
                             }
                             const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: insertData.slot || 'homepage_banner' };
+                            insert.corporate_account_id = insert.corporate_account_id || null;
                             if (!insertData.is_affiliate) {
                               insert.billing_cycle = insertData.billing_cycle || '7 days';
                               insert.billing_start = nowIso;
@@ -3108,7 +3307,7 @@ const AdminPage: React.FC = () => {
                                 )}
                               </div>
                               )}
-                              <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
+                              <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
                                 Edit
                               </Button>
                               <Button variant="destructive" size="sm" onClick={async () => {
@@ -3139,11 +3338,60 @@ const AdminPage: React.FC = () => {
           {activeTab === 'corporate' && (
             <>
               <Card>
+                <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+                  <CardTitle>Corporate Accounts ({corporateAccounts.length})</CardTitle>
+                  <Button onClick={() => { setCorporateMsg(''); setIsCorporateModalOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Corporate</Button>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500 mb-4">Corporate clients each get their own panel (login via the site header). Tiers gate how many placements they can create and where they appear. Suspending an account freezes its panel and stops its placements being managed by the client.</p>
+                  {corporateAccounts.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-400">No corporate accounts yet. Click <b>Add Corporate</b> to create one (includes a login and a welcome email).</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {corporateAccounts.map(acct => {
+                        const members = corporateMembersByAccount[acct.id] || [];
+                        const placements = adverts.filter(a => a.corporate_account_id === acct.id);
+                        const tier = CORPORATE_TIER_FEATURES[acct.tier];
+                        return (
+                          <div key={acct.id} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl">
+                            <div className="w-10 h-10 rounded-full bg-green-50 border border-green-100 flex items-center justify-center flex-shrink-0">
+                              <Building2 className="w-5 h-5 text-green-700" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 truncate">{acct.company_name}</p>
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <Badge variant={acct.is_active ? 'default' : 'secondary'}>{acct.is_active ? 'LIVE' : 'PAUSED'}</Badge>
+                                <Badge variant="outline" className="capitalize">{acct.tier} tier</Badge>
+                                <span className="text-xs text-gray-500">{placements.length}/{tier ? tier.maxPlacements : 1} placements</span>
+                                <span className="text-xs text-gray-500">· {members.length} member{members.length !== 1 ? 's' : ''}</span>
+                              </div>
+                              {acct.contact_email && <p className="text-xs text-gray-400 mt-1 truncate">{acct.contact_email}{acct.billing_email && acct.billing_email !== acct.contact_email ? ` · billing: ${acct.billing_email}` : ''}</p>}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <Button size="sm" variant="outline" onClick={() => setSelectedCorporate(acct)}>Manage</Button>
+                              <Button size="sm" variant={acct.is_active ? 'outline' : 'default'} disabled={corporateSuspendingId === acct.id} onClick={() => toggleCorporateActive(acct)}>
+                                {corporateSuspendingId === acct.id ? '...' : acct.is_active ? 'Pause' : 'Activate'}
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => sendOwnerReset(acct)} title="Email reset link to the account owner"><Mail className="w-4 h-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => deleteCorporateAccount(acct)} title="Delete corporate account"><X className="w-4 h-4 text-red-500" /></Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
                 <CardHeader>
                   <CardTitle>Corporate Placements ({corporateAds.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-gray-500 mb-4">Tiered placements (Bronze/Silver/Gold/Custom) are admin-created. Bronze shows on the homepage strip; Silver shows across Jobs & Services. Toggling an advert live/paused starts or stops it serving.</p>
+                  <p className="text-sm text-gray-500 mb-4">Tiered placements (Bronze/Silver/Gold/Custom). Bronze shows on the homepage strip; Silver shows across Jobs & Services. Toggling an advert live/paused starts or stops it serving.</p>
                   {corporateAds.length === 0 ? (
                     <div className="py-8 text-center">
                       <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -3160,6 +3408,7 @@ const AdminPage: React.FC = () => {
                               <Badge variant={ad.active ? 'default' : 'secondary'}>{ad.active ? 'LIVE' : 'PAUSED'}</Badge>
                               {ad.corporate_tier && <Badge variant="outline" className="capitalize">{ad.corporate_tier}</Badge>}
                               {!ad.corporate_tier && <Badge variant="outline">{ad.slot}</Badge>}
+                              {corporateAccounts.find(a => a.id === ad.corporate_account_id) && <Badge variant="outline">{corporateAccounts.find(a => a.id === ad.corporate_account_id)!.company_name}</Badge>}
                             </div>
                           </div>
                           <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>
@@ -4070,6 +4319,188 @@ const AdminPage: React.FC = () => {
               {billingPreviewItem && billingSendingId === `${billingPreviewItem.item_type}:${billingPreviewItem.id}` ? 'Sending...' : `Send Invoice to ${billingPreviewItem?.owner_email || ''}`}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Corporate Account Modal */}
+      <Dialog open={isCorporateModalOpen} onOpenChange={setIsCorporateModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Corporate Account</DialogTitle>
+          </DialogHeader>
+          {corporateMsg && <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{corporateMsg}</p>}
+          <form onSubmit={createCorporate} className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label>Company Name <span className="text-red-500">*</span></Label>
+              <Input name="company_name" required placeholder="e.g. Kamau Enterprises Ltd" />
+            </div>
+            <div>
+              <Label>Tier <span className="text-red-500">*</span></Label>
+              <select name="tier" defaultValue="bronze" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+                <option value="bronze">Bronze — 1 site-wide strip</option>
+                <option value="silver">Silver — 2 placements, strips</option>
+                <option value="gold">Gold — 4 placements + carousel</option>
+                <option value="custom">Custom — full bundle</option>
+              </select>
+            </div>
+            <div>
+              <Label>Login Email <span className="text-red-500">*</span></Label>
+              <Input name="admin_email" type="email" required placeholder="owner@company.com" />
+            </div>
+            <div>
+              <Label>Login Password <span className="text-red-500">*</span></Label>
+              <Input name="admin_password" type="text" required placeholder="Temporary password (mailed)" minLength={6} />
+            </div>
+            <div>
+              <Label>Contact Person</Label>
+              <Input name="contact_person" placeholder="Accounts manager name" />
+            </div>
+            <div>
+              <Label>Contact Phone</Label>
+              <Input name="contact_phone" type="tel" placeholder="+254 7XX XXX XXX" />
+            </div>
+            <div>
+              <Label>Contact Email</Label>
+              <Input name="contact_email" type="email" placeholder="Different from login email (optional)" />
+            </div>
+            <div>
+              <Label>Billing Email</Label>
+              <Input name="billing_email" type="email" placeholder="Invoices go here (optional)" />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea name="notes" rows={2} placeholder="Contract terms, start date, linked services..." />
+            </div>
+            <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <Button type="button" variant="outline" onClick={() => setIsCorporateModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={creatingCorporate} className="bg-green-600 hover:bg-green-700">
+                {creatingCorporate ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                {creatingCorporate ? 'Creating...' : 'Create Account'}
+              </Button>
+            </div>
+          </form>
+          <p className="text-[11px] text-gray-400">The client's owner login (role: corporate) is created automatically and a welcome email with login details is sent to the login email. The owner can then add team members from their own panel.</p>
+        </DialogContent>
+      </Dialog>
+
+      {/* Corporate Account Detail Drawer */}
+      <Dialog open={!!selectedCorporate} onOpenChange={(open) => { if (!open) setSelectedCorporate(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Building2 className="w-5 h-5 text-green-700" /> {selectedCorporate?.company_name}</DialogTitle>
+          </DialogHeader>
+          {selectedCorporate && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant={selectedCorporate.is_active ? 'default' : 'secondary'}>{selectedCorporate.is_active ? 'LIVE' : 'PAUSED'}</Badge>
+                <Badge variant="outline" className="capitalize">{selectedCorporate.tier} tier</Badge>
+                <span className="text-xs text-gray-500">Added {new Date(selectedCorporate.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" variant={selectedCorporate.is_active ? 'outline' : 'default'} disabled={corporateSuspendingId === selectedCorporate.id} onClick={() => toggleCorporateActive(selectedCorporate)}>
+                    {corporateSuspendingId === selectedCorporate.id ? '...' : selectedCorporate.is_active ? 'Pause Account' : 'Activate Account'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => sendOwnerReset(selectedCorporate)}>Reset Owner Password</Button>
+                </div>
+              </div>
+
+              {!editingCorporate ? (
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="col-span-2 bg-gray-50 rounded-lg p-3 space-y-1">
+                    <p><span className="text-gray-500">Contact:</span> {selectedCorporate.contact_person || '—'}{selectedCorporate.contact_phone ? ` · ${selectedCorporate.contact_phone}` : ''}</p>
+                    <p><span className="text-gray-500">Contact email:</span> {selectedCorporate.contact_email || '—'}</p>
+                    <p><span className="text-gray-500">Billing email:</span> {selectedCorporate.billing_email || '—'}</p>
+                    {selectedCorporate.notes && <p><span className="text-gray-500">Notes:</span> {selectedCorporate.notes}</p>}
+                  </div>
+                  <Button variant="outline" size="sm" className="col-span-2 justify-self-start" onClick={() => openCorporateEdit(selectedCorporate)}>Edit Details</Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <Label>Tier</Label>
+                    <select value={corporateEditForm.tier} onChange={e => setCorporateEditForm({ ...corporateEditForm, tier: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                      <option value="bronze">Bronze</option>
+                      <option value="silver">Silver</option>
+                      <option value="gold">Gold</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Contact Person</Label>
+                    <Input value={corporateEditForm.contact_person} onChange={e => setCorporateEditForm({ ...corporateEditForm, contact_person: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Contact Phone</Label>
+                    <Input value={corporateEditForm.contact_phone} onChange={e => setCorporateEditForm({ ...corporateEditForm, contact_phone: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Contact Email</Label>
+                    <Input value={corporateEditForm.contact_email} onChange={e => setCorporateEditForm({ ...corporateEditForm, contact_email: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Billing Email</Label>
+                    <Input value={corporateEditForm.billing_email} onChange={e => setCorporateEditForm({ ...corporateEditForm, billing_email: e.target.value })} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Notes</Label>
+                    <Textarea value={corporateEditForm.notes} onChange={e => setCorporateEditForm({ ...corporateEditForm, notes: e.target.value })} rows={2} />
+                  </div>
+                  <div className="col-span-2 flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setEditingCorporate(false)}>Cancel</Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={savingCorporate} onClick={saveCorporate}>{savingCorporate ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}{savingCorporate ? 'Saving...' : 'Save'}</Button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Placements ({accountPlacements.length}/{CORPORATE_TIER_FEATURES[selectedCorporate.tier]?.maxPlacements ?? 1} max by tier)</h4>
+                {accountPlacements.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-3">No placements linked to this account yet. Create one from the <b>Banners</b> tab and pick this company in the corporate account selector.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {accountPlacements.map(ad => (
+                      <div key={ad.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl">
+                        <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-9 object-cover rounded-lg bg-gray-100 flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-gray-900 truncate">{ad.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant={ad.active ? 'default' : 'secondary'}>{ad.active ? 'LIVE' : 'PAUSED'}</Badge>
+                            <Badge variant="outline">{ad.slot}</Badge>
+                          </div>
+                        </div>
+                        <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>{ad.active ? 'Pause' : 'Activate'}</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Team Members ({(corporateMembersByAccount[selectedCorporate.id] || []).length})</h4>
+                <div className="space-y-2">
+                  {(corporateMembersByAccount[selectedCorporate.id] || []).map(member => (
+                    <div key={member.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-900 truncate">{member.full_name || 'Team member'}</p>
+                        <p className="text-xs text-gray-500">{member.email}{member.member_role === 'owner' ? ' · owner' : ''}</p>
+                      </div>
+                      {member.member_role !== 'owner' && (
+                        <Button size="sm" variant="ghost" onClick={() => removeCorporateMember(member)} title="Remove member"><X className="w-4 h-4 text-red-500" /></Button>
+                      )}
+                    </div>
+                  ))}
+                  {!corporateMembersByAccount[selectedCorporate.id] && <p className="text-sm text-gray-400">Loading members...</p>}
+                </div>
+                <form onSubmit={addCorporateMember} className="mt-3 p-3 bg-gray-50 rounded-lg grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Input value={addMemberForm.email} onChange={e => setAddMemberForm({ ...addMemberForm, email: e.target.value })} type="email" placeholder="Member email" required />
+                  <Input value={addMemberForm.password} onChange={e => setAddMemberForm({ ...addMemberForm, password: e.target.value })} placeholder="Temp password" minLength={6} required />
+                  <div className="flex gap-2">
+                    <Input value={addMemberForm.full_name} onChange={e => setAddMemberForm({ ...addMemberForm, full_name: e.target.value })} placeholder="Full name" className="flex-1" />
+                    <Button type="submit" disabled={addingMember} size="sm" className="bg-green-600 hover:bg-green-700">{addingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}</Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
