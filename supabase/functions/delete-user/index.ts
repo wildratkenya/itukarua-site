@@ -33,6 +33,21 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Only a logged-in super_admin may delete users.
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const caller = createClient(supabaseUrl, authHeader.replace('Bearer ', ''))
+    const { data: callerData, error: callerErr } = await caller.auth.getUser()
+    if (callerErr || !callerData.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerData.user.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') {
+      return new Response(JSON.stringify({ error: 'Admin privileges required' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // Delete auth user first, then profile to avoid orphan auth records
     const { error: authError } = await supabase.auth.admin.deleteUser(user_id)
     if (authError) throw authError
