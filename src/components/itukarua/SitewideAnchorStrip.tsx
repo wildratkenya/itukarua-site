@@ -41,33 +41,34 @@ const SitewideAnchorStrip: React.FC<SitewideAnchorStripProps> = ({ page }) => {
   const whatsapp = `https://wa.me/${ad.whatsapp_number || '254700000000'}?text=${encodeURIComponent(`Hi, I'm interested in "${ad.title}" from Itukarua`)}`;
 
   return (
-    <div className="bg-charcoal-950 bg-gradient-to-r from-gray-900 via-neutral-900 to-gray-900 text-white border-b border-white/5">
+    <div className="relative overflow-hidden bg-gradient-to-r from-gray-900 via-neutral-900 to-gray-900 text-white">
+      <img
+        src={proxyImageUrl(ad.image_url)}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        loading="lazy"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-gray-900/70 via-gray-900/40 to-gray-900/10" />
       <a
         href={ad.destination_url || whatsapp}
         target="_blank"
         rel="noopener noreferrer"
         onClick={() => incrementAdClick(ad.id)}
-        className="flex items-center gap-3 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 group"
+        className="relative flex items-center gap-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 lg:py-9 group"
       >
-        <img
-          src={proxyImageUrl(ad.image_url)}
-          alt=""
-          className="w-9 h-9 rounded-full object-cover bg-white/10 ring-1 ring-white/20 flex-shrink-0 hidden xs:block sm:block"
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
-        />
-        <div className="min-w-0 flex-1 flex items-baseline gap-2">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300/90 tracking-wide uppercase flex-shrink-0">
-            <Sparkles className="w-3 h-3" /> Partner
+        <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 tracking-wide uppercase">
+            <Sparkles className="w-4 h-4" /> Partner
           </span>
-          <span className="truncate text-sm font-semibold">{ad.title}</span>
+          <span className="truncate text-xl lg:text-2xl font-bold">{ad.title}</span>
           {ad.description && (
-            <span className="hidden md:block truncate text-xs text-white/60">{ad.description}</span>
+            <span className="truncate text-sm lg:text-base text-white/70">{ad.description}</span>
           )}
         </div>
-        <span className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-black bg-amber-300 hover:bg-amber-200 rounded-full px-3.5 py-1.5 transition-colors">
+        <span className="flex-shrink-0 inline-flex items-center gap-2 text-sm font-bold text-black bg-amber-300 hover:bg-amber-200 rounded-full px-6 py-3 transition-colors">
           {ad.cta_text || 'Chat on WhatsApp'}
-          <ExternalLink className="w-3 h-3" />
+          <ExternalLink className="w-4 h-4" />
         </span>
       </a>
     </div>

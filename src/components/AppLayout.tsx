@@ -564,7 +564,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         </div>
       )}
 
-      {['home', 'jobs', 'services'].includes(currentPage) && (
+      {['home', 'jobs', 'services', 'contact'].includes(currentPage) && (
         <SitewideAnchorStrip page={currentPage} />
       )}
 
