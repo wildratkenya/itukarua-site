@@ -121,7 +121,7 @@ if (restClient) {
 // helpers bypass the client entirely: read the JWT from localStorage (pure
 // synchronous read) and make the request through the same-origin proxy.
 
-function getLocalToken(): string {
+export function getLocalToken(): string {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (raw) { const s = JSON.parse(raw); if (s?.access_token) return s.access_token; }

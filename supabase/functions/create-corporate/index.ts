@@ -1,8 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 
-const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
-const corsHeaders = { 'Access-Control-Allow-Origin': ALLOW_ORIGIN, 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }
+const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
 const TIER_LABELS: Record<string, string> = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', custom: 'Custom' }
 const TIER_SLOTS: Record<string, string> = { bronze: 'Site-wide strip', silver: 'Jobs & Services strips', gold: 'Homepage carousel + strips', custom: 'Full custom bundle' }
@@ -46,6 +45,11 @@ async function sendWelcomeEmail(supabase: any, email: string, company: string, t
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': ALLOW_ORIGINS.includes(origin || '') ? origin : ALLOW_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!

@@ -1,13 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': ALLOW_ORIGINS.includes(origin || '') ? origin : ALLOW_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

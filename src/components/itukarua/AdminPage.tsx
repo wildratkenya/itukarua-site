@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES } from '@/data/siteData';
@@ -350,10 +350,10 @@ const AdminPage: React.FC = () => {
       notes: (fd.get('notes') as string || '').trim() || undefined,
     };
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = getLocalToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${session?.access_token || ''}` },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
       const result = await res.json();
@@ -460,10 +460,10 @@ const AdminPage: React.FC = () => {
     }
     setAddingMember(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = getLocalToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate-member`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${session?.access_token || ''}` },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ account_id: selectedCorporate.id, email: addMemberForm.email.trim(), password: addMemberForm.password, full_name: addMemberForm.full_name.trim() }),
       });
       const result = await res.json();
@@ -963,14 +963,14 @@ const AdminPage: React.FC = () => {
 
     try {
       console.log('[createUser] calling fetch...');
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = getLocalToken();
       const response = await fetch(functionUrl, {
         method: 'POST',
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'apikey': supabaseKey,
-          'Authorization': `Bearer ${session?.access_token || ''}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           email, password, full_name: fullName, phone, role, location, county: county || undefined, subcounty: subcounty || undefined, skills, resume,
@@ -1081,10 +1081,10 @@ const AdminPage: React.FC = () => {
     if (!id) return;
     try {
       const functionUrl = `${supabaseUrl}/functions/v1/delete-user`;
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = getLocalToken();
       const response = await fetch(functionUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${session?.access_token || ''}` },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ user_id: id }),
       });
       const result = await response.json();
