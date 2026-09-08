@@ -52,6 +52,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   const [addingMember, setAddingMember] = useState(false);
 
   const tierFeatures = account ? CORPORATE_TIER_FEATURES[account.tier] || CORPORATE_TIER_FEATURES.bronze : CORPORATE_TIER_FEATURES.bronze;
+  const isOwner = !!members.find(m => m.profile_id === user.id && m.member_role === 'owner');
 
   const loadAccount = useCallback(async () => {
     try {
@@ -87,7 +88,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
 
   useEffect(() => { loadAccount().then(() => setLoading(false)); }, [loadAccount]);
   useEffect(() => { if (account) loadAds(); }, [account, loadAds]);
-  useEffect(() => { if (account && activeTab === 'team') loadMembers(); }, [account, activeTab, loadMembers]);
+  useEffect(() => { if (account) loadMembers(); }, [account, loadMembers]);
   useEffect(() => { if (account && activeTab === 'analytics') loadAnalytics(); }, [account, activeTab, loadAnalytics]);
   useEffect(() => { if (account && activeTab === 'billing') loadInvoices(); }, [account, activeTab, loadInvoices]);
 
@@ -129,7 +130,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
         title: createForm.title, description: createForm.description, cta_text: createForm.cta_text,
         whatsapp_number: createForm.whatsapp_number, destination_url: createForm.destination_url,
         image_url: imageUrls[0] || '', images: imageUrls.length > 0 ? imageUrls : [],
-        slot: createForm.slot, corporate_account_id: account.id, active: true,
+        slot: createForm.slot, corporate_account_id: account.id, corporate_tier: account.tier, active: true,
         featured: features?.featured || false, is_affiliate: false,
       });
       if (error) throw error;
@@ -375,9 +376,10 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                   <input value={profileForm.billing_email} onChange={e => setProfileForm(p => ({ ...p, billing_email: e.target.value }))} placeholder="For invoices" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
               </div>
-              <button onClick={handleSaveProfile} disabled={savingProfile} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={handleSaveProfile} disabled={savingProfile || !isOwner} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
                 {savingProfile ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Save className="w-4 h-4" /> Save Changes</>}
               </button>
+              {!isOwner && <p className="text-[11px] text-amber-600">Only the account owner can edit company details.</p>}
             </div>
           </div>
         )}
@@ -421,9 +423,10 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500">{members.length} member{members.length !== 1 ? 's' : ''} · max {tierFeatures.teamSeats}</p>
-              {members.length < tierFeatures.teamSeats && (
+              {members.length < tierFeatures.teamSeats && isOwner && (
                 <button onClick={() => setShowAddMember(true)} className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"><Plus className="w-4 h-4" /> Add Member</button>
               )}
+              {!isOwner && <p className="text-[11px] text-amber-600">Only the account owner can manage team members.</p>}
             </div>
             <div className="space-y-2">
               {members.map(m => (

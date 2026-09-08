@@ -278,7 +278,7 @@ const AdminPage: React.FC = () => {
     setLeads(Array.isArray(data) ? data : []);
   };
 
-  const corporateAds = adverts.filter(a => a.corporate_tier || a.slot === 'sitewide_strip' || a.slot === 'category_strip');
+  const corporateAds = adverts.filter(a => a.corporate_account_id || a.corporate_tier || a.slot === 'sitewide_strip' || a.slot === 'category_strip');
 
   const toggleCorporateAd = async (ad: any) => {
     try {
