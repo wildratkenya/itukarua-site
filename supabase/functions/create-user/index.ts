@@ -80,6 +80,22 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Only a logged-in super_admin may create accounts through this function.
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const caller = createClient(supabaseUrl, authHeader.replace('Bearer ', ''))
+    const { data: callerData, error: callerErr } = await caller.auth.getUser()
+    if (callerErr || !callerData.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerData.user.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') {
+      return new Response(JSON.stringify({ error: 'Admin privileges required' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     const { email, password, full_name, phone, role, location, county, subcounty, skills, resume, profile_image, ratings_enabled, terms_accepted, data_sharing_consent } = await req.json()
 
     if (!email || !password) {

@@ -53,6 +53,22 @@ Deno.serve(async (req) => {
     if (!supabaseServiceKey) return new Response(JSON.stringify({ error: 'Service role key not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Only a logged-in super_admin may create corporate accounts.
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const caller = createClient(supabaseUrl, authHeader.replace('Bearer ', ''))
+    const { data: callerData, error: callerErr } = await caller.auth.getUser()
+    if (callerErr || !callerData.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerData.user.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') {
+      return new Response(JSON.stringify({ error: 'Admin privileges required' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     const { email, password, company_name, tier, contact_person, contact_phone, contact_email, billing_email, notes } = await req.json()
 
     if (!email || !password || !company_name || !tier) {

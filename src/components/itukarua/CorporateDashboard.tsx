@@ -168,8 +168,9 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     try {
       const supabaseUrl = (await import('@/lib/supabase')).supabaseUrl;
       const supabaseKey = (await import('@/lib/supabase')).supabaseKey;
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate-member`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: supabaseKey },
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ email: memberForm.email, password: memberForm.password, full_name: memberForm.full_name, account_id: account.id }),
       });
       const result = await res.json();

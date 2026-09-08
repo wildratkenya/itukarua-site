@@ -350,9 +350,10 @@ const AdminPage: React.FC = () => {
       notes: (fd.get('notes') as string || '').trim() || undefined,
     };
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify(payload),
       });
       const result = await res.json();
@@ -459,9 +460,10 @@ const AdminPage: React.FC = () => {
     }
     setAddingMember(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate-member`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ account_id: selectedCorporate.id, email: addMemberForm.email.trim(), password: addMemberForm.password, full_name: addMemberForm.full_name.trim() }),
       });
       const result = await res.json();
@@ -961,12 +963,14 @@ const AdminPage: React.FC = () => {
 
     try {
       console.log('[createUser] calling fetch...');
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(functionUrl, {
         method: 'POST',
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'apikey': supabaseKey,
+          'Authorization': `Bearer ${session?.access_token || ''}`,
         },
         body: JSON.stringify({
           email, password, full_name: fullName, phone, role, location, county: county || undefined, subcounty: subcounty || undefined, skills, resume,
@@ -1077,9 +1081,10 @@ const AdminPage: React.FC = () => {
     if (!id) return;
     try {
       const functionUrl = `${supabaseUrl}/functions/v1/delete-user`;
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(functionUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ user_id: id }),
       });
       const result = await response.json();

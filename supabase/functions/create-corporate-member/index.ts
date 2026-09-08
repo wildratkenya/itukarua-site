@@ -12,10 +12,29 @@ Deno.serve(async (req) => {
     if (!supabaseServiceKey) return new Response(JSON.stringify({ error: 'Service role key not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
     const { email, password, full_name, account_id, added_by } = await req.json()
 
     if (!email || !password || !account_id) {
       return new Response(JSON.stringify({ error: 'email, password and account_id are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Only a super_admin or a corporate-account team member may add members.
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const caller = createClient(supabaseUrl, authHeader.replace('Bearer ', ''))
+    const { data: callerData, error: callerErr } = await caller.auth.getUser()
+    if (callerErr || !callerData.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerData.user.id).single()
+    const isAdmin = !!callerProfile && callerProfile.role === 'super_admin'
+    const { data: callerMember } = await supabase.from('corporate_members').select('account_id,member_role').eq('profile_id', callerData.user.id).maybeSingle()
+    const isOwner = !!callerMember && callerMember.member_role === 'owner' && callerMember.account_id === account_id
+    if (!isAdmin && !isOwner) {
+      return new Response(JSON.stringify({ error: 'Admin privileges required' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // Verify the account exists
