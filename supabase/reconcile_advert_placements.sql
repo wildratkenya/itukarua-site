@@ -17,7 +17,7 @@ SELECT
   a.billing_start,
   a.billing_end,
   s.id              AS related_service_ad,
-  s.service_name,
+  s.business_name   AS service_business_name,
   s.payment_confirmed
 FROM payments p
 LEFT JOIN advertisements a ON a.id = p.related_ad_id::uuid
