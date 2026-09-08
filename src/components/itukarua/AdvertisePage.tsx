@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import SEO from '@/lib/seo';
-import { CheckCircle, Send, Crown, Sparkles, Shield, Phone } from 'lucide-react';
+import { CheckCircle, Send, Crown, Sparkles, Shield, Phone, Check } from 'lucide-react';
 import { supabaseUrl, supabaseKey, supabase } from '@/lib/supabase';
-import { CORPORATE_PACKAGES } from '@/data/siteData';
+import { CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES, estimateCustomBundle, type SavedCorporateFeatures } from '@/data/siteData';
+import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
 
 interface AdvertisePageProps {
   onNavigate?: (page: string) => void;
@@ -14,6 +15,14 @@ const PACKAGE_RATES: Record<string, string> = {
   gold: 'From KES 10,000/month',
   custom: 'From KES 12,000/month (custom scope)',
 };
+
+const TIERS: Array<{ id: string; label: string }> = [
+  { id: 'bronze', label: 'Bronze' },
+  { id: 'silver', label: 'Silver' },
+  { id: 'gold', label: 'Gold' },
+];
+
+const fmtKES = (n: number) => `KES ${n.toLocaleString()}`;
 
 const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
   const [formData, setFormData] = useState({
@@ -28,6 +37,11 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [customBundle, setCustomBundle] = useState<SavedCorporateFeatures>(() => ({
+    ids: [...TIER_FEATURE_IDS.gold, 'slot_job_listings_top'],
+    placements: 4,
+    team_seats: 5,
+  }));
 
   useEffect(() => {
     const pkg = sessionStorage.getItem('advertise_package');
@@ -54,6 +68,12 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
+    let effectiveMessage = formData.message;
+    if (formData.package === 'custom') {
+      const est = estimateCustomBundle(customBundle.ids, customBundle.placements, customBundle.team_seats);
+      const names = customBundle.ids.map(id => FEATURE_CATALOG.find(f => f.id === id)?.label || id).join(', ');
+      effectiveMessage = `${formData.message}\n\nCustom bundle request:\n- Features: ${names}\n- Placements: ${customBundle.placements}\n- Team seats: ${customBundle.team_seats}\n- Estimated: ${fmtKES(est.estimatedMonthly)}/month (${est.equivalence})`;
+    }
     try {
       await supabase.from('advert_leads').insert({
         company: formData.company,
@@ -62,13 +82,13 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
         email: formData.email,
         package: formData.package,
         start_date: formData.start_date || null,
-        message: formData.message,
+        message: effectiveMessage,
         status: 'new',
       });
       fetch(`${supabaseUrl}/functions/v1/send-advert-lead`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-        body: JSON.stringify({ ...formData, package_tier: formData.package }),
+        body: JSON.stringify({ ...formData, package_tier: formData.package, message: effectiveMessage }),
       }).catch(() => {});
       setSubmitted(true);
       setFormData({ company: '', contact_name: '', phone: '', email: '', package: 'bronze', start_date: '', message: '' });
@@ -121,11 +141,82 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
             ))}
           </div>
           <p className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3 text-[11px] text-gray-500">
-            <span>Homepage strip · co-ops, churches, schools</span>
-            <span>Jobs & Services pages</span>
-            <span>Homepage carousel · boosted</span>
-            <span>Multi-location & campaign bundles</span>
+            <span>Site-wide strip — every page, every visitor</span>
+            <span>Homepage + Jobs & Services strips</span>
+            <span>All slots + featured boost & analytics</span>
+            <span>County-wide & campaign bundles</span>
           </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="font-semibold text-gray-900">Corporate features — see exactly what each tier includes</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Order your bundle, add the right slots and capabilities, and we'll confirm the monthly rate on your quote.</p>
+            </div>
+            <span className="text-[11px] text-gray-400">All tiers include delivery tracking & support</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                  <th className="px-6 py-3 font-medium">Feature</th>
+                  {TIERS.map(t => <th key={t.id} className="px-4 py-3 font-medium">{t.label}</th>)}
+                  <th className="px-4 py-3 font-medium">Custom <span className="normal-case text-gray-300">(your pick)</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {FEATURE_GROUPS.map(group => (
+                  <Fragment key={group}>
+                    <tr className="bg-gray-50">
+                      <td colSpan={6} className="px-6 py-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">{group}</td>
+                    </tr>
+                    {FEATURE_CATALOG.filter(f => f.group === group).map(f => (
+                      <tr key={f.id} className="border-b border-gray-50">
+                        <td className="px-6 py-2.5">
+                          <p className="font-medium text-gray-800">{f.label}</p>
+                          <p className="text-xs text-gray-500">{f.description}</p>
+                        </td>
+                        {TIERS.map(t => {
+                          const tierDef = CORPORATE_TIER_FEATURES[t.id as keyof typeof CORPORATE_TIER_FEATURES];
+                          const included = f.perUnit ? null : (TIER_FEATURE_IDS[t.id as keyof typeof TIER_FEATURE_IDS] || []).includes(f.id);
+                          return (
+                            <td key={t.id} className="px-4 py-2.5 text-center">
+                              {f.perUnit ? (
+                                <span className="text-xs font-medium text-gray-600">{f.id === 'placements' ? tierDef.maxPlacements : tierDef.teamSeats}</span>
+                              ) : included ? (
+                                <Check className="w-4 h-4 mx-auto text-green-600" />
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-2.5 text-center">
+                          {f.perUnit ? (
+                            <span className="text-xs font-medium text-blue-600">{f.id === 'placements' ? customBundle.placements : customBundle.team_seats}</span>
+                          ) : customBundle.ids.includes(f.id) ? (
+                            <Check className="w-4 h-4 mx-auto text-blue-600" />
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {formData.package === 'custom' && (
+            <div className="px-6 py-5 border-t border-gray-100">
+              <p className="text-sm font-semibold text-gray-900 mb-3">Build your bundle</p>
+              <CorporateFeaturesBuilder tier="custom" features={customBundle} onChange={setCustomBundle} showPricing={false} />
+              <p className="text-xs text-gray-500 mt-3">Your selection feeds straight into the quote request below.</p>
+            </div>
+          )}
         </div>
       </div>
 

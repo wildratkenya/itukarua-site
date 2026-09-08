@@ -255,11 +255,11 @@ export const CORPORATE_PACKAGES = [
     id: 'bronze',
     tier: 'Bronze',
     slot: 'sitewide_strip',
-    headline: 'Site-wide recognition',
+    headline: 'Branded site-wide strip',
     features: [
-      'Slim branded strip under the header on the homepage',
-      'Your business name + tagline shown to every visitor',
-      'One-line description with WhatsApp / website CTA',
+      'Slim branded strip shown on every page — homepage, jobs, services & listings',
+      'Your business name + tagline to every visitor, with WhatsApp / website CTA',
+      'Account invoicing and dedicated support for your placement',
       'Ideal for co-ops, churches, schools & foundations',
     ],
   },
@@ -267,11 +267,11 @@ export const CORPORATE_PACKAGES = [
     id: 'silver',
     tier: 'Silver',
     slot: 'category_strip',
-    headline: 'Jobs & Services visibility',
+    headline: 'Homepage + Jobs strips',
     features: [
-      'Branded strip across the Jobs and Services pages',
-      'Reach employers and job seekers as they engage',
-      'Direct WhatsApp + website buttons in the strip',
+      'Branded strip on the homepage AND the Jobs & Services pages',
+      '2 concurrent ad placements across your strips',
+      '2 team seats for your marketing team',
       'Perfect for recruiters, trainers & sector suppliers',
     ],
   },
@@ -279,12 +279,13 @@ export const CORPORATE_PACKAGES = [
     id: 'gold',
     tier: 'Gold',
     slot: 'homepage_banner',
-    headline: 'Homepage dominance',
+    headline: 'Every placement, boosted',
     features: [
-      'Premium carousel rotation on the homepage',
-      'Large banner with up to 5 images + full popup',
-      'Featured boost included for the entire term',
-      'Clicks & views tracked in the analytics dashboard',
+      'All three prime slots: homepage carousel + site-wide + Jobs/Services strips',
+      'Featured boost & priority delivery for the entire term',
+      'Full analytics dashboard with clicks and daily detail',
+      'Up to 5 images per creative with full-size popup',
+      '4 concurrent placements & 5 team seats',
     ],
   },
   {
@@ -293,10 +294,10 @@ export const CORPORATE_PACKAGES = [
     slot: 'custom',
     headline: 'Made for your goals',
     features: [
-      'Multi-location or county-wide campaigns',
-      'Campaigns timed around launches & events',
-      'Bundle: homepage + jobs + services + newsletter',
-      'Ongoing partnership & loyalty pricing',
+      'County-wide or multi-location placement scope',
+      'Event-timed campaigns, including newsletter push',
+      'Any combination of slots plus extra placements & seats',
+      'Scoped and quoted per brief — partnership pricing available',
     ],
   },
 ];
@@ -342,4 +343,149 @@ export const CORPORATE_TIER_FEATURES: Record<string, {
     multiImages: true,
   },
 };
+
+// ─── Corporate Features Catalog ─────────────────────────────────────────────
+// The single list of every corporate feature. Fixed tiers (bronze/silver/gold)
+// map onto it via TIER_FEATURE_IDS; the Custom tier is any subset ticked by the
+// admin. The aggregate estimate prices a custom bundle so it can be rated.
+
+export type CorporateFeatureGroup = 'Placements' | 'Capabilities' | 'Team';
+
+export interface CorporateFeature {
+  id: string;
+  label: string;
+  group: CorporateFeatureGroup;
+  /** KES per month (flat inclusion, or per unit for perUnit features). */
+  monthly: number;
+  /** Quantity features (placements / team seats) are counted per unit over the base of 1. */
+  perUnit?: boolean;
+  description?: string;
+}
+
+export const FEATURE_GROUPS: CorporateFeatureGroup[] = ['Placements', 'Capabilities', 'Team'];
+
+const SLOT_LABELS_LOOKUP: Record<string, string> = {
+  sitewide_strip: 'Site-wide strip',
+  category_strip: 'Jobs & Services strip',
+  homepage_banner: 'Homepage carousel',
+  job_listings_top: 'Job-listings top',
+};
+
+export const SLOT_FEATURE_IDS = ['slot_sitewide_strip', 'slot_category_strip', 'slot_homepage_banner', 'slot_job_listings_top'] as const;
+
+export function featureIdForSlot(slot: string): string {
+  return `slot_${slot}`;
+}
+
+export function slotForFeatureId(featureId: string): string | null {
+  if (!featureId.startsWith('slot_')) return null;
+  const slot = featureId.slice('slot_'.length);
+  return SLOT_LABELS_LOOKUP[slot] ? slot : null;
+}
+
+export function slotLabel(slot: string): string {
+  return SLOT_LABELS_LOOKUP[slot] || slot;
+}
+
+export const FEATURE_CATALOG: CorporateFeature[] = [
+  { id: 'slot_sitewide_strip', label: 'Site-wide strip', group: 'Placements', monthly: 3000, description: 'Slim branded strip under the header on every page' },
+  { id: 'slot_category_strip', label: 'Jobs & Services strip', group: 'Placements', monthly: 3000, description: 'Branded strip across Jobs and Services pages' },
+  { id: 'slot_homepage_banner', label: 'Homepage carousel', group: 'Placements', monthly: 4000, description: 'Premium carousel rotation on the homepage' },
+  { id: 'slot_job_listings_top', label: 'Job-listings top', group: 'Placements', monthly: 2000, description: 'Banner atop job and service listings' },
+  { id: 'featured', label: 'Featured + priority delivery', group: 'Capabilities', monthly: 2000, description: 'Featured boost for the entire term' },
+  { id: 'full_analytics', label: 'Full analytics dashboard', group: 'Capabilities', monthly: 1500, description: 'Clicks & daily detail breakouts in analytics' },
+  { id: 'multi_images', label: 'Multi-image creatives', group: 'Capabilities', monthly: 1000, description: 'Up to 5 images per advert' },
+  { id: 'placements', label: 'Concurrent placements', group: 'Capabilities', monthly: 1000, perUnit: true, description: 'Number of live adverts you can run at once' },
+  { id: 'team_seats', label: 'Team seats', group: 'Team', monthly: 500, perUnit: true, description: 'Members allowed on the corporate account' },
+];
+
+export const FEATURE_MAP: Record<string, CorporateFeature> = Object.fromEntries(
+  FEATURE_CATALOG.map((f) => [f.id, f])
+);
+
+// Discrete (non-quantity) feature ids included by each fixed tier.
+export const TIER_FEATURE_IDS: Record<string, string[]> = {
+  bronze: ['slot_sitewide_strip'],
+  silver: ['slot_sitewide_strip', 'slot_category_strip'],
+  gold: ['slot_sitewide_strip', 'slot_category_strip', 'slot_homepage_banner', 'featured', 'full_analytics', 'multi_images'],
+  custom: [],
+};
+
+export interface SavedCorporateFeatures {
+  ids: string[];
+  placements?: number;
+  team_seats?: number;
+}
+
+export interface EffectiveCorporateFeatures {
+  slots: string[];
+  maxPlacements: number;
+  analyticsDepth: 'basic' | 'full';
+  teamSeats: number;
+  featured: boolean;
+  multiImages: boolean;
+}
+
+export function effectiveFeaturesFor(account: { tier: string; features?: SavedCorporateFeatures | null }): EffectiveCorporateFeatures {
+  const saved = account?.features;
+  if (account?.tier === 'custom' && saved && Array.isArray(saved.ids)) {
+    const has = (id: string) => saved.ids.includes(id);
+    const slots = SLOT_FEATURE_IDS.filter((sid) => has(sid)).map((sid) => sid.slice('slot_'.length));
+    return {
+      slots,
+      maxPlacements: Math.max(1, saved.placements && saved.placements > 0 ? saved.placements : Math.min(1, slots.length) || 1),
+      analyticsDepth: has('full_analytics') ? 'full' : 'basic',
+      teamSeats: Math.max(1, saved.team_seats && saved.team_seats > 0 ? saved.team_seats : 1),
+      featured: has('featured'),
+      multiImages: has('multi_images'),
+    };
+  }
+  return CORPORATE_TIER_FEATURES[account?.tier] || CORPORATE_TIER_FEATURES.bronze;
+}
+
+// Per-feature estimate for a custom bundle. The bundle is rated off the highest
+// standard tier whose slots it fully covers (its anchor price), then add-on
+// increments are charged only for features beyond that tier's slate and for
+// placements/seats beyond that tier's baseline. So a custom bundle equal to Gold
+// rates at Gold's anchor, and extras push it upward honestly.
+export const CORPORATE_TIER_ANCHOR_KES: Record<string, number> = {
+  bronze: 3000,
+  silver: 6000,
+  gold: 10000,
+};
+
+export function estimateCustomBundle(ids: string[], placements: number = 1, teamSeats: number = 1): { monthly: number; equivalence: string } {
+  const has = (id: string) => ids.includes(id);
+  const covers = (tier: string) => (TIER_FEATURE_IDS[tier] || []).every(has);
+  let base: string | null = null;
+  if (covers('gold')) base = 'gold';
+  else if (covers('silver')) base = 'silver';
+  else if (covers('bronze')) base = 'bronze';
+  const baseDef = base ? CORPORATE_TIER_FEATURES[base] : null;
+
+  let monthly = base ? (CORPORATE_TIER_ANCHOR_KES[base] || 0) : 0;
+  const baseIds = base ? TIER_FEATURE_IDS[base] : [];
+  for (const id of ids) {
+    if (baseIds.includes(id)) continue;
+    const f = FEATURE_MAP[id];
+    if (f && !f.perUnit) monthly += f.monthly;
+  }
+  monthly += Math.max(0, placements - (baseDef ? baseDef.maxPlacements : 1)) * (FEATURE_MAP.placements?.monthly || 1000);
+  monthly += Math.max(0, teamSeats - (baseDef ? baseDef.teamSeats : 1)) * (FEATURE_MAP.team_seats?.monthly || 500);
+
+  let equivalence: string;
+  if (!base) {
+    equivalence = 'Custom';
+  } else {
+    const extras = ids.filter(id => !baseIds.includes(id) && !(FEATURE_MAP[id]?.perUnit));
+    const aboveQuantities = placements > (baseDef?.maxPlacements ?? 0) || teamSeats > (baseDef?.teamSeats ?? 0);
+    if (extras.length === 0 && !aboveQuantities) {
+      equivalence = base === 'gold' ? 'Gold-equivalent' : base === 'silver' ? 'Silver-equivalent' : 'Bronze-based';
+    } else {
+      const label = base === 'gold' ? 'Gold' : base === 'silver' ? 'Silver' : 'Bronze';
+      equivalence = `${label} + add-ons`;
+    }
+  }
+  return { monthly, equivalence };
+}
 

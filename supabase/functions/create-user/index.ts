@@ -86,10 +86,12 @@ Deno.serve(async (req) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
-    const caller = createClient(supabaseUrl, authHeader.replace('Bearer ', ''))
+    const caller = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    })
     const { data: callerData, error: callerErr } = await caller.auth.getUser()
     if (callerErr || !callerData.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: callerErr?.message || 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerData.user.id).single()
     if (!callerProfile || callerProfile.role !== 'super_admin') {

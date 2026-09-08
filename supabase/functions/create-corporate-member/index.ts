@@ -28,10 +28,12 @@ Deno.serve(async (req) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
-    const caller = createClient(supabaseUrl, authHeader.replace('Bearer ', ''))
+    const caller = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    })
     const { data: callerData, error: callerErr } = await caller.auth.getUser()
     if (callerErr || !callerData.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: callerErr?.message || 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerData.user.id).single()
     const isAdmin = !!callerProfile && callerProfile.role === 'super_admin'
@@ -56,7 +58,7 @@ Deno.serve(async (req) => {
     // Create profile
     const { error: rpcError } = await supabase.rpc('create_user_profile', {
       p_id: userId, p_full_name: full_name || email.split('@')[0], p_email: email, p_phone: '', p_role: 'corporate',
-      p_location: '', p_skills: '', p_resume: '', p_terms_accepted: true, p_data_sharing_consent: true,
+      p_location: '', p_county: '', p_subcounty: '', p_skills: '', p_resume: '', p_terms_accepted: true, p_data_sharing_consent: true,
     })
     if (rpcError) throw new Error('Profile creation failed: ' + rpcError.message)
 

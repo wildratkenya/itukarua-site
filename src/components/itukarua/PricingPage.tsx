@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, Fragment } from 'react';
 import SEO from '@/lib/seo';
 import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, Crown, Briefcase, ArrowRight } from 'lucide-react';
-import { PRICING_PLANS, CORPORATE_PACKAGES } from '@/data/siteData';
+import { PRICING_PLANS, CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES } from '@/data/siteData';
 
 interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
@@ -515,6 +515,61 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </div>
               ))}
             </div>
+            <div className="overflow-x-auto mt-8 rounded-xl bg-black/20 border border-white/10">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-amber-300/80 border-b border-white/10">
+                      <th className="px-4 py-3 font-semibold">Included</th>
+                      <th className="px-3 py-3 font-semibold text-center">Bronze</th>
+                      <th className="px-3 py-3 font-semibold text-center">Silver</th>
+                      <th className="px-4 py-3 font-semibold text-center">Gold</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {FEATURE_GROUPS.map(group => (
+                      <Fragment key={group}>
+                        <tr className="border-b border-white/5">
+                          <td colSpan={4} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">{group}</td>
+                        </tr>
+                        {FEATURE_CATALOG.filter(f => f.group === group).map(f => (
+                          <tr key={f.id} className="border-b border-white/5 last:border-0">
+                            <td className="px-4 py-2.5 text-gray-200">
+                              {f.label}
+                              <span className="block text-[11px] text-gray-500">{f.description}</span>
+                            </td>
+                            {['bronze', 'silver', 'gold'].map(tier => {
+                              const tierDef = CORPORATE_TIER_FEATURES[tier as keyof typeof CORPORATE_TIER_FEATURES];
+                              const has = f.perUnit ? null : (TIER_FEATURE_IDS[tier as keyof typeof TIER_FEATURE_IDS] || []).includes(f.id);
+                              return (
+                                <td key={tier} className="px-3 py-2.5 text-center">
+                                  {f.perUnit ? (
+                                    <span className="text-xs font-semibold text-amber-200">{f.id === 'placements' ? tierDef.maxPlacements : tierDef.teamSeats}</span>
+                                  ) : has ? (
+                                    <Check className="w-4 h-4 mx-auto text-amber-300" />
+                                  ) : (
+                                    <span className="text-gray-600">—</span>
+                                  )}
+</td>
+                                );
+                              })}
+                            </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-gray-400">
+                  Don't see a preset that fits? Pick exactly the features you need and we'll quote you.
+                </p>
+                <button
+                  onClick={() => { sessionStorage.setItem('advertise_package', 'custom'); onNavigate('advertise'); }}
+                  className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-300 to-orange-300 hover:from-amber-200 hover:to-orange-200 text-gray-900 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  Build my own bundle <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             <p className="text-xs text-gray-400 mt-6">
               Phase 1 guiding rates: Bronze from KES 3,000/mo · Silver from KES 6,000/mo · Gold from KES 10,000/mo · Custom from KES 12,000/mo. Ad design & copywriting included.
             </p>

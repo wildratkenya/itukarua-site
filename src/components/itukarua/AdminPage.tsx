@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
 
-import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES } from '@/data/siteData';
+import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, type SavedCorporateFeatures } from '@/data/siteData';
+import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
 import { compressImage } from '@/lib/imageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -274,7 +275,7 @@ const AdminPage: React.FC = () => {
 
   const [leads, setLeads] = useState<any[]>([]);
   const loadLeads = async () => {
-    const { data } = await proxyRequest('/advert_leads?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
+    const { data } = await proxyRequest('/rest/v1/advert_leads?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
     setLeads(Array.isArray(data) ? data : []);
   };
 
@@ -308,10 +309,12 @@ const AdminPage: React.FC = () => {
   const [corporateMsg, setCorporateMsg] = useState('');
   const [corporateSuspendingId, setCorporateSuspendingId] = useState<string | null>(null);
   const [editingCorporate, setEditingCorporate] = useState(false);
-  const [corporateEditForm, setCorporateEditForm] = useState({ tier: 'bronze', contact_person: '', contact_phone: '', contact_email: '', billing_email: '', notes: '' });
+  const [corporateEditForm, setCorporateEditForm] = useState({ tier: 'bronze', contact_person: '', contact_phone: '', contact_email: '', billing_email: '', notes: '', features: [] as string[], placements: 1, team_seats: 1 });
   const [savingCorporate, setSavingCorporate] = useState(false);
   const [addMemberForm, setAddMemberForm] = useState<{ email: string; password: string; full_name: string }>({ email: '', password: '', full_name: '' });
   const [addingMember, setAddingMember] = useState(false);
+  const [corpFormTier, setCorpFormTier] = useState('bronze');
+  const [corpBundle, setCorpBundle] = useState<SavedCorporateFeatures>(defaultBundleForTier('bronze'));
 
   const loadCorporateAccounts = async () => {
     try {
@@ -327,6 +330,17 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  function defaultBundleForTier(tier: string): SavedCorporateFeatures {
+    if (tier === 'custom') return { ids: [...TIER_FEATURE_IDS.gold, 'slot_job_listings_top'], placements: 4, team_seats: 5 };
+    const f = CORPORATE_TIER_FEATURES[tier] || CORPORATE_TIER_FEATURES.bronze;
+    return { ids: [...(TIER_FEATURE_IDS[tier] || [])], placements: f.maxPlacements, team_seats: f.teamSeats };
+  }
+
+  const handleCorpTierChange = (tier: string) => {
+    setCorpFormTier(tier);
+    setCorpBundle(defaultBundleForTier(tier));
+  };
+
   const createCorporate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setCreatingCorporate(true);
@@ -340,17 +354,22 @@ const AdminPage: React.FC = () => {
       setCreatingCorporate(false);
       return;
     }
-    const payload = {
+    const payload: any = {
       email, password, company_name,
-      tier: fd.get('tier') as string || 'bronze',
+      tier: corpFormTier,
       contact_person: (fd.get('contact_person') as string || '').trim() || undefined,
       contact_phone: (fd.get('contact_phone') as string || '').trim() || undefined,
       contact_email: (fd.get('contact_email') as string || '').trim() || undefined,
       billing_email: (fd.get('billing_email') as string || '').trim() || undefined,
       notes: (fd.get('notes') as string || '').trim() || undefined,
     };
+    if (corpFormTier === 'custom') {
+      payload.features = corpBundle.ids;
+      payload.placements = corpBundle.placements || 1;
+      payload.team_seats = corpBundle.team_seats || 1;
+    }
     try {
-      const token = getLocalToken();
+      const token = await ensureValidToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
@@ -419,6 +438,9 @@ const AdminPage: React.FC = () => {
   };
 
   const openCorporateEdit = (acct: DbCorporateAccount) => {
+    const b = acct.tier === 'custom' && acct.features
+      ? { ids: acct.features.ids, placements: acct.features.placements || 1, team_seats: acct.features.team_seats || 1 }
+      : defaultBundleForTier(acct.tier);
     setCorporateEditForm({
       tier: acct.tier,
       contact_person: acct.contact_person || '',
@@ -426,6 +448,9 @@ const AdminPage: React.FC = () => {
       contact_email: acct.contact_email || '',
       billing_email: acct.billing_email || '',
       notes: acct.notes || '',
+      features: b.ids,
+      placements: b.placements,
+      team_seats: b.team_seats,
     });
     setEditingCorporate(true);
   };
@@ -433,6 +458,9 @@ const AdminPage: React.FC = () => {
   const saveCorporate = async () => {
     setSavingCorporate(true);
     try {
+      const savedFeatures: SavedCorporateFeatures | null = corporateEditForm.tier === 'custom'
+        ? { ids: corporateEditForm.features, placements: Math.max(1, corporateEditForm.placements), team_seats: Math.max(1, corporateEditForm.team_seats) }
+        : null;
       await proxyTable('corporate_accounts').update({
         tier: corporateEditForm.tier,
         contact_person: corporateEditForm.contact_person || null,
@@ -440,9 +468,10 @@ const AdminPage: React.FC = () => {
         contact_email: corporateEditForm.contact_email || null,
         billing_email: corporateEditForm.billing_email || null,
         notes: corporateEditForm.notes || null,
+        features: savedFeatures,
       }, 'id', selectedCorporate!.id);
-      setSelectedCorporate({ ...selectedCorporate!, ...corporateEditForm });
-      setCorporateAccounts(prev => prev.map(a => a.id === selectedCorporate!.id ? { ...a, ...corporateEditForm } : a));
+      setSelectedCorporate({ ...selectedCorporate!, ...corporateEditForm, features: savedFeatures });
+      setCorporateAccounts(prev => prev.map(a => a.id === selectedCorporate!.id ? { ...a, ...corporateEditForm, features: savedFeatures } : a));
       setEditingCorporate(false);
       toast({ title: 'Saved', description: 'Corporate account updated' });
     } catch (err: any) {
@@ -460,7 +489,7 @@ const AdminPage: React.FC = () => {
     }
     setAddingMember(true);
     try {
-      const token = getLocalToken();
+      const token = await ensureValidToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate-member`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
@@ -491,6 +520,9 @@ const AdminPage: React.FC = () => {
   };
 
   const accountPlacements = selectedCorporate ? adverts.filter(a => a.corporate_account_id === selectedCorporate.id) : [];
+
+  const corpForAdForm = adForm.corporate_account_id ? corporateAccounts.find(a => a.id === adForm.corporate_account_id) : undefined;
+  const corpAdSlots = corpForAdForm ? effectiveFeaturesFor(corpForAdForm).slots : null;
 
   const loadBilling = async () => {
     setBillingLoading(true);
@@ -694,8 +726,8 @@ const AdminPage: React.FC = () => {
         }),
         loadJobs(),
         loadAds(),
-        proxyRequest('/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setPayments(Array.isArray(data) ? data : [])),
-        proxyRequest('/messages?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setMessages(Array.isArray(data) ? data : [])),
+        proxyRequest('/rest/v1/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setPayments(Array.isArray(data) ? data : [])),
+        proxyRequest('/rest/v1/messages?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setMessages(Array.isArray(data) ? data : [])),
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
         loadLeads(),
@@ -963,7 +995,7 @@ const AdminPage: React.FC = () => {
 
     try {
       console.log('[createUser] calling fetch...');
-      const token = getLocalToken();
+      const token = await ensureValidToken();
       const response = await fetch(functionUrl, {
         method: 'POST',
         signal: controller.signal,
@@ -1081,7 +1113,7 @@ const AdminPage: React.FC = () => {
     if (!id) return;
     try {
       const functionUrl = `${supabaseUrl}/functions/v1/delete-user`;
-      const token = getLocalToken();
+      const token = await ensureValidToken();
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
@@ -3053,10 +3085,17 @@ const AdminPage: React.FC = () => {
                       <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                       <select value={adForm.slot || 'homepage_banner'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="homepage_banner">Homepage Carousel Banner</option>
-                        <option value="job_listings_top">Job Listings Top Banner</option>
-                        <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
-                        <option value="category_strip">Category Strip (corporate Silver)</option>
+                        {corpAdSlots ? (
+                          corpAdSlots.length > 0 ? corpAdSlots.map(s => <option key={s} value={s}>{slotLabel(s)}</option>)
+                            : <option value="">No slots in this bundle</option>
+                        ) : (
+                          <>
+                            <option value="homepage_banner">Homepage Carousel Banner</option>
+                            <option value="job_listings_top">Job Listings Top Banner</option>
+                            <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
+                            <option value="category_strip">Category Strip (corporate Silver)</option>
+                          </>
+                        )}
                       </select>
                       <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         <option value="7 days">7 Days (KES 200)</option>
@@ -3072,7 +3111,7 @@ const AdminPage: React.FC = () => {
                         <option value="gold">Corporate — Gold</option>
                         <option value="custom">Corporate — Custom</option>
                       </select>
-                      <select value={adForm.corporate_account_id || ''} onChange={e => setAdForm({ ...adForm, corporate_account_id: e.target.value === '' ? undefined : e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                      <select value={adForm.corporate_account_id || ''} onChange={e => { const id = e.target.value === '' ? undefined : e.target.value; const acc = id ? corporateAccounts.find(a => a.id === id) : undefined; setAdForm({ ...adForm, corporate_account_id: id, corporate_tier: acc?.tier, featured: acc ? effectiveFeaturesFor(acc).featured : adForm.featured }); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         <option value="">No corporate account (personal/regular)</option>
                         {corporateAccounts.map(acc => (
                           <option key={acc.id} value={acc.id}>{acc.company_name} — {acc.tier} {acc.is_active ? '' : '(suspended)'}</option>
@@ -3098,6 +3137,21 @@ const AdminPage: React.FC = () => {
                         if (!adForm.title || !primaryUrl) {
                           toast({ title: 'Missing fields', description: 'Title and at least one banner image are required', variant: 'destructive' });
                           return;
+                        }
+                        if (corpForAdForm) {
+                          const eff = effectiveFeaturesFor(corpForAdForm);
+                          const chosenSlot = adForm.slot || 'homepage_banner';
+                          if (!eff.slots.includes(chosenSlot)) {
+                            toast({ title: 'Slot not in bundle', description: `${corpForAdForm.company_name}'s bundle does not include ${slotLabel(chosenSlot)}. Choose one of: ${eff.slots.map(s => slotLabel(s)).join(', ') || 'none'}.`, variant: 'destructive' });
+                            return;
+                          }
+                          if (!adForm.id) {
+                            const liveCount = adverts.filter(a => a.corporate_account_id === corpForAdForm.id).length;
+                            if (liveCount >= eff.maxPlacements) {
+                              toast({ title: 'Placement limit reached', description: `${corpForAdForm.company_name} has used its ${eff.maxPlacements} placement(s).`, variant: 'destructive' });
+                              return;
+                            }
+                          }
                         }
                         const images = adForm.images.length ? adForm.images : [adForm.image_url];
                         const finishSaved = () => {
@@ -4328,7 +4382,7 @@ const AdminPage: React.FC = () => {
       </Dialog>
 
       {/* Create Corporate Account Modal */}
-      <Dialog open={isCorporateModalOpen} onOpenChange={setIsCorporateModalOpen}>
+      <Dialog open={isCorporateModalOpen} onOpenChange={(open) => { setIsCorporateModalOpen(open); if (!open) { setCorpFormTier('bronze'); setCorpBundle(defaultBundleForTier('bronze')); setCorporateMsg(''); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Corporate Account</DialogTitle>
@@ -4341,11 +4395,11 @@ const AdminPage: React.FC = () => {
             </div>
             <div>
               <Label>Tier <span className="text-red-500">*</span></Label>
-              <select name="tier" defaultValue="bronze" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
+              <select value={corpFormTier} onChange={e => handleCorpTierChange(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none">
                 <option value="bronze">Bronze — 1 site-wide strip</option>
                 <option value="silver">Silver — 2 placements, strips</option>
                 <option value="gold">Gold — 4 placements + carousel</option>
-                <option value="custom">Custom — full bundle</option>
+                <option value="custom">Custom — tailor a bundle</option>
               </select>
             </div>
             <div>
@@ -4375,6 +4429,9 @@ const AdminPage: React.FC = () => {
             <div className="col-span-2">
               <Label>Notes</Label>
               <Textarea name="notes" rows={2} placeholder="Contract terms, start date, linked services..." />
+            </div>
+            <div className="col-span-2">
+              <CorporateFeaturesBuilder tier={corpFormTier} features={corpBundle} onChange={setCorpBundle} />
             </div>
             <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-gray-100">
               <Button type="button" variant="outline" onClick={() => setIsCorporateModalOpen(false)}>Cancel</Button>
@@ -4416,13 +4473,33 @@ const AdminPage: React.FC = () => {
                     <p><span className="text-gray-500">Billing email:</span> {selectedCorporate.billing_email || '—'}</p>
                     {selectedCorporate.notes && <p><span className="text-gray-500">Notes:</span> {selectedCorporate.notes}</p>}
                   </div>
+                  <div className="col-span-2 bg-white rounded-lg border border-gray-100 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">Included features</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(() => {
+                        const eff = effectiveFeaturesFor(selectedCorporate);
+                        const caps: string[] = [];
+                        if (eff.featured) caps.push('Featured');
+                        if (eff.analyticsDepth === 'full') caps.push('Full analytics');
+                        if (eff.multiImages) caps.push('Multi-image');
+                        return (
+                          <>
+                            {eff.slots.map(s => <span key={s} className="px-2 py-0.5 bg-green-50 text-green-700 text-[11px] font-medium rounded-full">{slotLabel(s)}</span>)}
+                            {caps.map(c => <span key={c} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[11px] font-medium rounded-full">{c}</span>)}
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-full">{eff.maxPlacements} placement{eff.maxPlacements !== 1 ? 's' : ''}</span>
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-full">{eff.teamSeats} seat{eff.teamSeats !== 1 ? 's' : ''}</span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
                   <Button variant="outline" size="sm" className="col-span-2 justify-self-start" onClick={() => openCorporateEdit(selectedCorporate)}>Edit Details</Button>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
                   <div>
                     <Label>Tier</Label>
-                    <select value={corporateEditForm.tier} onChange={e => setCorporateEditForm({ ...corporateEditForm, tier: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <select value={corporateEditForm.tier} onChange={e => { const t = e.target.value; if (t === corporateEditForm.tier) return; const d = defaultBundleForTier(t); setCorporateEditForm(prev => ({ ...prev, tier: t, features: d.ids, placements: d.placements, team_seats: d.team_seats })); }} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                       <option value="bronze">Bronze</option>
                       <option value="silver">Silver</option>
                       <option value="gold">Gold</option>
@@ -4448,6 +4525,13 @@ const AdminPage: React.FC = () => {
                   <div className="col-span-2">
                     <Label>Notes</Label>
                     <Textarea value={corporateEditForm.notes} onChange={e => setCorporateEditForm({ ...corporateEditForm, notes: e.target.value })} rows={2} />
+                  </div>
+                  <div className="col-span-2">
+                    <CorporateFeaturesBuilder
+                      tier={corporateEditForm.tier}
+                      features={{ ids: corporateEditForm.features, placements: corporateEditForm.placements, team_seats: corporateEditForm.team_seats }}
+                      onChange={(b) => setCorporateEditForm(prev => ({ ...prev, features: b.ids, placements: b.placements || 1, team_seats: b.team_seats || 1 }))}
+                    />
                   </div>
                   <div className="col-span-2 flex gap-2 justify-end">
                     <Button variant="outline" size="sm" onClick={() => setEditingCorporate(false)}>Cancel</Button>
