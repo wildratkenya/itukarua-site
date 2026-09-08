@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Building2, LayoutDashboard, BarChart3, User, Receipt, Users, Plus, X, Upload, Eye, EyeOff, Loader2, Zap, Crown, Settings, LogOut, ChevronDown, ChevronUp, ExternalLink, Trash2, Save } from 'lucide-react';
 import { supabase, proxyRequest, proxyTable, proxyImageUrl } from '@/lib/supabase';
 import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
-import { CORPORATE_TIER_FEATURES } from '@/data/siteData';
+import { effectiveFeaturesFor, type EffectiveCorporateFeatures } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { cn } from '@/lib/utils';
 
@@ -51,7 +51,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   const [memberForm, setMemberForm] = useState({ email: '', password: '', full_name: '' });
   const [addingMember, setAddingMember] = useState(false);
 
-  const tierFeatures = account ? CORPORATE_TIER_FEATURES[account.tier] || CORPORATE_TIER_FEATURES.bronze : CORPORATE_TIER_FEATURES.bronze;
+  const tierFeatures = effectiveFeaturesFor(account || { tier: 'bronze' });
   const isOwner = !!members.find(m => m.profile_id === user.id && m.member_role === 'owner');
 
   const loadAccount = useCallback(async () => {
@@ -125,7 +125,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     setCreatingAd(true);
     try {
       const imageUrls = files.length > 0 ? await uploadImages(files) : [];
-      const features = CORPORATE_TIER_FEATURES[account.tier];
+      const features = effectiveFeaturesFor(account);
       const { error } = await proxyTable('advertisements').insert({
         title: createForm.title, description: createForm.description, cta_text: createForm.cta_text,
         whatsapp_number: createForm.whatsapp_number, destination_url: createForm.destination_url,
@@ -169,7 +169,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     try {
       const supabaseUrl = (await import('@/lib/supabase')).supabaseUrl;
       const supabaseKey = (await import('@/lib/supabase')).supabaseKey;
-      const token = (await import('@/lib/supabase')).getLocalToken();
+      const token = await (await import('@/lib/supabase')).ensureValidToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/create-corporate-member`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${token}` },
         body: JSON.stringify({ email: memberForm.email, password: memberForm.password, full_name: memberForm.full_name, account_id: account.id }),
@@ -528,7 +528,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
 // ── Create Ad Modal (extracted to avoid deep nesting) ────────────────────────────
 
 function CreateAdModal({ account, features, form, setForm, loading, onSubmit, onClose, uploadImages }: {
-  account: DbCorporateAccount; features: typeof CORPORATE_TIER_FEATURES.bronze;
+  account: DbCorporateAccount; features: EffectiveCorporateFeatures;
   form: { title: string; description: string; cta_text: string; whatsapp_number: string; destination_url: string; slot: string; images: string[] };
   setForm: React.Dispatch<React.SetStateAction<any>>; loading: boolean;
   onSubmit: (files: File[]) => Promise<void>; onClose: () => void;

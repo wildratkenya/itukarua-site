@@ -1,4 +1,5 @@
 import { supabase, proxyRequest, proxyTable, proxyRpc } from './supabase';
+import type { SavedCorporateFeatures } from '@/data/siteData';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -2107,6 +2108,7 @@ export interface DbCorporateAccount {
   contact_email?: string;
   billing_email?: string;
   notes?: string;
+  features?: SavedCorporateFeatures | null;
   created_at: string;
   updated_at: string;
 }

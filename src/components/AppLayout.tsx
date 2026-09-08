@@ -238,7 +238,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
             profile,
           });
           promptLoginSubscriptionCheck(profile);
-          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(profile?.role === 'corporate' || refreshedProfile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard')); loginFromWorkerPopup.current = false; }
+          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(profile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard')); loginFromWorkerPopup.current = false; }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Sparkles } from 'lucide-react';
 import { getAdsForDelivery, logImpression } from '@/lib/adDelivery';
-import { getActiveAdsBySlot, incrementAdClick } from '@/lib/database';
+import { incrementAdClick } from '@/lib/database';
 import { proxyImageUrl } from '@/lib/supabase';
 
 interface SitewideAnchorStripProps {
@@ -14,34 +14,69 @@ const SLOT_BY_PAGE: Record<string, string> = {
   services: 'category_strip',
 };
 
+const TIER_DURATION_MS: Record<string, number> = {
+  gold: 7000,
+  custom: 7000,
+  silver: 5000,
+  bronze: 3000,
+};
+
 const SitewideAnchorStrip: React.FC<SitewideAnchorStripProps> = ({ page }) => {
-  const [ad, setAd] = useState<any>(null);
-  const counted = useRef(false);
+  const [ads, setAds] = useState<any[]>([]);
+  const [index, setIndex] = useState(0);
+  const [faded, setFaded] = useState(false);
+  const [hover, setHover] = useState(false);
+  const logged = useRef<Set<string>>(new Set());
   const slot = SLOT_BY_PAGE[page] || 'sitewide_strip';
 
   useEffect(() => {
     let cancelled = false;
-    getActiveAdsBySlot(slot).then(ads => {
-      if (cancelled || !ads || ads.length === 0) return;
-      const ad = ads[0];
-      setAd(ad);
-      if (!counted.current) {
-        counted.current = true;
-        logImpression(ad.id);
-        getAdsForDelivery(slot, undefined, undefined, 1)
-          .then(() => {})
-          .catch(() => {});
-      }
-    }).catch(() => {});
+    getAdsForDelivery(slot, undefined, undefined, 10)
+      .then(delivered => {
+        if (cancelled || !delivered || delivered.length === 0) return;
+        setAds(delivered);
+        setIndex(0);
+        setFaded(false);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [slot]);
 
-  if (!ad) return null;
+  useEffect(() => {
+    if (ads.length === 0 || !ads[index]) return;
+    const adId = ads[index].id;
+    if (!logged.current.has(adId)) {
+      logged.current.add(adId);
+      logImpression(adId).catch(() => {});
+    }
+  }, [ads, index]);
 
+  useEffect(() => {
+    if (ads.length === 0 || hover) return;
+    const ad = ads[index];
+    const duration = TIER_DURATION_MS[ad?.corporate_tier] ?? 5000;
+    const timer = setTimeout(() => {
+      setFaded(true);
+      setTimeout(() => {
+        setIndex(i => (i + 1) % ads.length);
+        setFaded(false);
+      }, 400);
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [ads, index, hover]);
+
+  if (ads.length === 0 || !ads[index]) return null;
+
+  const ad = ads[index];
   const whatsapp = `https://wa.me/${ad.whatsapp_number || '254700000000'}?text=${encodeURIComponent(`Hi, I'm interested in "${ad.title}" from Itukarua`)}`;
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-r from-gray-900 via-neutral-900 to-gray-900 text-white">
+    <div
+      className="relative overflow-hidden bg-gradient-to-r from-gray-900 via-neutral-900 to-gray-900 text-white transition-opacity duration-500"
+      style={{ opacity: faded ? 0 : 1 }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       <img
         src={proxyImageUrl(ad.image_url)}
         alt=""
@@ -71,6 +106,24 @@ const SitewideAnchorStrip: React.FC<SitewideAnchorStripProps> = ({ page }) => {
           <ExternalLink className="w-4 h-4" />
         </span>
       </a>
+      {ads.length > 1 && (
+        <div className="absolute bottom-3 right-4 z-10 flex items-center gap-1.5">
+          {ads.map((a, i) => (
+            <button
+              key={a.id}
+              onClick={() => {
+                setFaded(true);
+                setTimeout(() => {
+                  setIndex(i);
+                  setFaded(false);
+                }, 250);
+              }}
+              aria-label={`Partner ${i + 1}`}
+              className={`w-2 h-2 rounded-full transition-all ${i === index ? 'bg-amber-300 scale-110' : 'bg-white/40 hover:bg-white/70'}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

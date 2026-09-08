@@ -129,6 +129,35 @@ export function getLocalToken(): string {
   return supabaseKey;
 }
 
+// Like getLocalToken, but guarantees a non-expired access token by refreshing
+// the stored session when it is about to lapse (the fetchWithLocalAuth path
+// can only ever send whatever sits in localStorage).
+export async function ensureValidToken(): Promise<string> {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved?.access_token) {
+        const nowSec = Date.now() / 1000;
+        if (!saved.expires_at || saved.expires_at > nowSec + 120) return saved.access_token;
+        const refreshTimeout = new Promise<{ error: any }>((resolve) =>
+          setTimeout(() => resolve({ error: new Error('refresh-timeout') }), 8000)
+        );
+        const refresh: any = await Promise.race([
+          supabase.auth.refreshSession(),
+          refreshTimeout,
+        ]);
+        if (!refresh.error && refresh.data?.session?.access_token) {
+          saveSession(refresh.data.session);
+          return refresh.data.session.access_token;
+        }
+        return saved.access_token;
+      }
+    }
+  } catch { /* fall through to anon key */ }
+  return supabaseKey;
+}
+
 export async function proxyRequest(
   path: string,
   method: string = 'GET',

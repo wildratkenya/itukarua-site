@@ -10,3 +10,15 @@ enabled = true
 
 [functions.mpesa-stk-push]
 verify_jwt = false
+
+[functions.create-corporate]
+verify_jwt = false
+
+[functions.create-corporate-member]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.delete-user]
+verify_jwt = false
