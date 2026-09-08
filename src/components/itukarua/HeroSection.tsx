@@ -69,7 +69,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
         <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 via-gray-900/75 to-gray-900/60" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-2 lg:pt-4 lg:pb-4">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-1 pb-2 lg:pt-2 lg:pb-3">
         <div className="grid lg:grid-cols-5 gap-8 items-start">
           {/* Left Column: Hero Content */}
           <div className="lg:col-span-3">
@@ -78,14 +78,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
               <span className="text-xs text-green-300 font-medium">Itukarua County & Surrounding Areas</span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight mb-3">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-2">
               Karibu<span className="text-green-400"> Itukarua</span>
             </h1>
-            <p className="text-base text-gray-300 mb-6 max-w-xl">
+            <p className="text-base text-gray-300 mb-3 max-w-xl">
               Connecting local communities across Kenya. Find jobs, hire skilled workers, advertise services, and transact securely with M-Pesa.
             </p>
 
-            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 mb-6">
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 mb-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -93,13 +93,13 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search jobs, services, or businesses..."
-                  className="w-full pl-10 pr-3 py-3 rounded-lg bg-white/95 backdrop-blur-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-green-500 outline-none text-sm shadow-lg"
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-white/95 backdrop-blur-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-green-500 outline-none text-sm shadow-lg"
                 />
               </div>
-              <button type="submit" className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2">
+              <button type="submit" className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2">
                 Search <ArrowRight className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => setShowFilters(!showFilters)} className={`px-3 py-3 rounded-lg border transition-colors flex items-center gap-1.5 text-sm ${showFilters ? 'bg-green-700 border-green-500 text-white' : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20'}`}>
+              <button type="button" onClick={() => setShowFilters(!showFilters)} className={`px-3 py-2.5 rounded-lg border transition-colors flex items-center gap-1.5 text-sm ${showFilters ? 'bg-green-700 border-green-500 text-white' : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20'}`}>
                 <SlidersHorizontal className="w-4 h-4" /> Filters
               </button>
             </form>
@@ -163,7 +163,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
           </div>
 
           {/* Right Column: How It Works Timeline */}
-          <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+          <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
             <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
               <span className="w-1 h-4 bg-green-400 rounded-full" />
               How Local Jobs Works
@@ -171,7 +171,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
             <div className="relative">
               <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-white/20" />
               {steps.map((step, i) => (
-                <div key={i} className="relative flex items-start gap-3 pb-2 last:pb-0">
+                <div key={i} className="relative flex items-start gap-3 pb-1 last:pb-0">
                   <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white text-xs font-bold">
                     {i + 1}
                   </div>
@@ -188,14 +188,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
             </div>
             <button
               onClick={onOpenWorkerSearch}
-              className="mt-3 w-full flex items-center justify-between gap-2 px-5 py-5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
+              className="mt-2 w-full flex items-center justify-between gap-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
             >
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
                   <Users className="w-6 h-6 text-green-400" />
                 </div>
                 <div className="text-left">
-                  <p className="text-white font-semibold text-xl">Find a Worker</p>
+                  <p className="text-white font-semibold text-lg">Find a Worker</p>
                   <p className="text-gray-400 text-sm">Search jobseekers by skill</p>
                 </div>
               </div>
