@@ -119,7 +119,7 @@ const Footer: React.FC<FooterProps> = ({
               label: 'Find Services',
               page: 'services' as Page
             }, {
-              label: 'Pricing Plans',
+              label: 'Our Products',
               page: 'pricing' as Page
             }, {
               label: 'Contact Us',

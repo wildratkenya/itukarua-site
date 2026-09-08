@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Menu, X, User, LogOut, ChevronDown, Send } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Menu, X, User, LogOut, ChevronDown, Send, Briefcase, Building2, Megaphone, Home, PanelsTopLeft, Zap, Crown, ArrowRight } from 'lucide-react';
+import { setPendingScrollTarget } from '@/lib/pricingScroll';
 
-export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate';
+export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate' | 'corporate-signup';
 
 interface HeaderProps {
   currentPage: Page;
@@ -11,21 +12,56 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
+interface ProductItem {
+  id: string;
+  label: string;
+  blurb: string;
+  gradient: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const PRODUCTS: ProductItem[] = [
+  { id: 'jobseekers', label: 'Find Your Dream Job', blurb: 'Free & Premium plans for jobseekers hunting full-time, part-time or freelance work.', gradient: 'from-green-500 to-emerald-600', icon: Briefcase },
+  { id: 'employers', label: 'Hire the Best Talent', blurb: 'Post single jobs or subscribe for unlimited access to vetted jobseekers.', gradient: 'from-sky-500 to-blue-600', icon: Building2 },
+  { id: 'advert-plans', label: 'Promote Your Business', blurb: 'Pay-as-you-go advert listings with standout visibility across categories.', gradient: 'from-purple-500 to-indigo-600', icon: Megaphone },
+  { id: 'homepage-advert', label: 'Homepage Advert', blurb: 'Prime carousel banner seen by every visitor, 24/7 for a full week.', gradient: 'from-amber-500 to-orange-600', icon: Home },
+  { id: 'job-listings-banner', label: 'Job Listings Banner', blurb: 'Full-width banner atop every Jobs page — 3× the audience intent.', gradient: 'from-emerald-500 to-teal-600', icon: PanelsTopLeft },
+  { id: 'featured-boost', label: 'Featured Boost', blurb: 'Top of search, prime carousel and up to 5 images for 7 days.', gradient: 'from-amber-400 to-orange-500', icon: Zap },
+  { id: 'corporate-placements', label: 'Corporate & Community Placements', blurb: 'Steady monthly presence for co-ops, churches, SACCOs & institutions.', gradient: 'from-gray-700 to-gray-900', icon: Crown },
+];
+
 const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, user, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
+  const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
 
   const navItems: { label: string; page: Page }[] = [
     { label: 'Home', page: 'home' },
     { label: 'Jobs', page: 'jobs' },
     { label: 'Services', page: 'services' },
-    { label: 'Pricing', page: 'pricing' },
     { label: 'Contact', page: 'contact' },
   ];
+
+  useEffect(() => {
+    if (!productsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setProductsOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [productsOpen]);
 
   const handleNav = (page: Page) => {
     onNavigate(page);
     setMobileMenuOpen(false);
+    setProductsOpen(false);
+  };
+
+  const openProduct = (sectionId: string) => {
+    setPendingScrollTarget(sectionId);
+    handleNav('pricing');
+    setMobileProductsOpen(false);
   };
 
   return (
@@ -61,6 +97,58 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                 {item.label}
               </button>
             ))}
+
+            {/* Our Products Mega Menu */}
+            <div
+              className="relative"
+              onMouseEnter={() => setProductsOpen(true)}
+              onMouseLeave={() => setProductsOpen(false)}
+            >
+              <button
+                onClick={() => handleNav('pricing')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1 ${
+                  currentPage === 'pricing'
+                    ? 'bg-green-50 text-green-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                Our Products
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${productsOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {productsOpen && (
+                <div className="absolute left-0 top-full pt-2 z-50">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden w-[600px] max-w-[calc(100vw-2rem)]">
+                    <div className="p-3 grid grid-cols-2 gap-1">
+                      {PRODUCTS.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => openProduct(p.id)}
+                          className="flex items-start gap-3 rounded-xl p-3 text-left hover:bg-green-50 group transition-colors"
+                        >
+                          <span className={`w-10 h-10 rounded-xl bg-gradient-to-br ${p.gradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                            <p.icon className="w-5 h-5 text-white" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900 group-hover:text-green-700 transition-colors">{p.label}</span>
+                            <span className="block text-xs text-gray-500 mt-0.5 leading-snug">{p.blurb}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between bg-gray-50/70">
+                      <span className="text-xs text-gray-500">Not sure what fits your goals?</span>
+                      <button
+                        onClick={() => handleNav('pricing')}
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 hover:text-green-800 transition-colors"
+                      >
+                        Browse all products & rates <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Right Actions */}
@@ -158,6 +246,44 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                 {item.label}
               </button>
             ))}
+
+            {/* Our Products (mobile) */}
+            <div>
+              <button
+                onClick={() => setMobileProductsOpen(!mobileProductsOpen)}
+                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors inline-flex items-center justify-between ${
+                  currentPage === 'pricing'
+                    ? 'bg-green-50 text-green-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Our Products
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${mobileProductsOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {mobileProductsOpen && (
+                <div className="pl-4 space-y-1 pb-1">
+                  {PRODUCTS.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => openProduct(p.id)}
+                      className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-green-50 transition-colors"
+                    >
+                      <span className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.gradient} flex items-center justify-center flex-shrink-0`}>
+                        <p.icon className="w-3.5 h-3.5 text-white" />
+                      </span>
+                      {p.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => handleNav('pricing')}
+                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-green-700 hover:bg-green-50 transition-colors"
+                  >
+                    Browse all products & rates →
+                  </button>
+                </div>
+              )}
+            </div>
+
             {user && (
               <button
                 onClick={() => handleNav(user.role === 'corporate' ? 'corporate' : 'dashboard')}
