@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { CheckCircle, CalendarX2, X, Lock } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
 import { getProfile, boostAd, type DbProfile } from '@/lib/database';
+import { getPendingScrollTarget, clearPendingScrollTarget } from '@/lib/pricingScroll';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
 import HomePage from './itukarua/HomePage';
@@ -23,6 +24,7 @@ import MpesaModal from './itukarua/MpesaModal';
 import AdminPage from './itukarua/AdminPage';
 import SitewideAnchorStrip from './itukarua/SitewideAnchorStrip';
 import CorporateDashboard from './itukarua/CorporateDashboard';
+import CorporateSignupPage from './itukarua/CorporateSignupPage';
 import ChatBot from './itukarua/ChatBot';
 
 export interface UserState {
@@ -84,6 +86,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const loginJustHappened = useRef(false);
   const loginFromWorkerPopup = useRef(false);
+  const skipTopScroll = useRef(false);
   const [subNotice, setSubNotice] = useState<SubscriptionNotice | null>(null);
   const [subNoticeDismissed, setSubNoticeDismissed] = useState(false);
   const [expiredLock, setExpiredLock] = useState(false);
@@ -274,9 +277,13 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     };
   }, []);
 
-  // Scroll to top on page change
+  // Scroll to top on page change (unless a pricing section scroll is pending)
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (skipTopScroll.current) {
+      skipTopScroll.current = false;
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     if (currentPage === 'dashboard' && !user && !authLoading) {
       setCurrentPage('home');
       setAuthTab('login');
@@ -288,8 +295,26 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     if (page === 'admin' && (!user || user.role !== 'super_admin')) {
       return; // Don't allow navigation to admin if not super admin
     }
+    const pending = getPendingScrollTarget();
+    if (page === 'pricing' && pending) {
+      clearPendingScrollTarget();
+      const scrollToSection = () => document.getElementById(pending)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (currentPage === 'pricing') {
+        // Already on the pricing page: scroll directly (component won't remount).
+        skipTopScroll.current = false;
+        requestAnimationFrame(() => scrollToSection());
+        window.setTimeout(scrollToSection, 120);
+      } else {
+        // Landing fresh on pricing: skip the top-scroll and scroll after render.
+        skipTopScroll.current = true;
+        requestAnimationFrame(() => scrollToSection());
+        window.setTimeout(scrollToSection, 150);
+      }
+    } else {
+      skipTopScroll.current = false;
+    }
     setCurrentPage(page);
-  }, [user]);
+  }, [user, currentPage]);
 
   const handleOpenAuth = useCallback((tab: 'login' | 'signup') => {
     setAuthTab(tab);
@@ -448,6 +473,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />;
+        case 'corporate-signup':
+          return <CorporateSignupPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onAuthComplete={handleAuthComplete} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;

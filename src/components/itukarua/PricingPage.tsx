@@ -41,7 +41,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
 
         {/* ═══ JOBSEEKER SECTION ═══ */}
-        <div className="mb-24">
+        <div id="jobseekers" className="mb-24 scroll-mt-20">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-xs font-bold px-4 py-1.5 rounded-full mb-4 uppercase tracking-wider">
               <Briefcase className="w-3.5 h-3.5" /> For Jobseekers
@@ -192,7 +192,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         </div>
 
         {/* ═══ EMPLOYER SECTION ═══ */}
-        <div className="mb-12">
+        <div id="employers" className="mb-12 scroll-mt-20">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-xs font-bold px-4 py-1.5 rounded-full mb-4 uppercase tracking-wider">
               <Briefcase className="w-3.5 h-3.5" /> For Employers
@@ -295,7 +295,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         </div>
 
         {/* ═══ ADVERT PLANS ═══ */}
-        <div className="mb-16">
+        <div id="advert-plans" className="mb-16 scroll-mt-20">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-700 text-xs font-bold px-4 py-1.5 rounded-full mb-4 uppercase tracking-wider">
               <Zap className="w-3.5 h-3.5" /> Business Advertising
@@ -352,7 +352,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         </div>
 
         {/* ═══ HOMEPAGE ADVERT ═══ */}
-        <div className="mb-16">
+        <div id="homepage-advert" className="mb-16 scroll-mt-20">
           <div className="max-w-5xl mx-auto bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-3xl shadow-2xl overflow-hidden">
             <div className="grid md:grid-cols-5">
               <div className="md:col-span-3 p-8">
@@ -389,7 +389,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         </div>
 
         {/* ═══ JOB LISTINGS TOP BANNER ═══ */}
-        <div className="mb-16">
+        <div id="job-listings-banner" className="mb-16 scroll-mt-20">
           <div className="max-w-6xl mx-auto bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-3xl shadow-2xl overflow-hidden">
             <div className="grid md:grid-cols-5">
               <div className="md:col-span-3 p-8">
@@ -455,7 +455,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         </div>
 
         {/* ═══ FEATURED BOOST ═══ */}
-        <div className="max-w-4xl mx-auto mb-16">
+        <div id="featured-boost" className="max-w-4xl mx-auto mb-16 scroll-mt-20">
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-8 border-2 border-amber-300 shadow-lg shadow-amber-100 relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">POPULAR</div>
             <div className="flex items-center gap-3 mb-3">
@@ -483,7 +483,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         </div>
 
         {/* ═══ CORPORATE & COMMUNITY PLACEMENTS ═══ */}
-        <div className="max-w-7xl mx-auto mb-16">
+        <div id="corporate-placements" className="max-w-7xl mx-auto mb-16 scroll-mt-20">
           <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 via-neutral-900 to-gray-900 text-white p-8 lg:p-10 shadow-xl">
             <div className="flex items-center gap-2 mb-2">
               <Crown className="w-5 h-5 text-amber-300" />
@@ -491,7 +491,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
             </div>
             <h2 className="text-2xl lg:text-3xl font-bold mb-2">Corporate & Community Placements</h2>
             <p className="text-gray-300 max-w-2xl text-sm mb-8">
-              For co-operatives, churches, SACCOs, institutions and businesses that want a steady, branded presence on Itukarua — not a one-off advert. Our team manages copy, imagery and scheduling for you. <span className="text-white font-semibold">Custom-priced based on your region, reach and term.</span>
+              For co-operatives, churches, SACCOs, institutions and businesses that want a steady, branded presence on Itukarua — not a one-off advert. Our team manages copy, imagery and scheduling for you. <span className="text-white font-semibold">Bronze, Silver &amp; Gold sign up instantly below; custom bundles are quoted by our team.</span>
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {CORPORATE_PACKAGES.map(pkg => (
@@ -507,10 +507,22 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                     ))}
                   </ul>
                   <button
-                    onClick={() => { sessionStorage.setItem('advertise_package', pkg.id); onNavigate('advertise'); }}
-                    className="w-full py-2.5 rounded-lg bg-amber-300 hover:bg-amber-200 text-gray-900 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+                    onClick={() => {
+                      if (pkg.id === 'custom') {
+                        sessionStorage.setItem('advertise_package', pkg.id);
+                        onNavigate('advertise');
+                      } else {
+                        sessionStorage.setItem('corporate_signup_tier', pkg.id);
+                        onNavigate('corporate-signup');
+                      }
+                    }}
+                    className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+                      pkg.id === 'custom'
+                        ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                        : 'bg-amber-300 hover:bg-amber-200 text-gray-900'
+                    }`}
                   >
-                    Request a quote <ArrowRight className="w-3.5 h-3.5" />
+                    {pkg.id === 'custom' ? 'Request a quote' : 'Sign up'} <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ))}
