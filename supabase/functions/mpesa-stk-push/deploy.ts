@@ -240,6 +240,8 @@ async function completePayment(supabase: any, payment: any) {
   } else if (payment.payment_type === 'featured_boost') {
     await applyFeaturedBoost(supabase, payment)
   }
+  // 'advert_upgrade' records the payment + receipt only; the slot change is
+  // applied by the client on completion so billing period stays untouched.
 
   await sendPaymentReceipt(supabase, payment, mpesaRef)
 }

@@ -352,6 +352,12 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     setCurrentPage('jobs');
   }, []);
 
+  const handleSearchCounty = useCallback((county: string) => {
+    setSearchQuery(`county=${encodeURIComponent(county)}`);
+    if (currentPage === 'jobs') window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCurrentPage('jobs');
+  }, [currentPage]);
+
   const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null) => {
     setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt });
   }, []);
@@ -628,7 +634,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         </div>
       )}
 
-      <Footer onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} />
+      <Footer onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onSearchCounty={handleSearchCounty} />
 
       <AuthModal
         isOpen={authModalOpen}

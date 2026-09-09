@@ -1508,13 +1508,26 @@ export async function getProfileRanking(profileId: string): Promise<{ rank: numb
 // ─── Newsletter ────────────────────────────────────────────────────────────
 
 export async function subscribeNewsletter(email: string, name?: string): Promise<{ error?: string }> {
-  const { error } = await supabase
-    .rpc('admin_newsletter', { action: 'add', p_email: email, p_name: name || '' });
+  const { data: result, error } = await supabase
+    .rpc('newsletter_subscribe', { p_email: email, p_name: name || '' });
   if (error) {
+    // Until the hardened function is deployed, fall back to the legacy RPC.
+    const isMissing = error.code === 'PGRST202' || error.code === '42883' || /does not exist|Could not find the function|not found/i.test(error.message || '');
+    if (isMissing) {
+      const { error: legacyError } = await supabase
+        .rpc('admin_newsletter', { action: 'add', p_email: email, p_name: name || '' });
+      if (legacyError) {
+        if (legacyError.code === '23505' || legacyError.message?.includes('23505') || legacyError.message?.includes('duplicate'))
+          return { error: 'This email is already subscribed.' };
+        return { error: 'Subscription failed. Please try again.' };
+      }
+      return {};
+    }
     if (error.code === '23505' || error.message?.includes('23505') || error.message?.includes('duplicate'))
       return { error: 'This email is already subscribed.' };
     return { error: 'Subscription failed. Please try again.' };
   }
+  if (typeof result === 'string' && result) return { error: result };
   return {};
 }
 
@@ -1809,7 +1822,7 @@ export async function createAdForUser(userId: string, ad: { title: string; image
   return data;
 }
 
-export async function updateMyAd(id: string, userId: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string | null; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; active: boolean; target_county: string | null; target_subcounty: string | null; expected_impressions: number }>) {
+export async function updateMyAd(id: string, userId: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string | null; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; active: boolean; slot: string; target_county: string | null; target_subcounty: string | null; expected_impressions: number }>) {
   const { error } = await supabase
     .from('advertisements')
     .update({ ...updates, destination_url: updates.destination_url ?? null })
