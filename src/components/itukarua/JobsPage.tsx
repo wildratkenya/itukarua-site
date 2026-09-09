@@ -31,15 +31,18 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
   useEffect(() => {
     getCustomCategories('job').then(setDbCats);
-    if (initialSearch) {
-      const params = new URLSearchParams(initialSearch);
-      if (params.get('q')) setSearch(params.get('q')!);
-      if (params.get('category')) setCategory(params.get('category')!);
-      if (params.get('county')) setCounty(params.get('county')!);
-      if (params.get('subcounty')) setSubcounty(params.get('subcounty')!);
-      if (params.get('location')) setLocationFilter(params.get('location')!);
-    }
   }, []);
+
+  useEffect(() => {
+    if (!initialSearch) return;
+    const hasParams = initialSearch.includes('=');
+    const params = hasParams ? new URLSearchParams(initialSearch) : null;
+    setSearch(params ? params.get('q') ?? '' : initialSearch);
+    setCategory(params?.get('category') || 'All Categories');
+    setCounty(params?.get('county') ?? '');
+    setSubcounty(params?.get('subcounty') ?? '');
+    setLocationFilter(params?.get('location') ?? '');
+  }, [initialSearch]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {

@@ -18,6 +18,11 @@ import { Badge } from '@/components/ui/badge';
 import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
 import CertificateViewer from './CertificateViewer';
 
+const AD_SLOT_PRICE: Record<string, number> = { homepage_banner: 200, job_listings_top: 500 };
+const slotPrice = (slot?: string | null) => AD_SLOT_PRICE[slot || 'homepage_banner'] ?? 200;
+const slotLabel = (slot?: string | null) => slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Carousel Banner';
+type AdvertPayload = Parameters<typeof updateMyAd>[2];
+
 interface DashboardPageProps {
   user: UserState;
   onNavigate: (page: Page) => void;
@@ -77,6 +82,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [adAnalyticsByAd, setAdAnalyticsByAd] = useState<AdAnalyticsByAd[]>([]);
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [lastCreatedAdId, setLastCreatedAdId] = useState<string | null>(null);
+  const [upgradePending, setUpgradePending] = useState<{ oldSlot: string; newSlot: string; diff: number; payload: AdvertPayload } | null>(null);
   const [boostInfoAdId, setBoostInfoAdId] = useState<string | null>(null);
   const [boostingAdId, setBoostingAdId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -442,6 +448,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         slot: adForm.slot,
       };
       if (adForm.id) {
+        const currentAd = myAds.find(a => a.id === adForm.id);
+        const oldPrice = slotPrice(currentAd?.slot);
+        const newPrice = slotPrice(adForm.slot);
+        if (newPrice > oldPrice) {
+          setUpgradePending({ oldSlot: currentAd?.slot || 'homepage_banner', newSlot: adForm.slot, diff: newPrice - oldPrice, payload });
+          return;
+        }
         await updateMyAd(adForm.id, user.id, payload);
       } else {
         const created = await createAdForUser(user.id, payload);
@@ -458,6 +471,36 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     } finally {
       setAdvSaving(false);
     }
+  };
+
+  const applyAdUpgrade = () => {
+    if (!adForm.id || !upgradePending) return;
+    const { diff, oldSlot, newSlot, payload } = upgradePending;
+    setUpgradePending(null);
+    setAdvSaving(true);
+    onOpenMpesa(
+      diff,
+      `Advert upgrade — ${adForm.title} (${slotLabel(oldSlot)} → ${slotLabel(newSlot)})`,
+      `ADV-${adForm.id.slice(0, 8).toUpperCase()}`,
+      'advert_upgrade',
+      adForm.id,
+      undefined,
+      undefined,
+      async () => {
+        try {
+          await updateMyAd(adForm.id, user.id, payload);
+          setShowAdForm(false);
+          setAdvImageFiles([]);
+          setAdvUrlInput('');
+          setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day', target_scope: 'national', target_county: '', target_subcounty: '' });
+          await reloadMyAds();
+        } catch (err: any) {
+          setAdvError(err.message || 'Payment succeeded but the upgrade could not be applied. Please try saving again.');
+        } finally {
+          setAdvSaving(false);
+        }
+      }
+    );
   };
 
   const handleToggleAdActive = async (ad: DbAdvertisement) => {
@@ -1154,7 +1197,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">My Adverts</h3>
-              <button onClick={() => { setAdvError(''); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+              <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
                 <Plus className="w-4 h-4" /> {showAdForm ? 'Close Form' : 'New Advert'}
               </button>
             </div>
@@ -1252,11 +1295,28 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     </label>
                   </div>
                 </div>
+                {upgradePending && (
+                  <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-900">Advert Placement Upgrade</h5>
+                        <p className="text-sm text-gray-600 mt-1">Changing from <strong>{slotLabel(upgradePending.oldSlot)}</strong> (KES {slotPrice(upgradePending.oldSlot)}/week) to <strong>{slotLabel(upgradePending.newSlot)}</strong> (KES {slotPrice(upgradePending.newSlot)}/week) costs an extra <strong>KES {upgradePending.diff}</strong>. Pay the difference to apply the new placement.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={applyAdUpgrade} disabled={advSaving} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                        {advSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Pay KES {upgradePending.diff} & Apply Upgrade
+                      </button>
+                      <button onClick={() => { setAdForm(p => ({ ...p, slot: upgradePending.oldSlot })); setUpgradePending(null); }} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Keep Current Placement</button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-2">
                   <button onClick={handleSaveAdForm} disabled={advSaving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                     {advSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : adForm.id ? 'Save Changes' : 'Create Advert'}
                   </button>
-                  <button onClick={() => { setShowAdForm(false); setAdvImageFiles([]); setAdvUrlInput(''); }} className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                  <button onClick={() => { setShowAdForm(false); setUpgradePending(null); setAdvImageFiles([]); setAdvUrlInput(''); }} className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
                 </div>
               </div>
             )}
@@ -1315,7 +1375,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         <span className="text-[10px] text-amber-600 font-semibold">Live</span>
                       </div>
                     )}
-                    <button onClick={() => { setAdvError(''); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'homepage_banner' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
+                    <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'homepage_banner' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
                     <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
                     <button onClick={() => handleDeleteAd(ad)} className="text-xs text-red-600 hover:text-red-700">Delete</button>
                   </div>

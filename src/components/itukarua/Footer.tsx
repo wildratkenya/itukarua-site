@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
@@ -7,10 +7,12 @@ import { KENYA_COUNTIES } from '@/data/siteData';
 interface FooterProps {
   onNavigate: (page: Page) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
+  onSearchCounty?: (county: string) => void;
 }
 const Footer: React.FC<FooterProps> = ({
   onNavigate,
-  onOpenAuth
+  onOpenAuth,
+  onSearchCounty
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,19 +20,40 @@ const Footer: React.FC<FooterProps> = ({
   const [subError, setSubError] = useState('');
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubError('');
-    const hp = (document.querySelector('input[name="_website"]') as HTMLInputElement)?.value;
-    if (hp) return;
-    if (!name.trim()) { setSubError('Name is required'); return; }
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setSubError('Invalid email'); return; }
-    const result = await subscribeNewsletter(email.trim(), name.trim());
-    if (result.error) { setSubError(result.error); return; }
+  const mountedAtRef = useRef<number | null>(null);
+  const attemptsRef = useRef<{ count: number; first: number }>({ count: 0, first: 0 });
+  useEffect(() => { mountedAtRef.current = Date.now(); }, []);
+  const isValidEmail = (value: string) => {
+    if (!value || value.length > 254 || /\s/.test(value)) return false;
+    const at = value.indexOf('@');
+    if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+    const domain = value.slice(at + 1);
+    if (domain.length > 250 || domain.startsWith('.') || domain.includes('..')) return false;
+    return /^[a-z0-9.-]+\.[a-z]{2,63}$/.test(domain);
+  };
+  const fakeSubscribe = () => {
     setSubscribed(true);
     setName('');
     setEmail('');
     setTimeout(() => setSubscribed(false), 4000);
+  };
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubError('');
+    const hp = (document.querySelector('input[name="_website"]') as HTMLInputElement)?.value;
+    if (hp) { fakeSubscribe(); return; }
+    const now = Date.now();
+    if (mountedAtRef.current && now - mountedAtRef.current < 1200) { fakeSubscribe(); return; }
+    const att = attemptsRef.current;
+    if (now - att.first > 60000) { att.first = now; att.count = 0; }
+    att.count += 1;
+    if (att.count > 5) { setSubError('Too many attempts. Please try again shortly.'); return; }
+    if (!name.trim()) { setSubError('Name is required'); return; }
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!isValidEmail(trimmedEmail)) { setSubError('Invalid email'); return; }
+    const result = await subscribeNewsletter(trimmedEmail, name.trim());
+    if (result.error) { setSubError(result.error); return; }
+    fakeSubscribe();
   };
   return <footer className="bg-gray-900 text-gray-300">
       {/* Newsletter Banner */}
@@ -86,7 +109,7 @@ const Footer: React.FC<FooterProps> = ({
 
       {/* Main Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-8">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -151,11 +174,11 @@ const Footer: React.FC<FooterProps> = ({
           </div>
 
           {/* Counties We Serve */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-2">
             <h4 className="text-white font-semibold mb-4">Counties We Serve</h4>
-            <div className="columns-2 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-3 gap-x-4 gap-y-1 content-start">
               {KENYA_COUNTIES.map(county => (
-                <p key={county} className="text-xs text-gray-500 hover:text-green-400 transition-colors cursor-pointer">{county}</p>
+                <button key={county} onClick={() => onSearchCounty?.(county)} className="text-left text-xs text-gray-500 hover:text-green-400 transition-colors cursor-pointer break-words">{county}</button>
               ))}
             </div>
             <p className="text-[10px] text-gray-600 mt-2">All 47 counties across Kenya</p>

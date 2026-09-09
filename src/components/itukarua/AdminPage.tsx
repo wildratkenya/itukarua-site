@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
@@ -216,6 +216,7 @@ const AdminPage: React.FC = () => {
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [adverts, setAdverts] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchUsers, setSearchUsers] = useState('');
@@ -1749,17 +1750,15 @@ const AdminPage: React.FC = () => {
                         }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
                       </TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Verified</TableHead>
-                      <TableHead>Subscription</TableHead>
-                      <TableHead>Bids / Wk</TableHead>
-                      {showTrash && <TableHead>Trashed</TableHead>}
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="w-24">More</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(showTrash ? trashedUsers : users).filter(u => !searchUsers || u.full_name?.toLowerCase().includes(searchUsers.toLowerCase()) || u.email?.toLowerCase().includes(searchUsers.toLowerCase())).map((user) => {
                       const uChecked = selectedUsers.has(user.id);
+                      const userExpanded = expandedUsers.has(user.id);
                       const subActive = !!user.subscription_expires_at && new Date(user.subscription_expires_at).getTime() > Date.now();
                       return (
                       <>
@@ -1772,79 +1771,88 @@ const AdminPage: React.FC = () => {
                           }} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
                         </TableCell>
                         <TableCell>
-                          {user.full_name}
-                          <div className="text-xs text-gray-500">{user.email}</div>
+                          <div className="font-medium text-gray-900">{user.full_name || '—'}</div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-sm text-gray-600">{user.phone || '—'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{user.email || '—'}</TableCell>
+                        <TableCell className="w-24">
+                          <button onClick={() => setExpandedUsers(prev => {
+                            const next = new Set(prev);
+                            if (next.has(user.id)) next.delete(user.id); else next.add(user.id);
+                            return next;
+                          })} className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${userExpanded ? 'bg-gray-100 border-gray-300 text-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title={userExpanded ? 'Collapse' : 'More options'}>
+                            {userExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            {userExpanded ? 'Less' : 'More'}
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                      {userExpanded && (
+                      <TableRow key={`${user.id}-actions`} className="bg-muted/20">
+                        <TableCell colSpan={5} className="px-4">
                           {showTrash ? (
-                            <Badge variant="outline">{user.role}</Badge>
-                          ) : (
-                            <Select
-                              value={user.role}
-                              onValueChange={(value) => updateUserRole(user.id, value)}
-                            >
-                              <SelectTrigger className="w-32 h-9">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="jobseeker">Jobseeker</SelectItem>
-                                <SelectItem value="employer">Employer</SelectItem>
-                                <SelectItem value="advertiser">Advertiser</SelectItem>
-                                <SelectItem value="super_admin">Super Admin</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.verified ? 'default' : 'secondary'}>
-                            {user.verified ? 'Verified' : 'Unverified'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const exp = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() : 0;
-                            if (exp > Date.now()) {
-                              const daysLeft = Math.ceil((exp - Date.now()) / (1000 * 60 * 60 * 24));
-                              return (
-                                <>
-                                  <Badge variant="success">
-                                    Premium · {daysLeft}d left
-                                  </Badge>
-                                  {!user.registration_paid && (
-                                    <div className="text-[10px] text-red-400 mt-0.5">Unpaid (paid flag missing)</div>
-                                  )}
-                                  <div className="text-[10px] text-gray-400 mt-0.5">Expires {new Date(user.subscription_expires_at!).toLocaleDateString()}</div>
-                                </>
-                              );
-                            }
-                            if (exp > 0) {
-                              const ago = Math.max(0, Math.ceil((Date.now() - exp) / (1000 * 60 * 60 * 24)));
-                              return <Badge variant="destructive">Expired · {ago}d ago</Badge>;
-                            }
-                            return <Badge variant="secondary" className="bg-gray-100 text-gray-600">Free</Badge>;
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          {user.role === 'jobseeker' ? (
-                            <div className="flex items-center gap-1">
-                              <Badge variant={(weeklyBidCounts[user.id] ?? 0) >= 10 ? 'destructive' : 'secondary'}>
-                                {weeklyBidCounts[user.id] ?? 0}
-                              </Badge>
-                              <span className="text-[10px] text-gray-400">/ 10</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline">{user.role}</Badge>
+                              {user.deleted_at ? (
+                                <span className="text-xs text-gray-500">Trashed {new Date(user.deleted_at).toLocaleDateString()}</span>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                              <span className="text-xs text-gray-400">{user.phone || 'No phone'}</span>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-400">—</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Select
+                                value={user.role}
+                                onValueChange={(value) => updateUserRole(user.id, value)}
+                              >
+                                <SelectTrigger className="w-32 h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="jobseeker">Jobseeker</SelectItem>
+                                  <SelectItem value="employer">Employer</SelectItem>
+                                  <SelectItem value="advertiser">Advertiser</SelectItem>
+                                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Badge variant={user.verified ? 'default' : 'secondary'}>
+                                {user.verified ? 'Verified' : 'Unverified'}
+                              </Badge>
+                              {(() => {
+                                const exp = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() : 0;
+                                if (exp > Date.now()) {
+                                  const daysLeft = Math.ceil((exp - Date.now()) / (1000 * 60 * 60 * 24));
+                                  return (
+                                    <>
+                                      <Badge variant="success">
+                                        Premium · {daysLeft}d left
+                                      </Badge>
+                                      {!user.registration_paid && (
+                                        <div className="text-[10px] text-red-400">Unpaid (paid flag missing)</div>
+                                      )}
+                                      <div className="text-[10px] text-gray-400">Expires {new Date(user.subscription_expires_at!).toLocaleDateString()}</div>
+                                    </>
+                                  );
+                                }
+                                if (exp > 0) {
+                                  const ago = Math.max(0, Math.ceil((Date.now() - exp) / (1000 * 60 * 60 * 24)));
+                                  return <Badge variant="destructive">Expired · {ago}d ago</Badge>;
+                                }
+                                return <Badge variant="secondary" className="bg-gray-100 text-gray-600">Free</Badge>;
+                              })()}
+                              {user.role === 'jobseeker' ? (
+                                <div className="flex items-center gap-1">
+                                  <Badge variant={(weeklyBidCounts[user.id] ?? 0) >= 10 ? 'destructive' : 'secondary'}>
+                                    {weeklyBidCounts[user.id] ?? 0}
+                                  </Badge>
+                                  <span className="text-[10px] text-gray-400">/ 10</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </div>
                           )}
-                        </TableCell>
-                        {showTrash && (
-                          <TableCell className="text-xs text-gray-500">
-                            {user.deleted_at ? new Date(user.deleted_at).toLocaleDateString() : '—'}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                      <TableRow key={`${user.id}-actions`} className="bg-muted/20">
-                        <TableCell colSpan={showTrash ? 8 : 7}>
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-200">
                             {showTrash ? (
                               <>
                                 <Button variant="outline" size="sm" onClick={() => restoreUser(user.id)}>Restore</Button>
@@ -1915,6 +1923,7 @@ const AdminPage: React.FC = () => {
                           </div>
                         </TableCell>
                       </TableRow>
+                      )}
                       </>
                     )})}
                   </TableBody>
