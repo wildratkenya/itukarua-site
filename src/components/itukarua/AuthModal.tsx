@@ -10,14 +10,15 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: 'login' | 'signup';
+  initialRole?: 'advertiser' | 'employer' | 'jobseeker';
   onAuth: () => void;
   onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string) => void;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', onAuth, onOpenMpesa }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', initialRole, onAuth, onOpenMpesa }) => {
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<'advertiser' | 'employer' | 'jobseeker'>('employer');
+  const [role, setRole] = useState<'advertiser' | 'employer' | 'jobseeker'>(initialRole ?? 'employer');
   const [showPlanChoice, setShowPlanChoice] = useState(false);
   const [chosenRole, setChosenRole] = useState<'advertiser' | 'employer' | 'jobseeker' | null>(null);
   const [formData, setFormData] = useState({
@@ -48,10 +49,25 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [serverError, setServerError] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [emailSent, setEmailSent] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   useEffect(() => {
     if (isOpen) getCustomCategories('job').then(setDbJobCategories);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTab(initialTab);
+    setForgotMode(false);
+    setResetEmailSent(false);
+    if (initialRole) {
+      setRole(initialRole);
+      setEmailSent(false);
+      setShowPlanChoice(false);
+      setChosenRole(null);
+    }
+  }, [isOpen, initialTab, initialRole]);
 
   if (!isOpen) return null;
 
@@ -71,6 +87,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
 
 const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (forgotMode) {
+      await handleForgotPassword();
+      return;
+    }
     if (!validate()) return;
     setLoading(true);
     setServerError('');
@@ -211,6 +231,42 @@ data: {
       } else {
         setServerError(err.message || 'An error occurred. Please try again.');
       }
+} finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const email = formData.email.trim();
+    if (!email) {
+      setErrors({ email: 'Enter your email address' });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrors({ email: 'Invalid email address' });
+      return;
+    }
+    setLoading(true);
+    setServerError('');
+    setErrors({});
+    try {
+      const { data } = await supabase.from('profiles').select('email').ilike('email', email).maybeSingle();
+      if (!data) {
+        setServerError('No account found with this email. Check the address or create a new account.');
+        return;
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      if (error) throw error;
+      setResetEmailSent(true);
+      setEmailSent(true);
+      setForgotMode(false);
+    } catch (err: any) {
+      console.error('Forgot password error:', err);
+      if (err.message?.includes('rate limit') || err.status === 429) {
+        setServerError('Too many requests. Please wait a few minutes and try again.');
+      } else {
+        setServerError(err.message || 'Could not send reset link. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -236,13 +292,13 @@ data: {
 
         <div className="flex border-b border-gray-100">
           <button
-            onClick={() => { setTab('login'); setServerError(''); setTermsAccepted(false); setSelectedCategories([]); }}
+            onClick={() => { setTab('login'); setServerError(''); setForgotMode(false); setTermsAccepted(false); setSelectedCategories([]); }}
             className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'login' ? 'text-green-700 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Sign In
           </button>
           <button
-            onClick={() => { setTab('signup'); setServerError(''); setTermsAccepted(false); }}
+            onClick={() => { setTab('signup'); setServerError(''); setForgotMode(false); setTermsAccepted(false); }}
             className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'signup' ? 'text-green-700 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Sign Up
@@ -316,16 +372,18 @@ data: {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="font-semibold text-green-800 mb-1">Check Your Email!</h3>
+<h3 className="font-semibold text-green-800 mb-1">{resetEmailSent ? 'Reset Link Sent!' : 'Check Your Email!'}</h3>
               <p className="text-sm text-green-700 mb-3">
-                We've sent a confirmation link to <span className="font-medium">{formData.email}</span>
+                We've sent {resetEmailSent ? 'a password reset link' : 'a confirmation link'} to <span className="font-medium">{formData.email}</span>
               </p>
               <p className="text-xs text-green-600">
-                Click the link in your email to activate your account and complete your registration.
+                {resetEmailSent
+                  ? 'Check your inbox (and spam folder). The link is valid for around an hour.'
+                  : 'Click the link in your email to activate your account and complete your registration.'}
               </p>
               <button
                 type="button"
-                onClick={() => { setEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
+                onClick={() => { setEmailSent(false); setForgotMode(false); setResetEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
 county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]); setCertFiles([]); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
@@ -391,26 +449,82 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={formData.password}
-                onChange={e => setFormData({ ...formData, password: e.target.value })}
-                className={`w-full px-4 py-2.5 rounded-lg border ${errors.password ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none pr-10`}
-                placeholder="Min 6 characters"
-              />
+{!(tab === 'login' && forgotMode) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  className={`w-full px-4 py-2.5 rounded-lg border ${errors.password ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none pr-10`}
+                  placeholder="Min 6 characters"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+            </div>
+          )}
+
+          {tab === 'login' && !forgotMode && (
+            <div className="text-right -mt-2">
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                onClick={() => { setForgotMode(true); setServerError(''); setErrors({}); }}
+                className="text-xs font-medium text-green-700 hover:text-green-800 underline"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                Forgot password?
               </button>
             </div>
-            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-          </div>
+          )}
+
+          {tab === 'login' && forgotMode && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Reset your password</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Enter your email and we'll send you a link to create a new password. A link is only sent if an account exists for this email.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  className={`w-full px-4 py-2.5 rounded-lg border ${errors.email ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}
+                  placeholder="you@example.com"
+                />
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(false); setServerError(''); setErrors({}); }}
+                  className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
 
           {tab === 'signup' && role === 'jobseeker' && (
             <>
@@ -629,7 +743,7 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
               )}
             </div>
           )}
-          {!emailSent && (
+{!emailSent && !(tab === 'login' && forgotMode) && (
             <button
               type="submit"
               disabled={loading}

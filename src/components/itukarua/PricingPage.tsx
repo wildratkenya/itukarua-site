@@ -1,4 +1,4 @@
-import React, { useState, Fragment } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import SEO from '@/lib/seo';
 import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, Crown, Briefcase, ArrowRight } from 'lucide-react';
 import { PRICING_PLANS, CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES } from '@/data/siteData';
@@ -7,10 +7,22 @@ interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNavigate?: (page: string) => void;
+  onOpenAuth?: (tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
+  user?: { name?: string; email?: string; role?: string } | null;
 }
 
-const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate }) => {
+const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate, onOpenAuth, user }) => {
   const [showComparison, setShowComparison] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<typeof PRICING_PLANS.advertPlans[number] | null>(null);
+  const isJobseeker = user?.role === 'jobseeker';
+
+  useEffect(() => {
+    if (user && pendingPlan) {
+      const p = pendingPlan;
+      setPendingPlan(null);
+      onOpenMpesa(p.price, p.name, `ADV-${p.duration.replace(' ', '')}`, 'advert');
+    }
+  }, [user, pendingPlan, onOpenMpesa]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -52,7 +64,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto mb-14">
             {/* Free Card */}
-            <div className="relative group bg-white rounded-3xl border-2 border-gray-200 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col overflow-hidden hover:-translate-y-1">
+            <div className={`relative group bg-white rounded-3xl border-2 shadow-sm transition-all duration-500 flex flex-col overflow-hidden ${isJobseeker ? 'opacity-70 grayscale cursor-not-allowed border-gray-200' : 'border-gray-200 hover:shadow-2xl hover:-translate-y-1'}`}>
               <div className="h-2 bg-gradient-to-r from-gray-300 via-gray-200 to-gray-300"></div>
               <div className="p-8 lg:p-10 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-2">
@@ -80,11 +92,16 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   ))}
                 </ul>
                 <button
-                  onClick={() => onNavigate?.('signup')}
-                  className="w-full py-4 bg-gray-900 hover:bg-black text-white text-base font-bold rounded-2xl transition-all shadow-lg shadow-gray-200 hover:shadow-xl flex items-center justify-center gap-2 group-hover:scale-[1.02]"
+                  onClick={() => onOpenAuth?.('signup', 'jobseeker')}
+                  disabled={isJobseeker}
+                  className={`w-full py-4 text-white text-base font-bold rounded-2xl transition-all flex items-center justify-center gap-2 ${isJobseeker ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-black shadow-lg shadow-gray-200 hover:shadow-xl group-hover:scale-[1.02]'}`}
                 >
-                  Get Started Free
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  {isJobseeker ? 'Current Plan' : (
+                    <>
+                      Get Started Free
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -125,8 +142,14 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   onClick={() => onOpenMpesa(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration')}
                   className="w-full py-4 bg-white hover:bg-green-50 text-green-700 font-bold text-base rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/10 group-hover:scale-[1.02]"
                 >
-                  <Phone className="w-4 h-4" />
-                  Subscribe with M-Pesa
+                  {isJobseeker ? (
+                    'Upgrade'
+                  ) : (
+                    <>
+                      <Phone className="w-4 h-4" />
+                      Subscribe with M-Pesa
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -335,15 +358,28 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                     ))}
                   </ul>
                   <button
-                    onClick={() => onOpenMpesa(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`, 'advert')}
+                    onClick={() => {
+                      if (user) {
+                        onOpenMpesa(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`, 'advert');
+                      } else {
+                        setPendingPlan(plan);
+                        onOpenAuth?.('signup', 'advertiser');
+                      }
+                    }}
                     className={`w-full py-3 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${
                       plan.popular
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg shadow-purple-200'
                         : 'bg-gray-900 hover:bg-gray-800 text-white'
                     }`}
                   >
-                    <Phone className="w-4 h-4" />
-                    Pay with M-Pesa
+                    {user ? (
+                      <>
+                        <Phone className="w-4 h-4" />
+                        Pay with M-Pesa
+                      </>
+                    ) : (
+                      'Subscribe'
+                    )}
                   </button>
                 </div>
               </div>
