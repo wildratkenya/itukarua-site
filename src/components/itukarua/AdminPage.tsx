@@ -2,7 +2,7 @@
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getPortfolioSites, savePortfolioSite, deletePortfolioSite, type DbPortfolioSite, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, type SavedCorporateFeatures } from '@/data/siteData';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
@@ -259,6 +259,12 @@ const AdminPage: React.FC = () => {
   const [testimonialSaving, setTestimonialSaving] = useState(false);
   const [webCarouselSettings, setWebCarouselSettings] = useState<WebsitesCarouselSettings>({ scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' });
   const [webCarouselSaving, setWebCarouselSaving] = useState(false);
+  const [sites, setSites] = useState<DbPortfolioSite[]>([]);
+  const [siteForm, setSiteForm] = useState<{ id?: string; title: string; description: string; url: string; image_url: string }>({ title: '', description: '', url: '', image_url: '' });
+  const [siteSaving, setSiteSaving] = useState(false);
+  const [siteUploading, setSiteUploading] = useState(false);
+  const [siteMsg, setSiteMsg] = useState('');
+  const [siteMsgType, setSiteMsgType] = useState<'ok' | 'err'>('ok');
 
   useEffect(() => {
     loadData();
@@ -624,6 +630,70 @@ const AdminPage: React.FC = () => {
     setTestimonials(list);
   };
 
+  const loadSites = async () => {
+    const list = await getPortfolioSites();
+    setSites(list);
+  };
+
+  const uploadSiteScreenshot = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = Array.from(files).find(f => f.type.startsWith('image/'));
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Image must be 20MB or less', variant: 'destructive' });
+      return;
+    }
+    setSiteUploading(true);
+    try {
+      const compressed = await compressImage(file, 1600, 1000);
+      const safeName = compressed.name.replace(/[^a-zA-Z0-9._-]/g, '').replace(/\.[^.]+$/, '') || 'screenshot';
+      const fileName = `${Date.now()}_${safeName}.jpg`;
+      const { error: uploadError } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 30000, 'Upload');
+      if (uploadError) throw uploadError;
+      const url = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
+      setSiteForm(f => ({ ...f, image_url: url }));
+      toast({ title: 'Uploaded', description: 'Screenshot uploaded successfully' });
+    } catch (err: any) {
+      toast({ title: 'Upload Error', description: (err instanceof Error ? err.message : 'Upload failed — please retry'), variant: 'destructive' });
+    } finally { setSiteUploading(false); }
+  };
+
+  const saveSite = async () => {
+    if (!siteForm.title.trim()) {
+      setSiteMsg('Site title is required.');
+      setSiteMsgType('err');
+      return;
+    }
+    setSiteSaving(true);
+    const result = await savePortfolioSite({
+      id: siteForm.id || undefined,
+      title: siteForm.title.trim(),
+      description: siteForm.description.trim(),
+      url: siteForm.url.trim() || null as any,
+      image_url: siteForm.image_url || null as any,
+    });
+    if (result.error) {
+      setSiteMsg(result.error);
+      setSiteMsgType('err');
+    } else {
+      setSiteMsg(siteForm.id ? 'Website updated.' : 'Website added to the scroller.');
+      setSiteMsgType('ok');
+      setSiteForm({ title: '', description: '', url: '', image_url: '' });
+      await loadSites();
+    }
+    setSiteSaving(false);
+  };
+
+  const removeSite = async (id: string) => {
+    const result = await deletePortfolioSite(id);
+    if (result.error) {
+      setSiteMsg(result.error);
+      setSiteMsgType('err');
+    } else {
+      await loadSites();
+    }
+  };
+
   const saveWebCarouselSettings = async () => {
     setWebCarouselSaving(true);
     try {
@@ -738,6 +808,7 @@ const AdminPage: React.FC = () => {
         getCustomCategories('service').then(setCustomServiceCats),
         loadEmailProviders(),
         loadTestimonials(),
+        loadSites(),
         getWebsitesCarouselSettings().then(setWebCarouselSettings),
         loadBilling(),
       ]);
@@ -2883,10 +2954,12 @@ const AdminPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                     <div>
                       <Label>Effect / Style</Label>
-                      <select value={webCarouselSettings.effect} onChange={e => setWebCarouselSettings(s => ({ ...s, effect: e.target.value as 'slide' | 'fade' | 'zoom' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                      <select value={webCarouselSettings.effect} onChange={e => setWebCarouselSettings(s => ({ ...s, effect: e.target.value as any }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         <option value="slide">Slide (horizontal)</option>
                         <option value="fade">Fade</option>
                         <option value="zoom">Zoom (scale in)</option>
+                        <option value="fadeUp">Fade Up</option>
+                        <option value="flip">Flip (3D)</option>
                       </select>
                     </div>
                     <div>
@@ -2904,6 +2977,91 @@ const AdminPage: React.FC = () => {
                     {webCarouselSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Save Websites Carousel Settings
                   </Button>
+                </div>
+
+                <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-5">
+                  <h3 className="font-semibold text-gray-900 mb-2">Websites in the Scroller</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Add a website to the "Websites We Build" scroller. Give it a live URL and/or upload a screenshot image (for apps not online yet).
+                  </p>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    {/* Website form */}
+                    <div className="bg-white rounded-xl p-4 border border-gray-200">
+                      <h4 className="font-semibold text-gray-800 mb-3">{siteForm.id ? 'Edit Website' : 'Add Website'}</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <Label>Site Title</Label>
+                          <Input value={siteForm.title} onChange={e => setSiteForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Prefetch Systems" />
+                        </div>
+                        <div>
+                          <Label>Short Description</Label>
+                          <Input value={siteForm.description} onChange={e => setSiteForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. IT solutions & web services" />
+                        </div>
+                        <div>
+                          <Label>Live URL (optional)</Label>
+                          <Input value={siteForm.url} onChange={e => setSiteForm(f => ({ ...f, url: e.target.value }))} placeholder="https://example.com — leave empty if not online yet" />
+                        </div>
+                        <div>
+                          <Label>Screenshot Image (optional)</Label>
+                          <div className="flex items-center gap-3">
+                            <Input type="file" accept="image/*" onChange={e => uploadSiteScreenshot(e.target.files)} className="flex-1" />
+                            {siteUploading && <Loader2 className="w-4 h-4 animate-spin text-green-600" />}
+                          </div>
+                          {siteForm.image_url && (
+                            <div className="mt-2 flex items-center gap-3">
+                              <img src={siteForm.image_url} alt="Screenshot preview" className="w-24 h-16 object-cover rounded-lg border border-gray-200" />
+                              <button onClick={() => setSiteForm(f => ({ ...f, image_url: '' }))} className="text-xs text-red-600 hover:text-red-800 font-medium">Remove</button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-3">
+                          <Button onClick={saveSite} disabled={siteSaving || !siteForm.title.trim()} className="bg-green-600 hover:bg-green-700 flex items-center gap-2">
+                            {siteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                            {siteForm.id ? 'Save Changes' : 'Add Website'}
+                          </Button>
+                          {siteForm.id && (
+                            <Button variant="outline" onClick={() => setSiteForm({ title: '', description: '', url: '', image_url: '' })}>Cancel</Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Website list */}
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-3">Saved Websites ({sites.length})</h4>
+                      {sites.length === 0 ? (
+                        <p className="text-sm text-gray-400">No websites yet. Add one on the left.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {sites.map(site => (
+                            <div key={site.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  {site.image_url
+                                    ? <img src={site.image_url} alt={site.title} className="w-14 h-11 object-cover rounded-lg border border-gray-200" />
+                                    : <div className="w-14 h-11 rounded-lg bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center text-white font-bold text-xs">{site.title.slice(0,2).toUpperCase()}</div>}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-gray-900 truncate">{site.title}</p>
+                                    {site.url
+                                      ? <p className="text-xs text-green-600 truncate">{site.url}</p>
+                                      : <p className="text-xs text-gray-400">No URL (offline)</p>}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <button onClick={() => setSiteForm({ id: site.id, title: site.title, description: site.description || '', url: site.url || '', image_url: site.image_url || '' })} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit</button>
+                                  <button onClick={async () => {
+                                    if (!confirm(`Delete "${site.title}" from the scroller?`)) return;
+                                    await removeSite(site.id);
+                                  }} className="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {testimonialMsg && (

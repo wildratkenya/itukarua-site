@@ -1388,10 +1388,12 @@ export async function updateAdCarouselSetting(key: string, value: string): Promi
 
 // ─── Website Carousel Settings ──────────────────────────────────────────────
 
+export type WebsiteCarouselEffect = 'slide' | 'fade' | 'zoom' | 'fadeUp' | 'flip';
+
 export interface WebsitesCarouselSettings {
   scrollIntervalSeconds: number;
   transitionDurationSeconds: number;
-  effect: 'slide' | 'fade' | 'zoom';
+  effect: WebsiteCarouselEffect;
 }
 
 export async function getWebsitesCarouselSettings(): Promise<WebsitesCarouselSettings> {
@@ -1405,7 +1407,7 @@ export async function getWebsitesCarouselSettings(): Promise<WebsitesCarouselSet
   return {
     scrollIntervalSeconds: parseFloat(map['web_scroll_interval_seconds']) || 5,
     transitionDurationSeconds: parseFloat(map['web_transition_duration_seconds']) || 0.8,
-    effect: (effect === 'fade' || effect === 'zoom') ? effect : 'slide',
+    effect: (effect === 'fade' || effect === 'zoom' || effect === 'fadeUp' || effect === 'flip') ? effect : 'slide',
   };
 }
 
