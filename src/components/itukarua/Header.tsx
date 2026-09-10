@@ -7,7 +7,7 @@ export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact
 interface HeaderProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
-  onOpenAuth: (tab: 'login' | 'signup') => void;
+  onOpenAuth: (tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
   user: { name: string; email: string; role: string } | null;
   onLogout: () => void;
 }
@@ -62,6 +62,11 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
     setPendingScrollTarget(sectionId);
     handleNav('pricing');
     setMobileProductsOpen(false);
+    // Job Listings Banner is an advertiser product — prompt advertiser sign-in
+    // for anyone not already signed in as an advertiser before landing on rates.
+    if (sectionId === 'job-listings-banner' && (!user || user.role !== 'advertiser')) {
+      onOpenAuth('login', 'advertiser');
+    }
   };
 
   return (

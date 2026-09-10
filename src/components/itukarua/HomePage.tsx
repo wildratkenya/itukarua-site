@@ -10,7 +10,7 @@ import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
-import { getPlatformStats, createProfileReview, getProfileReviews, checkContactAccess, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, type PlatformStats } from '@/lib/database';
+import { getPlatformStats, createProfileReview, getProfileReviews, checkContactAccess, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, hasEntitlement, type PlatformStats } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 
@@ -123,12 +123,19 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       setReviewMsg('');
       if (user?.role === 'super_admin' || user?.role === 'admin') {
         setHasContactAccess(true);
-      } else if (user?.role === 'employer') {
-        const paidReg = !!user.registration_paid;
-        const subActive = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() > Date.now() : false;
-        setHasContactAccess(paidReg && subActive);
       } else if (user) {
-        checkContactAccess(user.id, selectedWorker.id).then(setHasContactAccess);
+        const run = async () => {
+          const paidReg = !!user.registration_paid;
+          const subActive = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() > Date.now() : false;
+          const employerEnt = await hasEntitlement(user.id, 'employer');
+          if (user?.role === 'employer') {
+            setHasContactAccess(employerEnt || (paidReg && subActive));
+          } else {
+            if (employerEnt) setHasContactAccess(true);
+            else checkContactAccess(user.id, selectedWorker.id).then(setHasContactAccess);
+          }
+        };
+        run();
       }
       getProfileReviews(selectedWorker.id).then(setWorkerReviews);
       if (user) { setMyVote(null); getMyProfileVote(user.id, selectedWorker.id).then(v => setMyVote(v || null)).catch(() => {}); }
@@ -339,7 +346,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                       if (onOpenEmployerPayment) {
                         onOpenEmployerPayment();
                       } else {
-                        onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration');
+                        onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'employer');
                       }
                     }}
                     className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"

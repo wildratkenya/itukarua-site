@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield, Phone, Zap, Briefcase } from 'lucide-react';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
-import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs } from '@/lib/database';
+import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
@@ -12,7 +12,7 @@ interface PostJobPageProps {
   onNavigate: (page: Page) => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
 }
 
@@ -45,6 +45,22 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => { getCustomCategories('job').then(setDbCats); }, []);
+
+  const [employerLocked, setEmployerLocked] = useState(false);
+  const [gateChecked, setGateChecked] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      if (!user || !user.id) { if (mounted) setGateChecked(true); return; }
+      if (['admin', 'super_admin', 'corporate'].includes(user.role)) { if (mounted) { setEmployerLocked(false); setGateChecked(true); } return; }
+      let has = await hasEntitlement(user.id, 'employer');
+      if (!has && user.role === 'employer') has = await checkSubscriptionActive(user.id);
+      if (mounted) { setEmployerLocked(!has); setGateChecked(true); }
+    };
+    check();
+    return () => { mounted = false; };
+  }, [user]);
 
   // OTP countdown timer
   useEffect(() => {
@@ -318,7 +334,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
                   onOpenMpesa(100, `Single Job Access — unlock contacts (1 day)`, `SJP-${createdJobId.slice(0, 8)}`, 'employer_day_token', undefined, createdJobId, undefined, () => {
                     setShowUpsell(recentSingleCount >= 1);
                     setStep('success');
-                  });
+                  }, false, false, null, 'employer');
                 }
               }}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -351,7 +367,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
                   onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
                     setHasSubscription(true);
                     setStep('success');
-                  });
+                  }, false, false, null, 'employer');
                 }
               }}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -448,6 +464,32 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-xl p-6 lg:p-8 border border-gray-100">
+          {gateChecked && employerLocked ? (
+            <div className="text-center py-10">
+              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-amber-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Employer Access Required</h2>
+              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                Posting jobs requires an active Employer subscription. Add employer access to your account to unlock job posting and worker contact viewing.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+                <button
+                  onClick={() => {
+                    if (onOpenEmployerPayment) onOpenEmployerPayment();
+                    else onOpenMpesa?.(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'employer');
+                  }}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Add Employer Access (KES 200/week)
+                </button>
+                <button onClick={() => onNavigate('jobs')} className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-lg transition-colors">
+                  Back to Jobs
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {serverError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{serverError}</div>}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -546,6 +588,8 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
               </button>
             </div>
           </form>
+            </>
+          )}
         </div>
       </div>
     </div>

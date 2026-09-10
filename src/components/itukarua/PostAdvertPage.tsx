@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle, Upload, Loader2, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Upload, Loader2, X, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { createServiceAd, createPayment, createAdForUser, getCustomCategories } from '@/lib/database';
+import { createServiceAd, createPayment, createAdForUser, getCustomCategories, hasEntitlement } from '@/lib/database';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
@@ -12,7 +12,7 @@ interface PostAdvertPageProps {
   onNavigate: (page: Page) => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
 }
 
 const MAX_IMAGES = 3;
@@ -55,6 +55,22 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   const [dbCats, setDbCats] = useState<string[]>([]);
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
+
+  const [advLocked, setAdvLocked] = useState(false);
+  const [gateChecked, setGateChecked] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      if (!user || !user.id) { if (mounted) setGateChecked(true); return; }
+      if (['admin', 'super_admin', 'corporate'].includes(user.role)) { if (mounted) { setAdvLocked(false); setGateChecked(true); } return; }
+      let has = await hasEntitlement(user.id, 'advertiser');
+      if (!has && user.role === 'advertiser' && user.profile?.registration_paid) has = true;
+      if (mounted) { setAdvLocked(!has); setGateChecked(true); }
+    };
+    check();
+    return () => { mounted = false; };
+  }, [user]);
 
   const selectedPlan = ALL_PLANS.find(p => p.name === formData.plan);
 
@@ -204,6 +220,29 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-xl p-6 lg:p-8 border border-gray-100">
+          {gateChecked && advLocked ? (
+            <div className="text-center py-10">
+              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-amber-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Advertiser Access Required</h2>
+              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                Creating adverts requires an Advertiser account. Add advertiser access to your account to unlock banner and service ad placement.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+                <button
+                  onClick={() => onOpenMpesa(100, 'Advertiser Subscription', 'ADV-SUB', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'advertiser')}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Add Advertiser Access (KES 100)
+                </button>
+                <button onClick={() => onNavigate('services')} className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-lg transition-colors">
+                  Back to Services
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {serverError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{serverError}</div>}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -296,6 +335,8 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
             </div>
           </form>
       <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="homepage_banner" />
+            </>
+          )}
         </div>
       </div>
     </div>

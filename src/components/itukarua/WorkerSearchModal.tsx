@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive } from '@/lib/database';
+import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import CertificateViewer from './CertificateViewer';
@@ -46,12 +46,13 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
         setHasSubscription(true);
       } else {
         const isEmployer = profile?.role === 'employer';
+        const employerEnt = await hasEntitlement(authUser.id, 'employer');
         if (isEmployer) {
           const paidReg = !!profile?.registration_paid;
           const subActive = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at).getTime() > Date.now() : false;
-          setHasSubscription(paidReg && subActive);
+          setHasSubscription(employerEnt || (paidReg && subActive));
         } else {
-          const active = await checkSubscriptionActive(authUser.id);
+          const active = employerEnt || (await hasEntitlement(authUser.id, 'jobseeker')) || (await checkSubscriptionActive(authUser.id));
           setHasSubscription(active);
         }
       }
@@ -188,7 +189,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
     } else {
       onOpenMpesa?.(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
         setHasSubscription(true);
-      });
+      }, false, false, null, 'employer');
     }
   };
 

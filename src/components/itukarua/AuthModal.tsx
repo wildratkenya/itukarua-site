@@ -12,7 +12,7 @@ interface AuthModalProps {
   initialTab?: 'login' | 'signup';
   initialRole?: 'advertiser' | 'employer' | 'jobseeker';
   onAuth: () => void;
-  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string) => void;
+  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', initialRole, onAuth, onOpenMpesa }) => {
@@ -347,7 +347,7 @@ data: {
                       setShowPlanChoice(false);
                       setChosenRole(null);
                       onClose();
-                      onOpenMpesa?.(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration');
+                      onOpenMpesa?.(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker');
                     }}
                     className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -50,7 +50,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  const isEmployer = user?.role === 'employer';
+  const isEmployer = user?.role === 'employer' || !!user?.entitlements?.some(e => e.role === 'employer');
   const hasJobAccess = isEmployer && (subscriptionActive || dayTokenAccess);
 
   useEffect(() => {
@@ -68,14 +68,14 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     };
     const checkSub = async () => {
       if (user?.role === 'jobseeker') {
-        const active = await checkSubscriptionActive(user.id);
+        const active = (await hasEntitlement(user.id, 'jobseeker')) || (await checkSubscriptionActive(user.id));
         setSubscriptionActive(active);
         if (!active) {
           const count = await getWeeklyBidCount(user.id);
           setWeeklyBidCount(count);
         }
-      } else if (user?.role === 'employer') {
-        const subActive = await checkSubscriptionActive(user.id);
+      } else if (isEmployer) {
+        const subActive = (await hasEntitlement(user.id, 'employer')) || (await checkSubscriptionActive(user.id));
         setSubscriptionActive(subActive);
         if (!subActive) {
           const hasAccess = await checkSingleJobDayToken(user.id, jobId);
@@ -540,12 +540,12 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                       <button onClick={() => setShowBidForm(true)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 mb-2">
                         <Send className="w-4 h-4" /> Bid on This Job
                       </button>
-                      <button disabled onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined)} className="w-full py-3 bg-gray-200 text-gray-400 font-semibold rounded-lg transition-colors cursor-not-allowed">
+                      <button disabled onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-gray-200 text-gray-400 font-semibold rounded-lg transition-colors cursor-not-allowed">
                         Upgrade to Premium — KES 100/mo
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
+                    <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
                       Upgrade to Premium — KES 100/mo
                     </button>
                   )}
