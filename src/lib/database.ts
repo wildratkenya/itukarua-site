@@ -1269,6 +1269,124 @@ export async function extendSubscription(userId: string, days: number): Promise<
   if (error) throw error;
 }
 
+// ─── Role Entitlements ──────────────────────────────────────────────────────
+// One account holds each paid role (jobseeker premium / employer / advertiser)
+// independently in profile_roles. A service is only reachable for roles the
+// user actually holds with a valid (paid, unexpired) entitlement.
+
+export type EntitlementRole = 'jobseeker' | 'employer' | 'advertiser';
+export type ProfileRoleEntitlement = {
+  role: EntitlementRole;
+  paid: boolean;
+  expires_at: string | null;
+  token_days: number;
+  created_at: string;
+};
+
+export async function getRoleEntitlements(userId: string): Promise<ProfileRoleEntitlement[]> {
+  const { data, error } = await supabase
+    .from('profile_roles')
+    .select('role, paid, expires_at, token_days, created_at')
+    .eq('user_id', userId);
+  if (error) {
+    console.error('[entitlements] get failed:', error);
+    return [];
+  }
+  return (data as ProfileRoleEntitlement[]) || [];
+}
+
+export async function hasEntitlement(userId: string, role: EntitlementRole): Promise<boolean> {
+  const { data } = await supabase
+    .from('profile_roles')
+    .select('paid, expires_at')
+    .eq('user_id', userId)
+    .eq('role', role)
+    .maybeSingle();
+  if (!data) return false;
+  if (!data.paid) return false;
+  if (data.expires_at) {
+    return new Date(data.expires_at).getTime() > Date.now();
+  }
+  return true;
+}
+
+export type SetEntitlementInput = {
+  paid?: boolean;
+  expires_at?: string | null;
+  token_days?: number;
+};
+
+export async function setRoleEntitlement(
+  userId: string,
+  role: EntitlementRole,
+  input: SetEntitlementInput
+): Promise<void> {
+  const { error } = await supabase
+    .from('profile_roles')
+    .upsert(
+      {
+        user_id: userId,
+        role,
+        paid: input.paid ?? true,
+        expires_at: input.expires_at ?? null,
+        token_days: input.token_days ?? 0,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,role' }
+    );
+  if (error) throw error;
+}
+
+export async function extendRoleSubscription(
+  userId: string,
+  role: EntitlementRole,
+  days: number
+): Promise<void> {
+  const { data } = await supabase
+    .from('profile_roles')
+    .select('paid, expires_at, token_days')
+    .eq('user_id', userId)
+    .eq('role', role)
+    .maybeSingle();
+  const base = data?.expires_at && new Date(data.expires_at).getTime() > Date.now()
+    ? new Date(data.expires_at)
+    : new Date();
+  base.setDate(base.getDate() + days);
+  const { error } = await supabase
+    .from('profile_roles')
+    .upsert(
+      {
+        user_id: userId,
+        role,
+        paid: true,
+        expires_at: base.toISOString(),
+        token_days: data?.token_days ?? 0,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,role' }
+    );
+  if (error) throw error;
+}
+
+// ─── Legacy jobseeker free entry ────────────────────────────────────────────
+// A jobseeker who has never paid still holds a (free, unpaid) entitlement so
+// they can use free features; premium features separately require a paid premium.
+
+export async function ensureJobseekerEntitlement(userId: string): Promise<void> {
+  const { data } = await supabase
+    .from('profile_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('role', 'jobseeker')
+    .maybeSingle();
+  if (!data) {
+    await supabase
+      .from('profile_roles')
+      .insert({ user_id: userId, role: 'jobseeker', paid: false })
+      .select();
+  }
+}
+
 // ─── Weekly Bid Counter ─────────────────────────────────────────────────────
 
 export async function getWeeklyBidCount(userId: string): Promise<number> {

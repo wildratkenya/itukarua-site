@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
@@ -27,11 +27,12 @@ interface DashboardPageProps {
   user: UserState;
   onNavigate: (page: Page) => void;
   onViewJob: (jobId: string) => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedRole, setSelectedRole] = useState<string>(user.role);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<DbJob[]>([]);
   const [bids, setBids] = useState<(DbBid & { job?: DbJob })[]>([]);
@@ -95,8 +96,20 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [categoryFormSaved, setCategoryFormSaved] = useState(false);
 
   const isAdmin = user.role === 'admin' || user.role === 'super_admin';
-  const isJobseeker = user.role === 'jobseeker';
-  const isAdvertiser = user.role === 'advertiser';
+  const isJobseeker = selectedRole === 'jobseeker';
+  const isAdvertiser = selectedRole === 'advertiser';
+  const isEmployer = selectedRole === 'employer';
+
+  const holdRoles = useMemo(() => {
+    const held = new Set<string>(user.entitlements?.map(e => e.role) ?? []);
+    held.add(user.role);
+    return ['jobseeker', 'employer', 'advertiser'].filter(r => held.has(r));
+  }, [user.entitlements, user.role]);
+  const missingRoles = useMemo(
+    () => ['jobseeker', 'employer', 'advertiser'].filter(r => !holdRoles.includes(r)),
+    [holdRoles]
+  );
+  const roleLabels: Record<string, string> = { jobseeker: 'Jobseeker', employer: 'Employer', advertiser: 'Advertiser' };
 
   useEffect(() => {
     const load = async () => {
@@ -184,7 +197,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             const allOpenJobs = await getJobs({ activeOnly: true, limit: 10 });
             setMatchingJobs(allOpenJobs);
           }
-        } else if (isAdvertiser || user.role === 'employer') {
+        } else if (isAdvertiser || isEmployer) {
           const dbCats = await getCustomCategories('job');
           setDbJobCategories(dbCats);
         }
@@ -213,7 +226,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       finally { setLoading(false); }
     };
     load();
-  }, [user.id, user.role, isAdmin, isJobseeker, isAdvertiser]);
+  }, [user.id, user.role, selectedRole, isAdmin, isJobseeker, isAdvertiser, isEmployer]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -307,6 +320,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setPwMessage(err.message || 'Failed to update password.');
     } finally {
       setPwSaving(false);
+    }
+  };
+
+  const roleIcon = (r: string) => (r === 'advertiser' ? Megaphone : r === 'jobseeker' ? User : Briefcase);
+  const entitlementFor = (r: string) => user.entitlements?.find(e => e.role === r) || null;
+  const isEntitlementExpired = (r: string) => {
+    const e = entitlementFor(r);
+    return !!e && e.paid && !!e.expires_at && new Date(e.expires_at).getTime() < Date.now();
+  };
+  const openRolePayment = (r: string) => {
+    if (r === 'employer') {
+      onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, true, false, null, 'employer');
+    } else if (r === 'advertiser') {
+      onOpenMpesa(100, 'Advertiser Subscription', 'ADV-SUB', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'advertiser');
+    } else {
+      onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker');
+    }
+  };
+  const addRole = async (r: string) => {
+    if (r === 'jobseeker') {
+      await ensureJobseekerEntitlement(user.id);
+      window.location.reload();
+    } else {
+      openRolePayment(r);
     }
   };
 
@@ -628,7 +665,57 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             </div>
           </div>
         </div>
-      </div>
+</div>
+
+      {!isAdmin && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Dashboards:</span>
+            {holdRoles.map(r => {
+              const active = selectedRole === r;
+              const expired = isEntitlementExpired(r);
+              const Icon = roleIcon(r);
+              return (
+                <button
+                  key={r}
+                  onClick={() => { setSelectedRole(r); setActiveTab('overview'); }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${active ? 'bg-green-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {roleLabels[r] || r}
+                  {expired && <span className={`w-2 h-2 rounded-full ${active ? 'bg-white' : 'bg-red-500'}`} />}
+                </button>
+              );
+            })}
+            {missingRoles.length > 0 && (
+              <>
+                <span className="text-gray-300 mx-1">|</span>
+                {missingRoles.map(r => (
+                  <button key={r} onClick={() => addRole(r)} className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${r === 'jobseeker' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'} border border-dashed`}>
+                    <Plus className="w-3.5 h-3.5" />
+                    Add {roleLabels[r]} {r === 'jobseeker' ? '(Free)' : ''}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+
+          {isEntitlementExpired(selectedRole) && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+                <div>
+                  <p className="font-semibold text-amber-900 text-sm">Your {roleLabels[selectedRole] || selectedRole} access expired</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Renew to keep using {roleLabels[selectedRole] || selectedRole} features.</p>
+                </div>
+              </div>
+              <button onClick={() => openRolePayment(selectedRole)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors">
+                Renew {roleLabels[selectedRole] || selectedRole} Access
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex gap-1 overflow-x-auto pb-2 mb-6 border-b border-gray-200">
