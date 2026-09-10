@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, Star } from 'lucide-react';
 import { getTestimonials, getPortfolioSites, getWebsitesCarouselSettings, type DbTestimonial, type DbPortfolioSite, type WebsitesCarouselSettings } from '@/lib/database';
 import { proxyImageUrl } from '@/lib/supabase';
@@ -56,45 +56,112 @@ const WebsitesTestimonials: React.FC = () => {
   }, [pageCount, settings.scrollIntervalSeconds, isHovered, goNextPage]);
 
   const transitionMs = Math.round(Math.max(0, settings.transitionDurationSeconds) * 1000);
-  const isFade = settings.effect === 'fade';
-  const isZoom = settings.effect === 'zoom';
 
-  const renderSiteCard = (site: SiteCard) => (
-    <a
-      key={site.url}
-      href={site.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex flex-col rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group/site bg-white"
-    >
-      {/* Browser chrome */}
-      <div className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-100 border-b border-gray-200">
-        <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-        <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-        <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
-        <span className="ml-2 flex-1 truncate text-[10px] text-gray-500 bg-white border border-gray-200 rounded-md px-2 py-1">
-          {site.url.replace(/^https?:\/\//, '')}
-        </span>
-      </div>
-      {/* Card body */}
-      <div className="p-4 flex-1 flex flex-col">
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center text-white font-bold mb-3">
-          {site.initials}
-        </div>
-        <h3 className="font-semibold text-gray-900 truncate">{site.title}</h3>
-        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{site.description}</p>
-        <div className="mt-auto pt-3 flex items-center gap-2 text-green-600 text-sm font-medium">
-          Visit Site <ExternalLink className="w-3.5 h-3.5 group-hover/site:translate-x-0.5 transition-transform" />
-        </div>
-      </div>
-    </a>
-  );
+  const getInitials = (title: string) => {
+    const parts = title.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'WEB';
+    return parts.map(p => p[0]).slice(0, 2).join('').toUpperCase();
+  };
 
-  const renderPage = (pageSites: SiteCard[]) => (
+  const getDomain = (url?: string) => {
+    if (!url) return 'Screenshot';
+    try { return url.replace(/^https?:\/\//, '').replace(/\/.*$/, ''); }
+    catch { return url; }
+  };
+
+  const renderSiteCard = (site: DbPortfolioSite) => {
+    const cardInner = (
+      <div className="flex flex-col rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group/site bg-white h-full">
+        {/* Browser chrome */}
+        <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 border-b border-gray-200">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+          <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
+          <span className="ml-2 flex-1 truncate text-[10px] text-gray-500 bg-white border border-gray-200 rounded-md px-2 py-0.5">
+            {getDomain(site.url)}
+          </span>
+        </div>
+        {/* Screenshot or initials */}
+        <div className="flex-1 bg-gray-50 flex items-center justify-center overflow-hidden">
+          {site.image_url ? (
+            <img
+              src={proxyImageUrl(site.image_url)}
+              alt={site.title}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-32 object-cover object-top"
+            />
+          ) : (
+            <div className="w-full h-32 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center text-white font-bold text-sm">
+                {getInitials(site.title)}
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Card body */}
+        <div className="p-4">
+          <h3 className="font-semibold text-gray-900 truncate text-sm">{site.title}</h3>
+          {site.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{site.description}</p>}
+          {site.url && (
+            <div className="mt-3 flex items-center gap-2 text-green-600 text-sm font-medium">
+              Visit Site <ExternalLink className="w-3.5 h-3.5 group-hover/site:translate-x-0.5 transition-transform" />
+            </div>
+          )}
+          {!site.url && (
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Recently launched
+            </div>
+          )}
+        </div>
+      </div>
+    );
+    return site.url ? (
+      <a key={site.id} href={site.url} target="_blank" rel="noopener noreferrer" className="block h-full">
+        {cardInner}
+      </a>
+    ) : (
+      <div key={site.id} className="h-full">{cardInner}</div>
+    );
+  };
+
+  const pageBaseCls = 'transition-all will-change-transform';
+  const renderPageClass = (i: number): string => {
+    const active = i === currentPage;
+    switch (settings.effect) {
+      case 'fade':
+        return cn(pageBaseCls, active ? 'opacity-100 relative z-10' : 'opacity-0 absolute inset-0 z-0 pointer-events-none');
+      case 'zoom':
+        return cn(pageBaseCls, active ? 'opacity-100 scale-100 relative z-10' : 'opacity-0 scale-90 absolute inset-0 z-0 pointer-events-none');
+      case 'fadeUp':
+        return cn(pageBaseCls, active ? 'opacity-100 translate-y-0 relative z-10' : 'opacity-0 translate-y-6 absolute inset-0 z-0 pointer-events-none');
+      case 'slide':
+      default:
+        return 'w-full flex-shrink-0';
+    }
+  };
+
+  const renderPageStyle = (i: number) => {
+    if (settings.effect !== 'flip') return undefined;
+    const active = i === currentPage;
+    return {
+      opacity: active ? 1 : 0,
+      transform: active ? 'rotateX(0deg)' : 'rotateX(90deg)',
+      transitionDuration: `${transitionMs}ms`,
+      position: (active ? 'relative' : 'absolute') as any,
+      inset: active ? undefined : 0,
+      zIndex: active ? 10 : 0,
+      pointerEvents: active ? undefined : 'none',
+    };
+  };
+
+  const renderPage = (pageSites: DbPortfolioSite[]) => (
     <div className="w-full h-full grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
       {pageSites.map(site => renderSiteCard(site))}
     </div>
   );
+
+  const isHorizontalSlide = settings.effect === 'slide';
 
   return (
     <section className="py-12 lg:py-16 bg-white">
@@ -111,43 +178,25 @@ const WebsitesTestimonials: React.FC = () => {
           className="group/scroller relative"
         >
           <div className="min-h-[220px]">
-            {isFade ? (
-              <div className="relative">
-                {pages.map((pageSites, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'transition-opacity',
-                      i === currentPage ? 'opacity-100 relative z-10' : 'opacity-0 absolute inset-0 z-0 pointer-events-none'
-                    )}
-                    style={{ transitionDuration: `${transitionMs}ms` }}
-                  >
-                    {renderPage(pageSites)}
-                  </div>
-                ))}
-              </div>
-            ) : isZoom ? (
-              <div className="relative">
-                {pages.map((pageSites, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'transition-all',
-                      i === currentPage ? 'opacity-100 scale-100 relative z-10' : 'opacity-0 scale-95 absolute inset-0 z-0 pointer-events-none'
-                    )}
-                    style={{ transitionDuration: `${transitionMs}ms` }}
-                  >
-                    {renderPage(pageSites)}
-                  </div>
-                ))}
-              </div>
-            ) : (
+            {isHorizontalSlide ? (
               <div
                 className="flex"
                 style={{ transform: `translateX(-${currentPage * 100}%)`, transition: `transform ${transitionMs}ms ease` }}
               >
                 {pages.map((pageSites, i) => (
                   <div key={i} className="w-full flex-shrink-0">
+                    {renderPage(pageSites)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="relative">
+                {pages.map((pageSites, i) => (
+                  <div
+                    key={i}
+                    className={renderPageClass(i)}
+                    style={renderPageStyle(i) || { transitionDuration: `${transitionMs}ms` }}
+                  >
                     {renderPage(pageSites)}
                   </div>
                 ))}
