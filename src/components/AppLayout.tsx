@@ -84,6 +84,13 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   const [user, setUser] = useState<UserState | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
+  const [authRole, setAuthRole] = useState<'advertiser' | 'employer' | 'jobseeker' | undefined>(undefined);
+  const [passwordResetOpen, setPasswordResetOpen] = useState(false);
+  const [resetPassNew, setResetPassNew] = useState('');
+  const [resetPassConfirm, setResetPassConfirm] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetDone, setResetDone] = useState(false);
   const loginJustHappened = useRef(false);
   const loginFromWorkerPopup = useRef(false);
   const skipTopScroll = useRef(false);
@@ -184,6 +191,18 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
 
       if (session) saveSession(session);
       else if (event === 'SIGNED_OUT') saveSession(null);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the emailed reset link — today the app signs them in for
+        // the reset session, so surface the "set a new password" dialog instead.
+        setResetPassNew('');
+        setResetPassConfirm('');
+        setResetError('');
+        setResetDone(false);
+        setPasswordResetOpen(true);
+        if (mounted) setAuthLoading(false);
+        return;
+      }
       
       if (event === 'SIGNED_IN' && session?.user) {
         const profile = await getProfile(session.user.id);
@@ -316,10 +335,35 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     setCurrentPage(page);
   }, [user, currentPage]);
 
-  const handleOpenAuth = useCallback((tab: 'login' | 'signup') => {
+  const handleOpenAuth = useCallback((tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => {
     setAuthTab(tab);
+    setAuthRole(role);
     setAuthModalOpen(true);
   }, []);
+
+  const handlePasswordReset = async () => {
+    if (resetPassNew.length < 6) {
+      setResetError('Password must be at least 6 characters');
+      return;
+    }
+    if (resetPassNew !== resetPassConfirm) {
+      setResetError('Passwords do not match');
+      return;
+    }
+    setResetLoading(true);
+    setResetError('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: resetPassNew });
+      if (error) throw error;
+      setResetDone(true);
+      await supabase.auth.signOut();
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      setResetError(err?.message || 'Could not update password. Please try again.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleAuthComplete = useCallback(() => {
     loginJustHappened.current = true;
@@ -453,7 +497,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         case 'services':
           return <ServicesPage onNavigate={handleNavigate} />;
         case 'pricing':
-          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} />;
+          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} user={simpleUser} />;
         case 'about':
           return <AboutPage />;
         case 'contact':
@@ -636,10 +680,85 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
 
       <Footer onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onSearchCounty={handleSearchCounty} />
 
+      {passwordResetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setPasswordResetOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Set a new password</h2>
+              <button onClick={() => setPasswordResetOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            {resetDone ? (
+              <div className="p-6">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                  <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                  <p className="font-semibold text-green-800">Password updated!</p>
+                  <p className="text-sm text-green-700 mt-1">You can now sign in with your new password.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPasswordResetOpen(false)}
+                  className="w-full mt-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form
+                className="p-6 space-y-4"
+                onSubmit={e => { e.preventDefault(); handlePasswordReset(); }}
+              >
+                {resetError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    {resetError}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
+                  <input
+                    type="password"
+                    value={resetPassNew}
+                    onChange={e => setResetPassNew(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    placeholder="Min 6 characters"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label>
+                  <input
+                    type="password"
+                    value={resetPassConfirm}
+                    onChange={e => setResetPassConfirm(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    placeholder="Repeat password"
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  After saving, you'll be signed out and can log in with your new password.
+                </p>
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {resetLoading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    'Update Password'
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         initialTab={authTab}
+        initialRole={authRole}
         onAuth={handleAuthComplete}
         onOpenMpesa={(amount, description, accountRef, paymentType) => handleOpenMpesa(amount, description, accountRef, paymentType)}
       />
