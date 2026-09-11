@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
@@ -1649,6 +1649,420 @@ const AdminPage: React.FC = () => {
     );
   }
 
+  const renderCarouselSettings = () => (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>Homepage Carousel Settings</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-gray-500 mb-4">The homepage banner shows 5 ad photos at once and rotates to the next 5. These controls set the speed and transition.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <Label>Scroll Speed (seconds)</Label>
+            <Input type="number" min={1} max={60} step={1} value={carouselSettings.scrollIntervalSeconds} onChange={e => setCarouselSettings(s => ({ ...s, scrollIntervalSeconds: Math.max(1, Number(e.target.value) || 1) }))} />
+            <p className="text-xs text-gray-400 mt-1">Time before it rotates to the next 5 ads</p>
+          </div>
+          <div>
+            <Label>Transition Duration (seconds)</Label>
+            <Input type="number" min={0} max={5} step={0.1} value={carouselSettings.transitionDurationSeconds} onChange={e => setCarouselSettings(s => ({ ...s, transitionDurationSeconds: Math.max(0, Number(e.target.value) || 0) }))} />
+            <p className="text-xs text-gray-400 mt-1">How fast the slide/fade happens</p>
+          </div>
+          <div>
+            <Label>Transition Effect</Label>
+            <select value={carouselSettings.effect} onChange={e => setCarouselSettings(s => ({ ...s, effect: e.target.value as 'slide' | 'fade' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+              <option value="slide">Slide</option>
+              <option value="fade">Fade</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Slide scrolls pages; Fade cross-fades them</p>
+          </div>
+        </div>
+        <Button onClick={saveCarouselSettings} disabled={carouselSaving} className="mt-4 bg-green-600 hover:bg-green-700">
+          {carouselSaving ? 'Saving...' : 'Save Carousel Settings'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const renderBannerManager = ({ slotFilter }: { slotFilter: string }) => {
+    const homeOnly = slotFilter === 'homepage_banner';
+    const scope = homeOnly
+      ? adverts.filter(a => a.slot === 'homepage_banner')
+      : adverts.filter(a => a.slot !== 'homepage_banner');
+    const expCount = scope.filter(a => a.billing_end && new Date(a.billing_end).getTime() <= Date.now()).length;
+    const actCount = scope.filter(a => !a.billing_end || new Date(a.billing_end).getTime() > Date.now()).length;
+
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <CardTitle>{homeOnly ? 'Homepage Banners' : 'Banners'} ({scope.length})</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {(['all', 'active', 'expired'] as const).map(v => (
+                <button key={v} onClick={() => setAdvertsView(v)} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors capitalize ${advertsView === v ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+                  {v === 'all' ? `All (${scope.length})` : v === 'active' ? `Active (${actCount})` : `Expired (${expCount})`}
+                </button>
+              ))}
+            </div>
+            <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: homeOnly ? 'homepage_banner' : 'job_listings_top', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>{homeOnly ? '+ Add Homepage Banner' : '+ Add Advert'}</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder={homeOnly ? 'Search homepage banners by title...' : 'Search banners by title...'} className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+          </div>
+          {showAdForm && (
+            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : homeOnly ? 'New Homepage Banner' : 'New Advert'}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Title <span className="text-red-500">*</span></label>
+                  <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
+                <div className="col-span-full">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Banner Images <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">(up to 8)</span></label>
+                  <p className="text-[11px] text-amber-600 mb-2">First image is the main banner; all images show in the popup. 10-day: 3 images, 20-day: 5, 30-day: 8. Each photo is compressed automatically and opens full-size when clicked.</p>
+                  <div key={advUploadKey} className="flex flex-wrap gap-2 mb-2">
+                    {adForm.images.length === 0 && (
+                      <div className="w-32 h-24 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400"><Plus className="w-5 h-5" /></div>
+                    )}
+                    {adForm.images.map((img, i) => (
+                      <div key={i} className="relative w-32 h-24 rounded border border-gray-200 overflow-hidden bg-gray-100">
+                        <img src={proxyImageUrl(img)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        {i === 0 && <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Main</span>}
+                        <button onClick={() => removeAdminAdImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-colors"><X className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+                      <Upload className="w-4 h-4 inline mr-1" />
+                      {advUploading ? 'Uploading...' : 'Upload Images'}
+                      <input type="file" accept="image/png, image/jpeg, image/webp" multiple hidden disabled={advUploading} onChange={e => { uploadAdImages(e.target.files); e.target.value = ''; }} />
+                    </label>
+                    <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                    <button onClick={addAdminAdUrl} disabled={adForm.images.length >= 8 || !advUrlInput.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors">Add</button>
+                  </div>
+                </div>
+                <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                {homeOnly ? (
+                  <div className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500">Homepage Carousel Banner</div>
+                ) : corpAdSlots ? (
+                  <select value={adForm.slot || 'job_listings_top'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    {corpAdSlots.length > 0 ? corpAdSlots.filter(s => s !== 'homepage_banner').map(s => <option key={s} value={s}>{slotLabel(s)}</option>) : <option value="">No slots in this bundle</option>}
+                  </select>
+                ) : (
+                  <select value={adForm.slot || 'job_listings_top'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="job_listings_top">Corporate Top Banner</option>
+                    <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
+                    <option value="category_strip">Category Strip (corporate Silver)</option>
+                  </select>
+                )}
+                <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="7 days">7 Days (KES 200)</option>
+                  <option value="10 days">10 Days (KES 300)</option>
+                  <option value="20 days">20 Days (KES 500)</option>
+                  <option value="30 days">30 Days (KES 800)</option>
+                </select>
+                <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                <select value={adForm.corporate_tier || ''} onChange={e => setAdForm({ ...adForm, corporate_tier: e.target.value === '' ? undefined : e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">Regular advert</option>
+                  <option value="bronze">Corporate — Bronze</option>
+                  <option value="silver">Corporate — Silver</option>
+                  <option value="gold">Corporate — Gold</option>
+                  <option value="custom">Corporate — Custom</option>
+                </select>
+                <select value={adForm.corporate_account_id || ''} onChange={e => { const id = e.target.value === '' ? undefined : e.target.value; const acc = id ? corporateAccounts.find(a => a.id === id) : undefined; setAdForm({ ...adForm, corporate_account_id: id, corporate_tier: acc?.tier, featured: acc ? effectiveFeaturesFor(acc).featured : adForm.featured, slot: acc && homeOnly ? 'homepage_banner' : adForm.slot }); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                  <option value="">No corporate account (personal/regular)</option>
+                  {corporateAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.company_name} — {acc.tier} {acc.is_active ? '' : '(suspended)'}</option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                    Affiliate
+                  </label>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={adForm.featured} onChange={e => setAdForm({ ...adForm, featured: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                    Featured <span className="text-xs text-gray-400">(shows on homepage carousel and side rail)</span>
+                  </label>
+                </div>
+                <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '7 days'} cycle — KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : adForm.billing_cycle === '10 days' ? '300' : '200'}/week. Renewal alerts & invoices are sent from the Billing tab.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={async () => {
+                  const primaryUrl = adForm.images[0] || adForm.image_url;
+                  if (!adForm.title || !primaryUrl) {
+                    toast({ title: 'Missing fields', description: 'Title and at least one banner image are required', variant: 'destructive' });
+                    return;
+                  }
+                  if (corpForAdForm) {
+                    const eff = effectiveFeaturesFor(corpForAdForm);
+                    const chosenSlot = adForm.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top');
+                    if (!eff.slots.includes(chosenSlot)) {
+                      toast({ title: 'Slot not in bundle', description: `${corpForAdForm.company_name}'s bundle does not include ${slotLabel(chosenSlot)}. Choose one of: ${eff.slots.map(s => slotLabel(s)).join(', ') || 'none'}.`, variant: 'destructive' });
+                      return;
+                    }
+                    if (!adForm.id) {
+                      const liveCount = adverts.filter(a => a.corporate_account_id === corpForAdForm.id).length;
+                      if (liveCount >= eff.maxPlacements) {
+                        toast({ title: 'Placement limit reached', description: `${corpForAdForm.company_name} has used its ${eff.maxPlacements} placement(s).`, variant: 'destructive' });
+                        return;
+                      }
+                    }
+                  }
+                  const images = adForm.images.length ? adForm.images : [adForm.image_url];
+                  const finishSaved = () => {
+                    setShowAdForm(false);
+                    loadAdverts();
+                    toast({ title: 'Success', description: adForm.id ? 'Ad updated' : 'Ad created' });
+                  };
+                  const findRecent = async () => {
+                    try {
+                      if (adForm.id) {
+                        const { data } = await withTimeout(supabase.from('advertisements').select('id,title').eq('id', adForm.id).limit(1), 15000, 'Verify');
+                        return !!data && data.length > 0;
+                      }
+                      const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+                      const { data } = await withTimeout(supabase.from('advertisements').select('id').eq('image_url', primaryUrl).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(1), 15000, 'Verify');
+                      return !!data && data.length > 0;
+                    } catch {
+                      return false;
+                    }
+                  };
+                  try {
+                    const nowIso = new Date().toISOString();
+                    const cycleDays = adForm.billing_cycle === '30 days' ? 30 : adForm.billing_cycle === '20 days' ? 20 : adForm.billing_cycle === '10 days' ? 10 : 7;
+                    const cycleEndIso = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
+                    if (adForm.id) {
+                      const { id, image_url, images: _oldImages, ...updateData } = adForm;
+                      const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: updateData.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top') };
+                      patch.corporate_account_id = patch.corporate_account_id || null;
+                      if (!adForm.is_affiliate) {
+                        patch.billing_cycle = adForm.billing_cycle || '7 days';
+                        if (!patch.billing_start) patch.billing_start = nowIso;
+                        if (!patch.billing_end) patch.billing_end = cycleEndIso;
+                      }
+                      const { error } = await proxyTable('advertisements').update(patch, 'id', adForm.id);
+                      if (error) throw error;
+                    } else {
+                      const { id, image_url, images: _oldImages, ...insertData } = adForm;
+                      const alreadySaved = await findRecent();
+                      if (alreadySaved) {
+                        finishSaved();
+                        return;
+                      }
+                      const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: insertData.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top') };
+                      insert.corporate_account_id = insert.corporate_account_id || null;
+                      if (!insertData.is_affiliate) {
+                        insert.billing_cycle = insertData.billing_cycle || '7 days';
+                        insert.billing_start = nowIso;
+                        insert.billing_end = cycleEndIso;
+                      }
+                      const { error } = await proxyTable('advertisements').insert(insert);
+                      if (error) throw error;
+                    }
+                    finishSaved();
+                  } catch (err: any) {
+                    console.error('[Advert Save] failed:', err);
+                    const timedOut = /timed out/i.test(err?.message || '');
+                    if (timedOut) {
+                      const saved = await findRecent();
+                      if (saved) {
+                        finishSaved();
+                        return;
+                      }
+                    }
+                    const code = err?.code ? ` (${err.code})` : '';
+                    const hint = timedOut ? await (async () => {
+                      const probe = await probeDb();
+                      return timeoutHint(probe.blocked, probe.ok);
+                    })() : '';
+                    toast({ title: 'Error', description: `${err?.message || 'Failed to save ad'}${code}${hint}`, variant: 'destructive' });
+                  }
+                }} className="bg-green-600 hover:bg-green-700">{adForm.id ? 'Update' : 'Create'}</Button>
+                <Button variant="outline" onClick={() => setShowAdForm(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+          {scope.length === 0 ? (
+            <p className="text-sm text-gray-400">{homeOnly ? 'No homepage banners yet.' : 'No advertisements yet.'}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Image</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Expiry</TableHead>
+                  <TableHead className="text-center">Featured</TableHead>
+                  <TableHead className="text-center">Active</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scope.filter(a => {
+                  const isExpired = !!a.billing_end && new Date(a.billing_end).getTime() <= Date.now();
+                  if (advertsView === 'active' && isExpired) return false;
+                  if (advertsView === 'expired' && !isExpired) return false;
+                  return !searchAdverts || a.title?.toLowerCase().includes(searchAdverts.toLowerCase());
+                }).map(ad => {
+                  const advEndMs = ad.billing_end ? new Date(ad.billing_end).getTime() : 0;
+                  const advActive = advEndMs > Date.now();
+                  const advExpired = !!ad.billing_end && advEndMs <= Date.now();
+                  const isBoosted = !!ad.featured && !!ad.boost_until && new Date(ad.boost_until).getTime() > Date.now();
+                  return (
+                  <TableRow key={ad.id}>
+                    <TableCell>
+                      <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    </TableCell>
+                    <TableCell>
+                      <div>{ad.title}</div>
+                      <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Corporate Top Banner' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
+                    </TableCell>
+                    <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>
+                    <TableCell>
+                      {!ad.billing_end ? (
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
+                      ) : advActive ? (
+                        <>
+                          <Badge variant="success">Active · {Math.ceil((advEndMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
+                          <div className="text-[10px] text-gray-400 mt-0.5">Billing ends {ad.billing_end ? ad.billing_end.split('T')[0] : ''}</div>
+                        </>
+                      ) : (
+                        <>
+                          <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - advEndMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
+                          <div className="text-[10px] text-gray-400 mt-0.5">Billing ended {ad.billing_end ? ad.billing_end.split('T')[0] : ''}</div>
+                        </>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button onClick={async () => {
+                        try {
+                          const { error } = await proxyTable('advertisements').update({ featured: !(ad.featured ?? false) }, 'id', ad.id);
+                          if (error) throw error;
+                          loadAdverts();
+                        } catch (err: any) {
+                          toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                        }
+                      }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button onClick={async () => {
+                        await proxyTable('advertisements').update({ active: !(ad.active ?? false) }, 'id', ad.id);
+                        loadAdverts();
+                      }} title={ad.active ? 'Published — visible on the site' : 'Unpublished — hidden'} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top'), billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
+                          Edit
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8 gap-1">
+                              <MoreVertical className="w-4 h-4" />
+                              More
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-60">
+                            <div className="px-2 py-1.5 border-b border-gray-100 mb-1">
+                              {ad.destination_url ? (
+                                <a href={ad.destination_url} target="_blank" rel="noreferrer" title={ad.destination_url} className="block text-xs text-blue-600 truncate hover:underline">{ad.destination_url}</a>
+                              ) : (
+                                <p className="text-xs text-gray-400">No destination link</p>
+                              )}
+                              <p className="text-xs text-gray-500 mt-1">{ad.clicks || 0} clicks · {ad.display_count || 0} impressions</p>
+                            </div>
+                            <DropdownMenuSeparator />
+                            {currentRole === 'super_admin' && (
+                              isBoosted ? (
+                                <DropdownMenuItem onClick={async () => {
+                                  const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
+                                  if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                  else loadAdverts();
+                                }}>
+                                  <Zap className="w-4 h-4 text-amber-500" /> End boost
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={async () => {
+                                  const { error } = await proxyTable('advertisements').update({ featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }, 'id', ad.id);
+                                  if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                  else { loadAdverts(); toast({ title: 'Boosted', description: `"${ad.title}" boosted for 7 days` }); }
+                                }}>
+                                  <Zap className="w-4 h-4 text-amber-500" /> Boost +7 days
+                                </DropdownMenuItem>
+                              )
+                            )}
+                            {currentRole === 'super_admin' && (
+                              <>
+                                <DropdownMenuSeparator />
+                                {advExpired ? (
+                                  <div className="px-2 py-1.5">
+                                    <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={addAdvertDays[ad.id] ?? 30}
+                                        onChange={e => {
+                                          const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                          setAddAdvertDays(prev => ({ ...prev, [ad.id]: v }));
+                                        }}
+                                        className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                      />
+                                      <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdvertDays(ad.id, addAdvertDays[ad.id] ?? 30, ad.title || 'Advert')}>
+                                        Add Days
+                                      </Button>
+                                      <Button variant="outline" size="sm" onClick={() => extendAdvertDays(ad.id, 1, ad.title || 'Advert')}>
+                                        +1 Day
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
+                                )}
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={async () => {
+                              if (!window.confirm(`Delete "${ad.title}"?`)) return;
+                              try {
+                                const { error } = await proxyTable('advertisements').delete('id', ad.id);
+                                if (error) throw error;
+                                setAdverts(prev => prev.filter(a => a.id !== ad.id));
+                                toast({ title: 'Deleted', description: `"${ad.title}" removed` });
+                              } catch (err: any) {
+                                toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
+                              }
+                            }}>
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  )})}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -1670,6 +2084,7 @@ const AdminPage: React.FC = () => {
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
                 { id: 'adverts', label: 'Banners', icon: <MonitorPlay className="w-4 h-4" /> },
+                { id: 'homepage-banners', label: 'Homepage banner', icon: <Images className="w-4 h-4" /> },
                 { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -2848,413 +3263,13 @@ const AdminPage: React.FC = () => {
             </Card>
           )}
 
-          {activeTab === 'adverts' && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Homepage Carousel Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-500 mb-4">The homepage banner shows 5 ad photos at once and rotates to the next 5. These controls set the speed and transition.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <Label>Scroll Speed (seconds)</Label>
-                    <Input type="number" min={1} max={60} step={1} value={carouselSettings.scrollIntervalSeconds} onChange={e => setCarouselSettings(s => ({ ...s, scrollIntervalSeconds: Math.max(1, Number(e.target.value) || 1) }))} />
-                    <p className="text-xs text-gray-400 mt-1">Time before it rotates to the next 5 ads</p>
-                  </div>
-                  <div>
-                    <Label>Transition Duration (seconds)</Label>
-                    <Input type="number" min={0} max={5} step={0.1} value={carouselSettings.transitionDurationSeconds} onChange={e => setCarouselSettings(s => ({ ...s, transitionDurationSeconds: Math.max(0, Number(e.target.value) || 0) }))} />
-                    <p className="text-xs text-gray-400 mt-1">How fast the slide/fade happens</p>
-                  </div>
-                  <div>
-                    <Label>Transition Effect</Label>
-                    <select value={carouselSettings.effect} onChange={e => setCarouselSettings(s => ({ ...s, effect: e.target.value as 'slide' | 'fade' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                      <option value="slide">Slide</option>
-                      <option value="fade">Fade</option>
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Slide scrolls pages; Fade cross-fades them</p>
-                  </div>
-                </div>
-                <Button onClick={saveCarouselSettings} disabled={carouselSaving} className="mt-4 bg-green-600 hover:bg-green-700">
-                  {carouselSaving ? 'Saving...' : 'Save Carousel Settings'}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === 'adverts' && renderCarouselSettings()}
 
-          {activeTab === 'adverts' && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-                <CardTitle>Banners ({adverts.length})</CardTitle>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                    {(['all', 'active', 'expired'] as const).map(v => {
-                      const expCount = adverts.filter(a => a.billing_end && new Date(a.billing_end).getTime() <= Date.now()).length;
-                      const actCount = adverts.filter(a => !a.billing_end || new Date(a.billing_end).getTime() > Date.now()).length;
-                      return (
-                      <button key={v} onClick={() => setAdvertsView(v)} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors capitalize ${advertsView === v ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                        {v === 'all' ? `All (${adverts.length})` : v === 'active' ? `Active (${actCount})` : `Expired (${expCount})`}
-                      </button>
-                    );})}
-                  </div>
-                  <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>+ Add Advert</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search banners by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                {showAdForm && (
-                  <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Advert'}</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Title <span className="text-red-500">*</span></label>
-                        <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Advert title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      </div>
-                      <div className="col-span-full">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Banner Images <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">(up to 8)</span></label>
-                        <p className="text-[11px] text-amber-600 mb-2">First image is the main banner; all images show in the popup. 10-day: 3 images, 20-day: 5, 30-day: 8. Each photo is compressed automatically and opens full-size when clicked.</p>
-                        <div key={advUploadKey} className="flex flex-wrap gap-2 mb-2">
-                          {adForm.images.length === 0 && (
-                            <div className="w-32 h-24 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400"><Plus className="w-5 h-5" /></div>
-                          )}
-                          {adForm.images.map((img, i) => (
-                            <div key={i} className="relative w-32 h-24 rounded border border-gray-200 overflow-hidden bg-gray-100">
-                              <img src={proxyImageUrl(img)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              {i === 0 && <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Main</span>}
-                              <button onClick={() => removeAdminAdImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-colors"><X className="w-3 h-3" /></button>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <label className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors ${advUploading ? 'bg-gray-300 text-gray-500' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-                            <Upload className="w-4 h-4 inline mr-1" />
-                            {advUploading ? 'Uploading...' : 'Upload Images'}
-                            <input type="file" accept="image/png, image/jpeg, image/webp" multiple hidden disabled={advUploading} onChange={e => { uploadAdImages(e.target.files); e.target.value = ''; }} />
-                          </label>
-                          <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                          <button onClick={addAdminAdUrl} disabled={adForm.images.length >= 8 || !advUrlInput.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors">Add</button>
-                        </div>
-                      </div>
-                      <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="Destination URL" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      <select value={adForm.slot || 'homepage_banner'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        {corpAdSlots ? (
-                          corpAdSlots.length > 0 ? corpAdSlots.map(s => <option key={s} value={s}>{slotLabel(s)}</option>)
-                            : <option value="">No slots in this bundle</option>
-                        ) : (
-                          <>
-                            <option value="homepage_banner">Homepage Carousel Banner</option>
-                            <option value="job_listings_top">Corporate Top Banner</option>
-                            <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
-                            <option value="category_strip">Category Strip (corporate Silver)</option>
-                          </>
-                        )}
-                      </select>
-                      <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="7 days">7 Days (KES 200)</option>
-                        <option value="10 days">10 Days (KES 300)</option>
-                        <option value="20 days">20 Days (KES 500)</option>
-                        <option value="30 days">30 Days (KES 800)</option>
-                      </select>
-                      <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                      <select value={adForm.corporate_tier || ''} onChange={e => setAdForm({ ...adForm, corporate_tier: e.target.value === '' ? undefined : e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="">Regular advert</option>
-                        <option value="bronze">Corporate — Bronze</option>
-                        <option value="silver">Corporate — Silver</option>
-                        <option value="gold">Corporate — Gold</option>
-                        <option value="custom">Corporate — Custom</option>
-                      </select>
-                      <select value={adForm.corporate_account_id || ''} onChange={e => { const id = e.target.value === '' ? undefined : e.target.value; const acc = id ? corporateAccounts.find(a => a.id === id) : undefined; setAdForm({ ...adForm, corporate_account_id: id, corporate_tier: acc?.tier, featured: acc ? effectiveFeaturesFor(acc).featured : adForm.featured }); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="">No corporate account (personal/regular)</option>
-                        {corporateAccounts.map(acc => (
-                          <option key={acc.id} value={acc.id}>{acc.company_name} — {acc.tier} {acc.is_active ? '' : '(suspended)'}</option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                          Affiliate
-                        </label>
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input type="checkbox" checked={adForm.featured} onChange={e => setAdForm({ ...adForm, featured: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                          Featured <span className="text-xs text-gray-400">(shows on homepage carousel and side rail)</span>
-                        </label>
-                      </div>
-                      <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '7 days'} cycle — KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : adForm.billing_cycle === '10 days' ? '300' : '200'}/week. Renewal alerts & invoices are sent from the Billing tab.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={async () => {
-                        const primaryUrl = adForm.images[0] || adForm.image_url;
-                        if (!adForm.title || !primaryUrl) {
-                          toast({ title: 'Missing fields', description: 'Title and at least one banner image are required', variant: 'destructive' });
-                          return;
-                        }
-                        if (corpForAdForm) {
-                          const eff = effectiveFeaturesFor(corpForAdForm);
-                          const chosenSlot = adForm.slot || 'homepage_banner';
-                          if (!eff.slots.includes(chosenSlot)) {
-                            toast({ title: 'Slot not in bundle', description: `${corpForAdForm.company_name}'s bundle does not include ${slotLabel(chosenSlot)}. Choose one of: ${eff.slots.map(s => slotLabel(s)).join(', ') || 'none'}.`, variant: 'destructive' });
-                            return;
-                          }
-                          if (!adForm.id) {
-                            const liveCount = adverts.filter(a => a.corporate_account_id === corpForAdForm.id).length;
-                            if (liveCount >= eff.maxPlacements) {
-                              toast({ title: 'Placement limit reached', description: `${corpForAdForm.company_name} has used its ${eff.maxPlacements} placement(s).`, variant: 'destructive' });
-                              return;
-                            }
-                          }
-                        }
-                        const images = adForm.images.length ? adForm.images : [adForm.image_url];
-                        const finishSaved = () => {
-                          setShowAdForm(false);
-                          loadAdverts();
-                          toast({ title: 'Success', description: adForm.id ? 'Ad updated' : 'Ad created' });
-                        };
-                        const findRecent = async () => {
-                          try {
-                            if (adForm.id) {
-                              const { data } = await withTimeout(supabase.from('advertisements').select('id,title').eq('id', adForm.id).limit(1), 15000, 'Verify');
-                              return !!data && data.length > 0;
-                            }
-                            const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-                            const { data } = await withTimeout(supabase.from('advertisements').select('id').eq('image_url', primaryUrl).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(1), 15000, 'Verify');
-                            return !!data && data.length > 0;
-                          } catch {
-                            return false;
-                          }
-                        };
-                        try {
-                          const nowIso = new Date().toISOString();
-                          const cycleDays = adForm.billing_cycle === '30 days' ? 30 : adForm.billing_cycle === '20 days' ? 20 : adForm.billing_cycle === '10 days' ? 10 : 7;
-                          const cycleEndIso = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
-                          if (adForm.id) {
-                            const { id, image_url, images: _oldImages, ...updateData } = adForm;
-                            const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: updateData.slot || 'homepage_banner' };
-                            patch.corporate_account_id = patch.corporate_account_id || null;
-                            if (!adForm.is_affiliate) {
-                              patch.billing_cycle = adForm.billing_cycle || '7 days';
-                              if (!patch.billing_start) patch.billing_start = nowIso;
-                              if (!patch.billing_end) patch.billing_end = cycleEndIso;
-                            }
-                            const { error } = await proxyTable('advertisements').update(patch, 'id', adForm.id);
-                            if (error) throw error;
-                          } else {
-                            const { id, image_url, images: _oldImages, ...insertData } = adForm;
-                            const alreadySaved = await findRecent();
-                            if (alreadySaved) {
-                              finishSaved();
-                              return;
-                            }
-                            const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: insertData.slot || 'homepage_banner' };
-                            insert.corporate_account_id = insert.corporate_account_id || null;
-                            if (!insertData.is_affiliate) {
-                              insert.billing_cycle = insertData.billing_cycle || '7 days';
-                              insert.billing_start = nowIso;
-                              insert.billing_end = cycleEndIso;
-                            }
-                            const { error } = await proxyTable('advertisements').insert(insert);
-                            if (error) throw error;
-                          }
-                          finishSaved();
-                        } catch (err: any) {
-                          console.error('[Advert Save] failed:', err);
-                          const timedOut = /timed out/i.test(err?.message || '');
-                          if (timedOut) {
-                            const saved = await findRecent();
-                            if (saved) {
-                              finishSaved();
-                              return;
-                            }
-                          }
-                          const code = err?.code ? ` (${err.code})` : '';
-                          const hint = timedOut ? await (async () => {
-                            const probe = await probeDb();
-                            return timeoutHint(probe.blocked, probe.ok);
-                          })() : '';
-                          toast({ title: 'Error', description: `${err?.message || 'Failed to save ad'}${code}${hint}`, variant: 'destructive' });
-                        }
-                      }} className="bg-green-600 hover:bg-green-700">{adForm.id ? 'Update' : 'Create'}</Button>
-                      <Button variant="outline" onClick={() => setShowAdForm(false)}>Cancel</Button>
-                    </div>
-                  </div>
-                )}
-                {adverts.length === 0 ? (
-                  <p className="text-sm text-gray-400">No advertisements yet.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Image</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Expiry</TableHead>
-                        <TableHead className="text-center">Featured</TableHead>
-                        <TableHead className="text-center">Active</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {adverts.filter(a => {
-                        const isExpired = !!a.billing_end && new Date(a.billing_end).getTime() <= Date.now();
-                        if (advertsView === 'active' && isExpired) return false;
-                        if (advertsView === 'expired' && !isExpired) return false;
-                        return !searchAdverts || a.title?.toLowerCase().includes(searchAdverts.toLowerCase());
-                      }).map(ad => {
-                        const advEndMs = ad.billing_end ? new Date(ad.billing_end).getTime() : 0;
-                        const advActive = advEndMs > Date.now();
-                        const advExpired = !!ad.billing_end && advEndMs <= Date.now();
-                        const isBoosted = !!ad.featured && !!ad.boost_until && new Date(ad.boost_until).getTime() > Date.now();
-                        return (
-                        <TableRow key={ad.id}>
-                          <TableCell>
-                            <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                          </TableCell>
-                          <TableCell>
-                            <div>{ad.title}</div>
-                            <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Corporate Top Banner' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
-                          </TableCell>
-                          <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>
-                          <TableCell>
-                            {!ad.billing_end ? (
-                              <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
-                            ) : advActive ? (
-                              <>
-                                <Badge variant="success">Active · {Math.ceil((advEndMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
-                                <div className="text-[10px] text-gray-400 mt-0.5">Billing ends {ad.billing_end ? ad.billing_end.split('T')[0] : ''}</div>
-                              </>
-                            ) : (
-                              <>
-                                <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - advEndMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
-                                <div className="text-[10px] text-gray-400 mt-0.5">Billing ended {ad.billing_end ? ad.billing_end.split('T')[0] : ''}</div>
-                              </>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <button onClick={async () => {
-                              try {
-                                const { error } = await proxyTable('advertisements').update({ featured: !(ad.featured ?? false) }, 'id', ad.id);
-                                if (error) throw error;
-                                loadAdverts();
-                              } catch (err: any) {
-                                toast({ title: 'Error', description: err.message, variant: 'destructive' });
-                              }
-                            }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
-                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-                            </button>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <button onClick={async () => {
-                              await proxyTable('advertisements').update({ active: !(ad.active ?? false) }, 'id', ad.id);
-                              loadAdverts();
-                            }} title={ad.active ? 'Published — visible on the site' : 'Unpublished — hidden'} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
-                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
-                                Edit
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm" className="h-8 gap-1">
-                                    <MoreVertical className="w-4 h-4" />
-                                    More
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-60">
-                                  <div className="px-2 py-1.5 border-b border-gray-100 mb-1">
-                                    {ad.destination_url ? (
-                                      <a href={ad.destination_url} target="_blank" rel="noreferrer" title={ad.destination_url} className="block text-xs text-blue-600 truncate hover:underline">{ad.destination_url}</a>
-                                    ) : (
-                                      <p className="text-xs text-gray-400">No destination link</p>
-                                    )}
-                                    <p className="text-xs text-gray-500 mt-1">{ad.clicks || 0} clicks · {ad.display_count || 0} impressions</p>
-                                  </div>
-                                  <DropdownMenuSeparator />
-                                  {currentRole === 'super_admin' && (
-                                    isBoosted ? (
-                                      <DropdownMenuItem onClick={async () => {
-                                        const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
-                                        if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                                        else loadAdverts();
-                                      }}>
-                                        <Zap className="w-4 h-4 text-amber-500" /> End boost
-                                      </DropdownMenuItem>
-                                    ) : (
-                                      <DropdownMenuItem onClick={async () => {
-                                        const { error } = await proxyTable('advertisements').update({ featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }, 'id', ad.id);
-                                        if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                                        else { loadAdverts(); toast({ title: 'Boosted', description: `"${ad.title}" boosted for 7 days` }); }
-                                      }}>
-                                        <Zap className="w-4 h-4 text-amber-500" /> Boost +7 days
-                                      </DropdownMenuItem>
-                                    )
-                                  )}
-                                  {currentRole === 'super_admin' && (
-                                    <>
-                                      <DropdownMenuSeparator />
-                                      {advExpired ? (
-                                        <div className="px-2 py-1.5">
-                                          <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
-                                          <div className="flex items-center gap-1.5">
-                                            <input
-                                              type="number"
-                                              min={1}
-                                              max={30}
-                                              value={addAdvertDays[ad.id] ?? 30}
-                                              onChange={e => {
-                                                const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
-                                                setAddAdvertDays(prev => ({ ...prev, [ad.id]: v }));
-                                              }}
-                                              className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
-                                            />
-                                            <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdvertDays(ad.id, addAdvertDays[ad.id] ?? 30, ad.title || 'Advert')}>
-                                              Add Days
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => extendAdvertDays(ad.id, 1, ad.title || 'Advert')}>
-                                              +1 Day
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
-                                      )}
-                                    </>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={async () => {
-                                    if (!window.confirm(`Delete "${ad.title}"?`)) return;
-                                    try {
-                                      const { error } = await proxyTable('advertisements').delete('id', ad.id);
-                                      if (error) throw error;
-                                      setAdverts(prev => prev.filter(a => a.id !== ad.id));
-                                      toast({ title: 'Deleted', description: `"${ad.title}" removed` });
-                                    } catch (err: any) {
-                                      toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
-                                    }
-                                  }}>
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )})}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === 'homepage-banners' && renderCarouselSettings()}
+
+          {activeTab === 'adverts' && renderBannerManager({ slotFilter: '' })}
+
+          {activeTab === 'homepage-banners' && renderBannerManager({ slotFilter: 'homepage_banner' })}
 
           {activeTab === 'corporate' && (
             <>
