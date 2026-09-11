@@ -2,6 +2,7 @@ import React, { useState, useEffect, Fragment } from 'react';
 import SEO from '@/lib/seo';
 import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, Crown, Briefcase, ArrowRight } from 'lucide-react';
 import { PRICING_PLANS, CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES } from '@/data/siteData';
+import BoostProductModal from './BoostProductModal';
 
 interface PricingPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
@@ -14,6 +15,7 @@ interface PricingPageProps {
 const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate, onOpenAuth, user }) => {
   const [showComparison, setShowComparison] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<typeof PRICING_PLANS.advertPlans[number] | null>(null);
+  const [boostOpen, setBoostOpen] = useState(false);
   const isJobseeker = user?.role === 'jobseeker';
   const isRegisteredEmployer = user?.role === 'employer';
 
@@ -524,7 +526,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
               <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> WhatsApp chat + website link buttons</li>
               <li className="flex items-start gap-2 text-sm text-gray-700"><CheckCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" /> Clicks & views tracked in your analytics</li>
             </ul>
-            <button onClick={() => onNavigate('dashboard')} className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-md shadow-amber-200 hover:shadow-lg flex items-center justify-center gap-2">
+            <button onClick={() => setBoostOpen(true)} className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-md shadow-amber-200 hover:shadow-lg flex items-center justify-center gap-2">
               <Zap className="w-4 h-4" /> Boost My Ad Now
             </button>
           </div>
@@ -651,6 +653,15 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
           </div>
         </div>
       </div>
+
+      <BoostProductModal
+        isOpen={boostOpen}
+        onClose={() => setBoostOpen(false)}
+        user={user}
+        role={user?.role}
+        onOpenMpesa={(a, d, r, t, aid, jid) => onOpenMpesa(a, d, r, t, aid, jid)}
+        onOpenAuth={(tab = 'login') => onOpenAuth?.(tab as any, 'advertiser')}
+      />
     </div>
   );
 };

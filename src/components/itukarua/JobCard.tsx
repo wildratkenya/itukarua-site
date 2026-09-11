@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, AlertTriangle, Camera } from 'lucide-react';
+import { MapPin, AlertTriangle, Camera, Zap } from 'lucide-react';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 
 interface Job {
@@ -7,6 +7,8 @@ interface Job {
   deadline: string; category: string; postedBy: string; postedDate: string; bidsCount: number; urgent: boolean;
   status: 'open' | 'in-progress' | 'completed';
   images?: string[];
+  featured?: boolean;
+  boost_until?: string | null;
 }
 
 interface JobCardProps {
@@ -19,6 +21,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const images = job.images && job.images.length > 0 ? job.images : [];
   const hasMultipleImages = images.length > 1;
+  const isBoosted = job.featured && job.boost_until && new Date(job.boost_until).getTime() > Date.now();
 
   const categoryColors: Record<string, string> = {
     Construction: 'bg-orange-100 text-orange-700',
@@ -55,6 +58,12 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700 flex items-center gap-0.5">
                   <AlertTriangle className="w-2.5 h-2.5" />
                   Urgent
+                </span>
+              )}
+              {isBoosted && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 flex items-center gap-0.5">
+                  <Zap className="w-2.5 h-2.5" />
+                  Boosted
                 </span>
               )}
             </div>
@@ -199,6 +208,12 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
                   <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     Urgent
+                  </span>
+                )}
+                {isBoosted && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    Boosted
                   </span>
                 )}
               </div>

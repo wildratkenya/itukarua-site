@@ -362,6 +362,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     return false;
   })();
 
+  // Boosted products that are about to lapse — surfaces the portal renewal notice
+  const expiringBoosts = useMemo(() => {
+    if (isAdmin) return [];
+    const now = Date.now();
+    const limit = now + 48 * 60 * 60 * 1000;
+    const alerts: Array<{ id: string; title: string; daysLeft: number; relatedAdId?: string; relatedJobId?: string }> = [];
+    (myAds || []).forEach(ad => {
+      if (ad.featured && ad.boost_until && new Date(ad.boost_until).getTime() > now && new Date(ad.boost_until).getTime() <= limit) {
+        alerts.push({ id: ad.id, title: ad.title || 'Banner advert', daysLeft: Math.ceil((new Date(ad.boost_until).getTime() - now) / 86400000), relatedAdId: ad.id });
+      }
+    });
+    (myServiceAds || []).forEach(ad => {
+      if (ad.featured && ad.boost_until && new Date(ad.boost_until).getTime() > now && new Date(ad.boost_until).getTime() <= limit) {
+        alerts.push({ id: ad.id, title: ad.business_name || 'Service advert', daysLeft: Math.ceil((new Date(ad.boost_until).getTime() - now) / 86400000), relatedAdId: ad.id });
+      }
+    });
+    (jobs || []).forEach(j => {
+      if (j.featured && j.boost_until && new Date(j.boost_until).getTime() > now && new Date(j.boost_until).getTime() <= limit) {
+        alerts.push({ id: j.id, title: j.title || 'Job post', daysLeft: Math.ceil((new Date(j.boost_until).getTime() - now) / 86400000), relatedJobId: j.id });
+      }
+    });
+    return alerts;
+  }, [isAdmin, myAds, myServiceAds, jobs]);
+
   const tabs = isAdmin
     ? [{ id: 'overview', label: 'Overview', icon: TrendingUp }, { id: 'users', label: 'Users', icon: Users }, { id: 'jobs', label: 'Jobs', icon: Briefcase }, { id: 'payments', label: 'Payments', icon: CreditCard }, { id: 'adverts', label: 'Adverts', icon: Building2 }, { id: 'settings', label: 'Settings', icon: Settings }]
     : isJobseeker
@@ -741,7 +765,29 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {expiringBoosts.length > 0 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0"><Zap className="w-4 h-4 text-amber-600" /></div>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-bold text-amber-900">Featured boost ending soon</p>
+                <p className="text-xs text-amber-700">Renew now to keep your product at the top of searches. Without renewal it returns to normal listing order after it expires.</p>
+                {expiringBoosts.map(b => (
+                  <div key={b.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-amber-200">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-900 truncate">{b.title}</p>
+                      <p className="text-[10px] text-gray-500">Expires in {b.daysLeft} day{b.daysLeft === 1 ? '' : 's'} · KES 500 for +7 days</p>
+                    </div>
+                    <button onClick={() => onOpenMpesa(500, `Extend Boost — ${b.title}`, `BOOST-${b.id.slice(0, 8).toUpperCase()}`, 'featured_boost', b.relatedAdId, b.relatedJobId)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors whitespace-nowrap">
+                      <Zap className="w-3 h-3" /> Renew +7d
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex gap-1 overflow-x-auto pb-2 mb-6 border-b border-gray-200">
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium whitespace-nowrap transition-colors ${activeTab === tab.id ? 'bg-white text-green-700 border border-gray-200 border-b-white -mb-px' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
@@ -1495,20 +1541,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                   <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
                   <div className="flex gap-2 items-center">
                     {!ad.active && <button onClick={() => onOpenMpesa(ad.target_subcounty ? 150 : ad.target_county ? 300 : 500, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
-                    {ad.active && !isBoosted && (
-                      <button onClick={() => onOpenMpesa(500, 'Boost — 7 days homepage carousel', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
-                        <Zap className="w-3 h-3" /> Boost
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Homepage carousel for 7 days</span>
-                      </button>
-                    )}
-                    {isBoosted && (
-                      <div className="flex items-center gap-1">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                        </span>
-                        <span className="text-[10px] text-amber-600 font-semibold">Live</span>
-                      </div>
+                    {ad.active && (
+                      <>
+                        {!isBoosted && (
+                          <button onClick={() => onOpenMpesa(500, 'Boost — 7 days homepage carousel', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                            <Zap className="w-3 h-3" /> Boost
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Homepage carousel for 7 days</span>
+                          </button>
+                        )}
+                        {isBoosted && (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                              </span>
+                              <span className="text-[10px] text-amber-600 font-semibold">Live · {boostDaysLeft}d left</span>
+                            </div>
+                            <button onClick={() => onOpenMpesa(500, `Extend Boost — ${ad.title}`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                              <Zap className="w-3 h-3" /> Extend +7d
+                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Add 7 more days</span>
+                            </button>
+                          </>
+                        )}
+                      </>
                     )}
                     <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'homepage_banner' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
                     <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
@@ -1565,7 +1621,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                           Renew
                         </button>
                       )}
-                      {active && <span className="text-xs text-gray-400">Live on site</span>}
+                      {active && (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => onOpenMpesa(500, `Featured Boost — ${sa.business_name}`, `BOOST-${sa.id.slice(0, 8).toUpperCase()}`, 'featured_boost', sa.id)} className="text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-md shadow-amber-200 hover:shadow-lg transition-all flex items-center gap-1 whitespace-nowrap">
+                            <Zap className="w-3 h-3" /> {sa.featured ? 'Extend +7d' : 'Boost'} · KES 500
+                          </button>
+                          <span className="text-xs text-gray-400">Live on site</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1644,15 +1707,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                       </span>
-                      <span className="text-[10px] text-amber-600 font-semibold">Live</span>
+                      <span className="text-[10px] text-amber-600 font-semibold">Live · {boostDaysLeft}d left</span>
                     </div>
                   )}
-                  {!isBoosted && (
-                    <button onClick={() => onOpenMpesa(500, `Boost — ${ad.business_name} — 7 days`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> Boost
-                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Homepage + search top</span>
-                    </button>
-                  )}
+                  <button onClick={() => onOpenMpesa(500, isBoosted ? `Extend Boost — ${ad.business_name}` : `Boost — ${ad.business_name} — 7 days`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> {isBoosted ? 'Extend +7d' : 'Boost'}
+                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Top of search for 7 days</span>
+                  </button>
                   <p className="text-xs text-gray-400">Expires: {ad.expiry_date}</p>
                 </div>
               </div>

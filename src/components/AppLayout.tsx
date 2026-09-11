@@ -795,10 +795,14 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         user={user}
         onPaymentComplete={() => {
           handleCloseMpesa();
-          if (mpesaModal.paymentType === 'featured_boost' && mpesaModal.relatedAdId) {
-            boostAd('advertisements', mpesaModal.relatedAdId).catch(() => {
-              boostAd('service_ads', mpesaModal.relatedAdId!).catch(() => {});
-            });
+          if (mpesaModal.paymentType === 'featured_boost') {
+            if (mpesaModal.relatedJobId) {
+              boostAd('jobs', mpesaModal.relatedJobId).catch(() => {});
+            } else if (mpesaModal.relatedAdId) {
+              boostAd('advertisements', mpesaModal.relatedAdId).catch(() => {
+                boostAd('service_ads', mpesaModal.relatedAdId!).catch(() => {});
+              });
+            }
           }
           if (user) {
             const refreshProfile = () => {

@@ -1,0 +1,15 @@
+name: Boost Expiry & Renewal Emails
+on:
+  schedule:
+    - cron: '10 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger boost-expire edge function
+        run: |
+          curl -s -X POST https://xahaxtbudiubelemewna.supabase.co/functions/v1/boost-expire \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"
