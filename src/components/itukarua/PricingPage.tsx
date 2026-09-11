@@ -9,10 +9,11 @@ interface PricingPageProps {
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNavigate?: (page: string) => void;
   onOpenAuth?: (tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
-  user?: { name?: string; email?: string; role?: string } | null;
+  onStayAfterLogin?: () => void;
+  user?: { id: string; name?: string; email?: string; role?: string } | null;
 }
 
-const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate, onOpenAuth, user }) => {
+const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate, onOpenAuth, onStayAfterLogin, user }) => {
   const [showComparison, setShowComparison] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<typeof PRICING_PLANS.advertPlans[number] | null>(null);
   const [boostOpen, setBoostOpen] = useState(false);
@@ -660,7 +661,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         user={user}
         role={user?.role}
         onOpenMpesa={(a, d, r, t, aid, jid) => onOpenMpesa(a, d, r, t, aid, jid)}
-        onOpenAuth={(tab = 'login') => onOpenAuth?.(tab as any, 'advertiser')}
+        onOpenAuth={(tab = 'login') => { onStayAfterLogin?.(); onOpenAuth?.(tab as any, 'advertiser'); }}
       />
     </div>
   );

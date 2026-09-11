@@ -94,6 +94,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   const [resetDone, setResetDone] = useState(false);
   const loginJustHappened = useRef(false);
   const loginFromWorkerPopup = useRef(false);
+  const loginFromBoost = useRef(false);
   const skipTopScroll = useRef(false);
   const [subNotice, setSubNotice] = useState<SubscriptionNotice | null>(null);
   const [subNoticeDismissed, setSubNoticeDismissed] = useState(false);
@@ -251,7 +252,16 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
               entitlements,
             });
             promptLoginSubscriptionCheck(refreshedProfile);
-            if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(profile?.role === 'corporate' || refreshedProfile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard')); loginFromWorkerPopup.current = false; }
+            if (loginJustHappened.current) {
+              loginJustHappened.current = false;
+              if (loginFromBoost.current) {
+                loginFromBoost.current = false;
+                if (profile?.role === 'corporate' || refreshedProfile?.role === 'corporate') setCurrentPage('corporate');
+              } else {
+                setCurrentPage(profile?.role === 'corporate' || refreshedProfile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard'));
+                loginFromWorkerPopup.current = false;
+              }
+            }
           }
           return;
         }
@@ -271,7 +281,16 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
             entitlements,
           });
           promptLoginSubscriptionCheck(profile);
-          if (loginJustHappened.current) { loginJustHappened.current = false; setCurrentPage(profile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard')); loginFromWorkerPopup.current = false; }
+          if (loginJustHappened.current) {
+            loginJustHappened.current = false;
+            if (loginFromBoost.current) {
+              loginFromBoost.current = false;
+              if (profile?.role === 'corporate') setCurrentPage('corporate');
+            } else {
+              setCurrentPage(profile?.role === 'corporate' ? 'corporate' : (loginFromWorkerPopup.current ? 'home' : 'dashboard'));
+              loginFromWorkerPopup.current = false;
+            }
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -512,7 +531,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         case 'services':
           return <ServicesPage onNavigate={handleNavigate} />;
         case 'pricing':
-          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} user={simpleUser} />;
+          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onStayAfterLogin={() => { loginFromBoost.current = true; }} user={user} />;
         case 'about':
           return <AboutPage />;
         case 'contact':

@@ -140,7 +140,7 @@ export default function BoostProductModal({
           <p className="text-gray-600">You need a signed-in advertiser or employer account to boost a product.</p>
           <div className="flex gap-3 justify-center">
             <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 rounded-xl text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium">Cancel</button>
-            <button onClick={() => { onOpenAuth('advertiser'); onClose(); }} className="px-5 py-2.5 bg-green-600 rounded-xl text-white hover:bg-green-700 transition-colors text-sm font-medium">Sign in / Register</button>
+            <button onClick={() => { onOpenAuth('advertiser'); }} className="px-5 py-2.5 bg-green-600 rounded-xl text-white hover:bg-green-700 transition-colors text-sm font-medium">Sign in / Register</button>
           </div>
         </div>
       </div>
