@@ -4,7 +4,6 @@ import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp,
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
 import { supabase, optimizeImageUrl, proxyImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
-import { getSubcounties } from '@/data/kenyaLocations';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -80,7 +79,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const notifRef = useRef<HTMLDivElement>(null);
   const [showAdForm, setShowAdForm] = useState(false);
   const [showAdSpecs, setShowAdSpecs] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day', target_scope: 'national', target_county: '', target_subcounty: '' });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
   const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
   const [advUrlInput, setAdvUrlInput] = useState('');
   const [advSaving, setAdvSaving] = useState(false);
@@ -549,7 +548,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setShowAdForm(false);
       setAdvImageFiles([]);
       setAdvUrlInput('');
-      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day', target_scope: 'national', target_county: '', target_subcounty: '' });
+      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
       await reloadMyAds();
     } catch (err: any) {
       setAdvError(err.message || 'Failed to save advert. Please try again.');
@@ -577,7 +576,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setShowAdForm(false);
           setAdvImageFiles([]);
           setAdvUrlInput('');
-          setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day', target_scope: 'national', target_county: '', target_subcounty: '' });
+          setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
           await reloadMyAds();
         } catch (err: any) {
           setAdvError(err.message || 'Payment succeeded but the upgrade could not be applied. Please try saving again.');
@@ -1396,38 +1395,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                   <p className="text-xs text-gray-400 mt-1">{adForm.slot === 'job_listings_top' ? 'Full-width banner above all job listings — premium slot, exclusive to one advertiser per week.' : 'Rotating carousel banner at the top of the homepage.'}</p>
                 </div>
                 {advError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{advError}</div>}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+<div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                   <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="e.g. Kamau Hardware Mega Sale" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {['national', 'county', 'subcounty'].map(s => (
-                      <button key={s} type="button" onClick={() => setAdForm({ ...adForm, target_scope: s, target_county: s === 'national' ? '' : adForm.target_county, target_subcounty: '' })}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${adForm.target_scope === s ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
-                        {s === 'national' ? 'All of Kenya' : s === 'county' ? 'This County' : 'This Sub-County'}
-                      </button>
-                    ))}
-                  </div>
-                  {adForm.target_scope !== 'national' && (
-                    <select value={adForm.target_county} onChange={e => setAdForm({ ...adForm, target_county: e.target.value, target_subcounty: '' })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2">
-                      <option value="">Select county</option>
-                      {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  )}
-                  {adForm.target_scope === 'subcounty' && adForm.target_county && (
-                    <select value={adForm.target_subcounty} onChange={e => setAdForm({ ...adForm, target_subcounty: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2">
-                      <option value="">Select sub-county</option>
-                      {getSubcounties(adForm.target_county).map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  )}
-                  <p className="text-xs text-gray-400">
-                    {adForm.target_scope === 'national' ? `Your ad reaches users across all 47 counties — KES 500/week.` :
-                     adForm.target_scope === 'county' ? `Targeting ${adForm.target_county || 'your county'} — reaches users in this county for KES 300/week.` :
-                     `Hyperlocal targeting: ${adForm.target_subcounty || 'your sub-county'} only — KES 150/week.`}
-                  </p>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 mt-3">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 mt-3">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
                   <p className="text-xs text-gray-500 mb-2">The first image is the main banner. All images appear in the popup. 10-day plan: 3 images, 20-day: 5, 30-day: 8. Each is compressed automatically on save.</p>
                   <div className="flex flex-wrap gap-3">
                     {adForm.images.length === 0 && (
@@ -1449,7 +1421,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                     <button onClick={addAdvUrl} disabled={adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8) || !advUrlInput.trim()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">Add</button>
                   </div>
-                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Destination URL</label>
@@ -1505,10 +1476,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : 500}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — {adForm.target_scope === 'national' ? 'All of Kenya' : adForm.target_scope === 'county' ? adForm.target_county : adForm.target_subcounty}). Exclusive of ad design — user to provide.</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.slot === 'job_listings_top' ? 500 : 200}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — 7 days). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : 500, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES {adForm.target_scope === 'subcounty' ? 150 : adForm.target_scope === 'county' ? 300 : 500}
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.slot === 'job_listings_top' ? 500 : 200, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES {adForm.slot === 'job_listings_top' ? 500 : 200}
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Pay Later
@@ -1540,7 +1511,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div className="flex flex-col items-end gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
                   <div className="flex gap-2 items-center">
-                    {!ad.active && <button onClick={() => onOpenMpesa(ad.target_subcounty ? 150 : ad.target_county ? 300 : 500, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
+                    {!ad.active && <button onClick={() => onOpenMpesa(ad.slot === 'job_listings_top' ? 500 : 200, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
                     {ad.active && (
                       <>
                         {!isBoosted && (
