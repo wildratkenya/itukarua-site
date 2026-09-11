@@ -21,15 +21,6 @@ const ADVERT_PLANS = PRICING_PLANS.advertPlans.map(p => ({ ...p, kind: 'service'
 
 const BANNER_PLANS = [
   {
-    name: 'Homepage Banner',
-    duration: '7 days',
-    price: 200,
-    slot: 'homepage_banner' as const,
-    accountRef: 'ADV-HP-WEEK',
-    paymentDesc: 'Homepage Advert (1 week)',
-    kind: 'banner' as const,
-  },
-  {
     name: 'Job Listings Banner',
     duration: '7 days',
     price: 500,
@@ -94,7 +85,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     const toAdd = files.slice(0, remaining);
     
     for (const file of toAdd) {
-      const err = await validateAdImage(file, 'homepage_banner');
+      const err = await validateAdImage(file, 'job_listings_top');
       if (err) { setServerError(err); e.target.value = ''; return; }
     }
 
@@ -334,7 +325,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               </button>
             </div>
           </form>
-      <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="homepage_banner" />
+      <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="job_listings_top" />
             </>
           )}
         </div>

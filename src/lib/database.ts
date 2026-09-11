@@ -1947,7 +1947,7 @@ export async function createAdForUser(userId: string, ad: { title: string; image
   const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('advertisements')
-    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd, slot: ad.slot || 'homepage_banner', target_county: ad.target_county || null, target_subcounty: ad.target_subcounty || null, expected_impressions: ad.expected_impressions || null })
+    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd, slot: ad.slot || 'job_listings_top', target_county: ad.target_county || null, target_subcounty: ad.target_subcounty || null, expected_impressions: ad.expected_impressions || null })
     .select('id')
     .single();
   if (error) throw error;
@@ -2012,9 +2012,9 @@ export interface BillingItem {
 }
 
 const SERVICE_PLAN_PRICE: Record<string, number> = { '10-day': 300, '20-day': 500, '30-day': 800 };
-const ADVERT_SLOT_PRICE: Record<string, number> = { homepage_banner: 200, job_listings_top: 500 };
+const ADVERT_SLOT_PRICE: Record<string, number> = { job_listings_top: 500 };
 const advertAmount = (ad: any): number => {
-  const weekly = ADVERT_SLOT_PRICE[ad.slot] ?? 200;
+  const weekly = ADVERT_SLOT_PRICE[ad?.slot ?? 'job_listings_top'] ?? 500;
   const mult = ad.billing_cycle === '30 days' ? 4 : ad.billing_cycle === '20 days' ? 2.5 : ad.billing_cycle === '10 days' ? 1.5 : 1;
   return Math.round(weekly * mult);
 };
