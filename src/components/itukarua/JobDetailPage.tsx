@@ -29,7 +29,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [bidProposal, setBidProposal] = useState('');
   const [bidSubmitted, setBidSubmitted] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
-  const [sortBids, setSortBids] = useState<'rating' | 'price-low' | 'price-high'>('rating');
+  const [sortBids, setSortBids] = useState<'all' | 'rating' | 'price-low' | 'price-high'>('all');
   const [selectedBid, setSelectedBid] = useState<string | null>(null);
   const [contactUnlocked, setContactUnlocked] = useState(false);
   const [viewerCert, setViewerCert] = useState<string | null>(null);
@@ -126,7 +126,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const sortedBids = [...bids].sort((a, b) => {
     if (sortBids === 'rating') return (b.bidder_rating || 0) - (a.bidder_rating || 0);
     if (sortBids === 'price-low') return a.price - b.price;
-    return b.price - a.price;
+    if (sortBids === 'price-high') return b.price - a.price;
+    return 0;
   });
 
   const handleSubmitBid = async (e: React.FormEvent) => {
@@ -252,6 +253,10 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     setLoadingProfile(false);
   };
 
+  const viewingBid = viewingBidder ? bids.find(b => b.bidder_id === viewingBidder.id) : null;
+  const viewingWinner = viewingBid ? viewingBid.id === winnerId : false;
+  const canViewContact = hasJobAccess || (contactUnlocked && viewingWinner);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <SEO
@@ -295,7 +300,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">{job.title}</h1>
           <div className="flex flex-wrap gap-4 text-sm text-green-100">
             <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
-            <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {job.bids_count} bids</span>
+            <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {bids.length} bids</span>
           </div>
         </div>
       </div>
@@ -343,6 +348,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                 <h2 className="text-lg font-semibold text-gray-900">Bids ({sortedBids.length})</h2>
                 {user && user.id === job.posted_by && sortedBids.length > 0 && (
                   <select value={sortBids} onChange={e => setSortBids(e.target.value as any)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="all">Show all</option>
                     <option value="rating">Highest Rating</option>
                     <option value="price-low">Lowest Price</option>
                     <option value="price-high">Highest Price</option>
@@ -389,11 +395,13 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   {sortedBids.map((bid, idx) => (
                     <div key={bid.id} className={`border rounded-xl p-4 transition-all ${selectedBid === bid.id ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}>
                       <div className="flex items-start gap-4">
-                        <img src={optimizeImageUrl(bid.bidder_image || IMAGES.workers[idx % IMAGES.workers.length], 96, 96)} alt={bid.bidder_name || 'Bidder'} className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100" loading="lazy" onError={handleImageError} />
+                        <button type="button" onClick={() => handleViewBidderProfile(bid.bidder_id)} title="View worker profile" className="flex-shrink-0 rounded-full ring-2 ring-gray-100 hover:ring-green-400 transition-all cursor-pointer">
+                          <img src={optimizeImageUrl(bid.bidder_image || IMAGES.workers[idx % IMAGES.workers.length], 96, 96)} alt={bid.bidder_name || 'Bidder'} className="w-12 h-12 rounded-full object-cover" loading="lazy" onError={handleImageError} />
+                        </button>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className={`font-semibold text-gray-900 ${contactUnlocked && winnerId === bid.id ? 'cursor-pointer hover:text-green-700 hover:underline' : ''}`} onClick={() => { if (contactUnlocked && winnerId === bid.id) handleViewBidderProfile(bid.bidder_id); }}>
+                              <h4 className="font-semibold text-gray-900 cursor-pointer hover:text-green-700 hover:underline" onClick={() => handleViewBidderProfile(bid.bidder_id)}>
                                 {bid.bidder_name || 'Anonymous'}
                               </h4>
                               <div className="flex items-center gap-2 mt-0.5">
@@ -657,39 +665,62 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   </div>
                 </div>
 
-                {/* Contact */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
-                  {viewingBidder.phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Phone className="w-4 h-4 text-green-600" />
-                      <a href={`tel:${viewingBidder.phone}`} className="hover:text-green-700">{viewingBidder.phone}</a>
+                {/* Contact (gated by employer access) */}
+                {canViewContact ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                    {viewingBidder.phone && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Phone className="w-4 h-4 text-green-600" />
+                        <a href={`tel:${viewingBidder.phone}`} className="hover:text-green-700">{viewingBidder.phone}</a>
+                      </div>
+                    )}
+                    {viewingBidder.email && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Mail className="w-4 h-4 text-green-600" />
+                        <a href={`mailto:${viewingBidder.email}`} className="hover:text-green-700 truncate">{viewingBidder.email}</a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">Contact locked</p>
+                      <p className="text-xs text-amber-700">Subscribe to Employer Access to view this worker's phone and email.</p>
                     </div>
-                  )}
-                  {viewingBidder.email && (
+                    {viewingWinner ? (
+                      <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+                        <Phone className="w-4 h-4" /> Unlock Contact (KES 50)
+                      </button>
+                    ) : (
+                      <button onClick={() => onOpenEmployerPayment(job?.id, job?.title)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors">
+                        Subscribe
+                      </button>
+                    )}
+                  </div>
+                )}
+                {viewingBidder.location && (
+                  <div className="grid grid-cols-1 gap-3 p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Mail className="w-4 h-4 text-green-600" />
-                      <a href={`mailto:${viewingBidder.email}`} className="hover:text-green-700 truncate">{viewingBidder.email}</a>
-                    </div>
-                  )}
-                  {viewingBidder.location && (
-                    <div className="flex items-center gap-2 text-sm text-gray-700 col-span-1 sm:col-span-2">
                       <MapPin className="w-4 h-4 text-green-600" />
                       {viewingBidder.county ? `${viewingBidder.county}${viewingBidder.subcounty ? `, ${viewingBidder.subcounty}` : ''} - ${viewingBidder.location}` : viewingBidder.location}
                     </div>
-                  )}
-                </div>
-
-                {/* Skills */}
-                {viewingBidder.skills && viewingBidder.skills.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills</h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {viewingBidder.skills.map((skill, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">{skill}</span>
-                      ))}
-                    </div>
                   </div>
                 )}
+
+                {/* Skills */}
+                {(() => {
+                  const viewingSkills = typeof viewingBidder.skills === 'string' ? viewingBidder.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(viewingBidder.skills) ? viewingBidder.skills : [];
+                  return viewingSkills.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills</h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {viewingSkills.map((skill, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">{skill}</span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Qualifications */}
                 {viewingBidder.qualifications && (
@@ -708,7 +739,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                 )}
 
                 {/* Certificates */}
-                {viewingBidder.certificates && viewingBidder.certificates.length > 0 && (
+                {Array.isArray(viewingBidder.certificates) && viewingBidder.certificates.length > 0 && (
                   <div>
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                       <Award className="w-3.5 h-3.5" /> Certifications

@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Globe, Inbox, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getTestimonials, addTestimonial, deleteTestimonial, type DbTestimonial, getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getPortfolioSites, savePortfolioSite, deletePortfolioSite, type DbPortfolioSite, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider,  getWebsitesCarouselSettings, updateWebsitesCarouselSetting, type WebsitesCarouselSettings, getPortfolioSites, savePortfolioSite, deletePortfolioSite, type DbPortfolioSite, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, type SavedCorporateFeatures } from '@/data/siteData';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
@@ -86,7 +86,10 @@ interface Job {
   title: string;
   status: string;
   category: string;
-  budget: number;
+  budget_min: number;
+  budget_max: number;
+  views?: number;
+  bids_count?: number;
   posted_by_name: string;
   created_at: string;
 }
@@ -252,11 +255,8 @@ const AdminPage: React.FC = () => {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
   const [emailMsgType, setEmailMsgType] = useState<'ok' | 'err'>('ok');
-  const [testimonials, setTestimonials] = useState<DbTestimonial[]>([]);
-  const [testimonialForm, setTestimonialForm] = useState<{ client_name: string; company: string; comment: string; rating: number }>({ client_name: '', company: '', comment: '', rating: 5 });
-  const [testimonialMsg, setTestimonialMsg] = useState('');
-  const [testimonialMsgType, setTestimonialMsgType] = useState<'ok' | 'err'>('ok');
-  const [testimonialSaving, setTestimonialSaving] = useState(false);
+  const [siteCarouselMsg, setSiteCarouselMsg] = useState('');
+  const [siteCarouselMsgType, setSiteCarouselMsgType] = useState<'ok' | 'err'>('ok');
   const [webCarouselSettings, setWebCarouselSettings] = useState<WebsitesCarouselSettings>({ scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' });
   const [webCarouselSaving, setWebCarouselSaving] = useState(false);
   const [sites, setSites] = useState<DbPortfolioSite[]>([]);
@@ -625,11 +625,6 @@ const AdminPage: React.FC = () => {
     setEmailProviders(providers);
   };
 
-  const loadTestimonials = async () => {
-    const list = await getTestimonials();
-    setTestimonials(list);
-  };
-
   const loadSites = async () => {
     const list = await getPortfolioSites();
     setSites(list);
@@ -700,11 +695,11 @@ const AdminPage: React.FC = () => {
       await updateWebsitesCarouselSetting('web_scroll_interval_seconds', String(webCarouselSettings.scrollIntervalSeconds));
       await updateWebsitesCarouselSetting('web_transition_duration_seconds', String(webCarouselSettings.transitionDurationSeconds));
       await updateWebsitesCarouselSetting('web_effect', webCarouselSettings.effect);
-      setTestimonialMsg('Websites carousel settings updated.');
-      setTestimonialMsgType('ok');
+      setSiteCarouselMsg('Websites carousel settings updated.');
+      setSiteCarouselMsgType('ok');
     } catch {
-      setTestimonialMsg('Failed to save websites carousel settings.');
-      setTestimonialMsgType('err');
+      setSiteCarouselMsg('Failed to save websites carousel settings.');
+      setSiteCarouselMsgType('err');
     } finally { setWebCarouselSaving(false); }
   };
 
@@ -807,7 +802,6 @@ const AdminPage: React.FC = () => {
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
         loadEmailProviders(),
-        loadTestimonials(),
         loadSites(),
         getWebsitesCarouselSettings().then(setWebCarouselSettings),
         loadBilling(),
@@ -1764,7 +1758,7 @@ const AdminPage: React.FC = () => {
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
-                { id: 'testimonials', label: 'Testimonials', icon: <MessageSquare className="w-4 h-4" /> },
+                { id: 'sites', label: 'Sites', icon: <Globe className="w-4 h-4" /> },
                 { id: 'adverts', label: 'Banners', icon: <MonitorPlay className="w-4 h-4" /> },
                 { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
               ].map(item => (
@@ -2022,6 +2016,8 @@ const AdminPage: React.FC = () => {
                       <TableHead>Status</TableHead>
                       <TableHead>Budget</TableHead>
                       <TableHead>Posted By</TableHead>
+                      <TableHead>Views</TableHead>
+                      <TableHead>Bids</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2038,8 +2034,10 @@ const AdminPage: React.FC = () => {
                             {job.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>KSh {job.budget}</TableCell>
+                        <TableCell>KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</TableCell>
                         <TableCell>{job.posted_by_name}</TableCell>
+                        <TableCell>{job.views ?? 0}</TableCell>
+                        <TableCell>{job.bids_count ?? 0}</TableCell>
                         <TableCell className="flex gap-2 items-center">
                           <Select
                             value={job.status}
@@ -2938,15 +2936,12 @@ const AdminPage: React.FC = () => {
             </Card>
           )}
 
-          {activeTab === 'testimonials' && (
+          {activeTab === 'sites' && (
             <Card>
               <CardHeader>
-                <CardTitle>Client Testimonials</CardTitle>
+                <CardTitle>Sites & Portfolio</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="mb-4 p-3 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-sm">
-                  These appear in the "What Clients Say" section on the homepage, below the websites scroller.
-                </div>
 
                 <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-5">
                   <h3 className="font-semibold text-gray-900 mb-4">Websites Carousel Settings</h3>
@@ -3064,95 +3059,11 @@ const AdminPage: React.FC = () => {
                   </div>
                 </div>
 
-                {testimonialMsg && (
-                  <div className={`mb-4 p-3 rounded-lg text-sm ${testimonialMsgType === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {testimonialMsg}
+                {siteCarouselMsg && (
+                  <div className={`mb-4 p-3 rounded-lg text-sm ${siteCarouselMsgType === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {siteCarouselMsg}
                   </div>
                 )}
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Add testimonial */}
-                  <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-                    <h3 className="font-semibold text-gray-900 mb-4">Add Testimonial</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <Label>Client Name</Label>
-                        <Input value={testimonialForm.client_name} onChange={e => setTestimonialForm(f => ({ ...f, client_name: e.target.value }))} placeholder="e.g. Jane Wanjiku" />
-                      </div>
-                      <div>
-                        <Label>Company / Website (optional)</Label>
-                        <Input value={testimonialForm.company} onChange={e => setTestimonialForm(f => ({ ...f, company: e.target.value }))} placeholder="e.g. Prefetch Systems" />
-                      </div>
-                      <div>
-                        <Label>Comment</Label>
-                        <Textarea value={testimonialForm.comment} onChange={e => setTestimonialForm(f => ({ ...f, comment: e.target.value }))} placeholder="What did the client say?" rows={4} />
-                      </div>
-                      <div>
-                        <Label>Rating (1-5)</Label>
-                        <div className="flex items-center gap-1">
-                          {[1,2,3,4,5].map(star => (
-                            <button key={star} type="button" onClick={() => setTestimonialForm(f => ({ ...f, rating: star }))} className={`text-2xl transition-colors ${star <= testimonialForm.rating ? 'text-amber-400' : 'text-gray-300 hover:text-amber-200'}`}>
-                              ★
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <Button disabled={testimonialSaving || !testimonialForm.client_name.trim() || !testimonialForm.comment.trim()} onClick={async () => {
-                          setTestimonialSaving(true);
-                          setTestimonialMsg('');
-                          const result = await addTestimonial(testimonialForm);
-                          if (result.error) {
-                            setTestimonialMsg(result.error);
-                            setTestimonialMsgType('err');
-                          } else {
-                            setTestimonialMsg('Testimonial added.');
-                            setTestimonialMsgType('ok');
-                            setTestimonialForm({ client_name: '', company: '', comment: '', rating: 5 });
-                            loadTestimonials();
-                          }
-                          setTestimonialSaving(false);
-                        }} className="flex items-center gap-2">
-                          {testimonialSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                          Add Testimonial
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Testimonial list */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-4">Saved Testimonials ({testimonials.length})</h3>
-                    {testimonials.length === 0 ? (
-                      <p className="text-sm text-gray-400">No testimonials yet. Add one on the left.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {testimonials.map(t => (
-                          <div key={t.id} className="rounded-xl border border-gray-200 bg-white p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="font-semibold text-gray-900 truncate">{t.client_name}</p>
-                                  <span className="flex items-center gap-0.5 text-amber-400 text-xs">
-                                    {[1,2,3,4,5].map(s => <span key={s} className={s <= t.rating ? '' : 'text-gray-200'}>{'★'}</span>)}
-                                  </span>
-                                </div>
-                                {t.company && <p className="text-xs text-gray-500 mt-0.5">{t.company}</p>}
-                                <p className="text-sm text-gray-600 mt-2">{t.comment}</p>
-                              </div>
-                              <button onClick={async () => {
-                                if (!confirm(`Delete testimonial from "${t.client_name}"?`)) return;
-                                const result = await deleteTestimonial(t.id);
-                                if (result.error) { setTestimonialMsg(result.error); setTestimonialMsgType('err'); }
-                                else loadTestimonials();
-                              }} className="text-xs text-red-600 hover:text-red-800 font-medium flex-shrink-0">Delete</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </CardContent>
             </Card>
           )}
