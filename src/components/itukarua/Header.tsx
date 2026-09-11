@@ -38,7 +38,6 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
     { label: 'Home', page: 'home' },
     { label: 'Jobs', page: 'jobs' },
     { label: 'Services', page: 'services' },
-    { label: 'Contact', page: 'contact' },
   ];
 
   useEffect(() => {
@@ -147,6 +146,17 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                 </div>
               )}
             </div>
+
+            <button
+              onClick={() => handleNav('contact')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                currentPage === 'contact'
+                  ? 'bg-green-50 text-green-700'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Contact
+            </button>
           </nav>
 
           {/* Right Actions */}
@@ -292,6 +302,17 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                 {user.role === 'corporate' ? 'Corporate Panel' : 'Dashboard'}
               </button>
             )}
+
+            <button
+              onClick={() => handleNav('contact')}
+              className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                currentPage === 'contact'
+                  ? 'bg-green-50 text-green-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Contact
+            </button>
           </div>
         </div>
       )}
