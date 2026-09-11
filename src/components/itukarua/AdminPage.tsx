@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
@@ -2076,7 +2076,7 @@ const AdminPage: React.FC = () => {
                 { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
                 { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
                 { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
-                { id: 'ads', label: 'Ads', icon: <Newspaper className="w-4 h-4" /> },
+                { id: 'ads', label: 'Services', icon: <Newspaper className="w-4 h-4" /> },
                 { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
                 { id: 'billing', label: 'Billing', icon: <Receipt className="w-4 h-4" /> },
                 { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
