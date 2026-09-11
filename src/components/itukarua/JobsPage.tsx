@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import SEO, { generateItemListSchema } from '@/lib/seo';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Zap } from 'lucide-react';
 import JobCard from './JobCard';
 import VerticalAdRail from './VerticalAdRail';
 import JobListingsTopBanner from './JobListingsTopBanner';
+import BoostProductModal from './BoostProductModal';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { useJobs } from '@/hooks/useQueries';
-import { getCustomCategories } from '@/lib/database';
+import { getCustomCategories, getJobs, type DbJob } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 
@@ -15,9 +16,12 @@ interface JobsPageProps {
   onViewJob: (jobId: string) => void;
   onNavigate: (page: Page) => void;
   initialSearch?: string;
+  user?: any | null;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string) => void;
+  onOpenAuth?: (tab?: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
 }
 
-const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearch = '' }) => {
+const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearch = '', user, onOpenMpesa, onOpenAuth }) => {
   const [search, setSearch] = useState(initialSearch);
   const [category, setCategory] = useState('All Categories');
   const [subcounty, setSubcounty] = useState('');
@@ -28,6 +32,17 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(true);
   const [dbCats, setDbCats] = useState<string[]>([]);
+  const [boostOpen, setBoostOpen] = useState(false);
+  const [myJobs, setMyJobs] = useState<DbJob[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) { setMyJobs([]); return; }
+    let cancelled = false;
+    getJobs({ postedBy: user.id, activeOnly: true, limit: 100 }).then(jobs => { if (!cancelled) setMyJobs(jobs); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const ownsJobs = myJobs.length > 0;
 
   useEffect(() => {
     getCustomCategories('job').then(setDbCats);
@@ -59,7 +74,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     activeOnly: true,
   }), [category, subcounty, county, search]);
 
-  const { data: jobsData = [], isLoading } = useJobs(filters);
+  const { data: jobsData = [], isLoading, refetch } = useJobs(filters);
 
   // Client-side sort
   const jobs = useMemo(() => {
@@ -208,7 +223,23 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {user && ownsJobs && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200 flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-sm">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">Boost your job to the top!</p>
+                <p className="text-xs text-gray-500">KES 500 · Appear first in search + job listings for 7 days</p>
+              </div>
+            </div>
+            <button onClick={() => setBoostOpen(true)} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-bold rounded-lg transition-all shadow-sm whitespace-nowrap flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5" /> Boost Now
+            </button>
+          </div>
+        )}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <button key="all-categories" onClick={() => setCategory('All Categories')} className={`px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === 'All Categories' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>All Categories</button>
           {dbCats.map(c => (
@@ -258,6 +289,17 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
           </aside>
         </div>
       </div>
+
+      <BoostProductModal
+        isOpen={boostOpen}
+        onClose={() => setBoostOpen(false)}
+        user={user}
+        role={user?.role}
+        initialType="job"
+        onOpenMpesa={(amount, description, accountRef, paymentType, relatedAdId, relatedJobId) => onOpenMpesa(amount, description, accountRef, paymentType, relatedAdId, relatedJobId)}
+        onOpenAuth={(tab = 'login') => onOpenAuth?.(tab as any, 'advertiser')}
+        refreshJobs={refetch}
+      />
     </div>
   );
 };

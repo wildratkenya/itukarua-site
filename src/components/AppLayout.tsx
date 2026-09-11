@@ -515,7 +515,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         case 'home':
           return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onWorkerSearchAuth={handleWorkerSearchAuth} autoOpenWorkerSearch={autoOpenWorkerSearch} onConsumeAutoOpenWorkerSearch={() => setAutoOpenWorkerSearch(false)} onOpenAuth={handleOpenAuth} />;
         case 'jobs':
-          return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} />;
+          return <JobsPage onViewJob={handleViewJob} onNavigate={handleNavigate} initialSearch={searchQuery} user={user} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
         case 'job-detail':
           return (
             <JobDetailPage
@@ -529,7 +529,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             />
           );
         case 'services':
-          return <ServicesPage onNavigate={handleNavigate} />;
+          return <ServicesPage onNavigate={handleNavigate} user={user} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
         case 'pricing':
           return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onStayAfterLogin={() => { loginFromBoost.current = true; }} user={user} />;
         case 'about':
