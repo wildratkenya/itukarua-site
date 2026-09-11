@@ -8,29 +8,43 @@ import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { useServiceAds } from '@/hooks/useQueries';
-import { createServiceRating, checkServiceRating, getCustomCategories } from '@/lib/database';
-import { supabase } from '@/lib/supabase';
+import { createServiceRating, checkServiceRating, getCustomCategories, getMyServiceAds } from '@/lib/database';
 import type { Page } from './Header';
 import ImageViewerModal from './ImageViewerModal';
+import BoostProductModal from './BoostProductModal';
 
 interface ServicesPageProps {
   onNavigate: (page: Page) => void;
   onViewService: (serviceId: string) => void;
+  user?: any | null;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string) => void;
+  onOpenAuth?: (tab?: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
 }
 
-const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService }) => {
+const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, user, onOpenMpesa, onOpenAuth }) => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All Services');
   const [subcounty, setSubcounty] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [county, setCounty] = useState('');
   const [showFilters, setShowFilters] = useState(true);
-  const [user, setUser] = useState<any>(null);
   const [dbCats, setDbCats] = useState<string[]>([]);
+  const [boostOpen, setBoostOpen] = useState(false);
+  const [myServices, setMyServices] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-  }, []);
+    if (!user?.id) { setMyServices([]); return; }
+    let cancelled = false;
+    getMyServiceAds(user.id).then(ads => {
+      if (!cancelled) {
+        const now = new Date();
+        setMyServices(ads.filter(a => !a.expiry_date || new Date(a.expiry_date) > now));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const ownsServices = myServices.length > 0;
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
 
@@ -157,20 +171,22 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService }
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200 flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-sm">
-              <Zap className="w-5 h-5 text-white" />
+        {user && ownsServices && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200 flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-sm">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">Boost your business to the top!</p>
+                <p className="text-xs text-gray-500">KES 500 · Appear first in search + homepage for 7 days</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Boost your business to the top!</p>
-              <p className="text-xs text-gray-500">KES 500 � Appear first in search + homepage for 7 days</p>
-            </div>
+            <button onClick={() => setBoostOpen(true)} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-bold rounded-lg transition-all shadow-sm whitespace-nowrap flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5" /> Boost Now
+            </button>
           </div>
-          <button onClick={() => onNavigate('dashboard')} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-bold rounded-lg transition-all shadow-sm whitespace-nowrap flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5" /> Boost Now
-          </button>
-        </div>
+        )}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <button key="all-services" onClick={() => setCategory('All Services')} className={`px-4 py-2 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${category === 'All Services' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>All Services</button>
           {dbCats.map(c => (
@@ -218,6 +234,16 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService }
           </aside>
         </div>
       </div>
+
+      <BoostProductModal
+        isOpen={boostOpen}
+        onClose={() => setBoostOpen(false)}
+        user={user}
+        role={user?.role}
+        initialType="service"
+        onOpenMpesa={(amount, description, accountRef, paymentType, relatedAdId, relatedJobId) => onOpenMpesa(amount, description, accountRef, paymentType, relatedAdId, relatedJobId)}
+        onOpenAuth={(tab = 'login') => onOpenAuth?.(tab as any, 'advertiser')}
+      />
     </div>
   );
 };

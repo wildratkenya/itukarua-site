@@ -24,6 +24,7 @@ interface Props {
   onClose: () => void;
   user: any | null;
   role: string | null | undefined;
+  initialType?: BoostType;
   onOpenMpesa: (
     amount: number,
     description: string,
@@ -41,6 +42,7 @@ export default function BoostProductModal({
   onClose,
   user,
   role,
+  initialType,
   onOpenMpesa,
   onOpenAuth,
 }: Props) {
@@ -101,6 +103,10 @@ export default function BoostProductModal({
       setBoostingId(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && initialType) setSelectedType(initialType);
+  }, [isOpen, initialType]);
 
   const handleBoost = (item: BoostableItem) => {
     if (!user) return;
