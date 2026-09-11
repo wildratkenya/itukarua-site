@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Megaphone, Briefcase, Wrench, LogIn, X, Zap, Clock, Check } from 'lucide-react';
+import { Briefcase, Wrench, LogIn, X, Zap, Clock, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getMyAds, getMyServiceAds, getJobs } from '@/lib/database';
+import { getMyServiceAds, getJobs } from '@/lib/database';
 
-type BoostType = 'banner' | 'job' | 'service';
+type BoostType = 'job' | 'service';
 
 type BoostableItem = {
   id: string;
@@ -14,8 +14,7 @@ type BoostableItem = {
   boostUntil?: string | null;
 };
 
-const TYPE_META: Record<BoostType, { label: string; icon: typeof Megaphone; desc: string }> = {
-  banner:  { label: 'Banner Advert', icon: Megaphone, desc: 'Full-width brand imagery' },
+const TYPE_META: Record<BoostType, { label: string; icon: typeof Briefcase; desc: string }> = {
   job:     { label: 'Featured Job',  icon: Briefcase, desc: 'Priority position in search' },
   service: { label: 'Service Ad',    icon: Wrench,    desc: 'Showcase at the top of your category' },
 };
@@ -60,19 +59,7 @@ export default function BoostProductModal({
         let boostable: BoostableItem[] = [];
         const now = new Date();
 
-        if (selectedType === 'banner') {
-          const ads = await getMyAds(user.id);
-          boostable = ads
-            .filter(a => a.active && !a.is_affiliate)
-            .map(a => ({
-              id: a.id,
-              title: a.title || 'Untitled Banner',
-              image: a.image_url,
-              subtitle: a.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Banner advert',
-              boosted: !!a.featured && !!a.boost_until && new Date(a.boost_until) > now,
-              boostUntil: a.boost_until,
-            }));
-        } else if (selectedType === 'job') {
+        if (selectedType === 'job') {
           const jobs = await getJobs({ postedBy: user.id, activeOnly: true });
           boostable = jobs
             .filter(j => j.status === 'open')
@@ -244,8 +231,7 @@ export default function BoostProductModal({
                           <img src={item.image} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                            {selectedType === 'banner' ? <Megaphone className="w-5 h-5 text-gray-400" /> :
-                             selectedType === 'job' ? <Briefcase className="w-5 h-5 text-gray-400" /> :
+                            {selectedType === 'job' ? <Briefcase className="w-5 h-5 text-gray-400" /> :
                              <Wrench className="w-5 h-5 text-gray-400" />}
                           </div>
                         )}
