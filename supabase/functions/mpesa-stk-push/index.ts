@@ -171,31 +171,50 @@ async function activateAdvertPlacement(supabase: any, payment: any): Promise<voi
     .eq('id', payment.related_ad_id)
 }
 
-// Paid "Featured Boost" — activate featured status on whichever table owns the ad.
+// Paid "Featured Boost" — activates/stacks featured status on whichever table owns
+// the ad. KES 500 adds exactly 7 days onto the current boost when one is active,
+// otherwise it starts a fresh 7-day window.
 async function applyFeaturedBoost(supabase: any, payment: any): Promise<void> {
-  if (!payment.related_ad_id) return
-  const boostUntil = new Date()
-  boostUntil.setDate(boostUntil.getDate() + 7)
+  if (!payment.related_ad_id && !payment.related_job_id) return
+  const BOOST_MS = 7 * 24 * 60 * 60 * 1000
 
-  const { data: srv } = await supabase
-    .from('service_ads')
-    .update({ featured: true, boost_until: boostUntil.toISOString() })
-    .eq('id', payment.related_ad_id)
-    .select('id')
-    .maybeSingle()
-  if (srv) return
-
-  const { data: ad } = await supabase
-    .from('advertisements')
-    .select('id')
-    .eq('id', payment.related_ad_id)
-    .maybeSingle()
-  if (ad) {
-    await supabase
-      .from('advertisements')
-      .update({ featured: true, boost_until: boostUntil.toISOString() })
+  // Resolve which table owns the paid item.
+  let table: string | null = null
+  if (payment.related_job_id) {
+    table = 'jobs'
+  } else {
+    const { data: srv } = await supabase
+      .from('service_ads')
+      .select('id')
       .eq('id', payment.related_ad_id)
+      .maybeSingle()
+    if (srv) table = 'service_ads'
+    const { data: ad } = await supabase
+      .from('advertisements')
+      .select('id')
+      .eq('id', payment.related_ad_id)
+      .maybeSingle()
+    if (ad) table = 'advertisements'
   }
+  if (!table) return
+
+  const id = payment.related_job_id || payment.related_ad_id
+  const now = Date.now()
+  const { data: row } = await supabase
+    .from(table)
+    .select('boost_until')
+    .eq('id', id)
+    .maybeSingle()
+
+  const base = row?.boost_until && new Date(row.boost_until).getTime() > now
+    ? new Date(row.boost_until).getTime()
+    : now
+  const boostUntil = new Date(base + BOOST_MS).toISOString()
+
+  await supabase
+    .from(table)
+    .update({ featured: true, boost_until: boostUntil })
+    .eq('id', id)
 }
 
 async function completePayment(supabase: any, payment: any) {

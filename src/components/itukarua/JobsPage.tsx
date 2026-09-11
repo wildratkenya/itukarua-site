@@ -85,7 +85,10 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
         case 'urgent': sorted.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)); break;
       }
     }
-    return sorted;
+    const isBoosted = (j: DbJob) => j.featured && j.boost_until && new Date(j.boost_until).getTime() > Date.now();
+    const boosted = sorted.filter(isBoosted);
+    const rest = sorted.filter(j => !isBoosted(j));
+    return [...boosted, ...rest];
   }, [jobsData, sortBy, preferredCategories]);
 
   const mapJob = (j: DbJob) => ({
@@ -105,6 +108,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     urgent: j.urgent,
     status: j.status as 'open' | 'in-progress' | 'completed',
     images: j.images,
+    featured: j.featured,
+    boost_until: j.boost_until,
   });
 
   const clearFilters = () => {

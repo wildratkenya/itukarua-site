@@ -52,6 +52,8 @@ export interface DbJob {
   status: 'open' | 'in-progress' | 'completed' | 'cancelled';
   bids_count: number;
   views?: number;
+  featured?: boolean;
+  boost_until?: string | null;
   images?: string[];
   created_at: string;
   updated_at: string;
@@ -289,7 +291,7 @@ export async function getJobs(filters?: {
     }
   }
 
-  query = query.order('created_at', { ascending: false });
+  query = query.order('featured', { ascending: false }).order('created_at', { ascending: false });
 
   if (filters?.limit) {
     query = query.limit(filters.limit);
@@ -301,7 +303,16 @@ export async function getJobs(filters?: {
     console.error('getJobs error:', error); 
     return []; 
   }
-  return data as DbJob[];
+  // Auto-expire boosts: un-feature jobs whose boost_until has passed
+  const now = new Date().toISOString();
+  const results = data as DbJob[];
+  const expired = results.filter(j => j.featured && j.boost_until && j.boost_until < now);
+  if (expired.length > 0) {
+    expired.forEach(j => {
+      supabase.from('jobs').update({ featured: false, boost_until: null }).eq('id', j.id).then(() => {}).catch(() => {});
+    });
+  }
+  return results.filter(j => !j.boost_until || j.boost_until >= now || !j.featured);
 }
 
 export async function getJobById(jobId: string): Promise<DbJob | null> {
@@ -1961,8 +1972,19 @@ export async function deleteMyAd(id: string, userId: string) {
   if (error) throw error;
 }
 
-export async function boostAd(table: 'advertisements' | 'service_ads', adId: string) {
-  const boostUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+export async function boostAd(table: 'advertisements' | 'service_ads' | 'jobs', adId: string) {
+  // Boosts stack: a new boost adds 7 days onto the current boost_until when one
+  // is still active, otherwise it starts a fresh 7-day window.
+  const now = new Date();
+  const { data: row } = await supabase
+    .from(table)
+    .select('boost_until')
+    .eq('id', adId)
+    .maybeSingle();
+  const base = row?.boost_until && new Date(row.boost_until) > now
+    ? new Date(row.boost_until).getTime()
+    : now.getTime();
+  const boostUntil = new Date(base + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { error } = await supabase
     .from(table)
     .update({ featured: true, boost_until: boostUntil })
