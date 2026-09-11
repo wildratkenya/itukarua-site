@@ -2012,7 +2012,7 @@ export interface BillingItem {
 }
 
 const SERVICE_PLAN_PRICE: Record<string, number> = { '10-day': 300, '20-day': 500, '30-day': 800 };
-const ADVERT_SLOT_PRICE: Record<string, number> = { job_listings_top: 500 };
+const ADVERT_SLOT_PRICE: Record<string, number> = {};
 const advertAmount = (ad: any): number => {
   const weekly = ADVERT_SLOT_PRICE[ad?.slot ?? 'job_listings_top'] ?? 500;
   const mult = ad.billing_cycle === '30 days' ? 4 : ad.billing_cycle === '20 days' ? 2.5 : ad.billing_cycle === '10 days' ? 1.5 : 1;

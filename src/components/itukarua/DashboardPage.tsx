@@ -1,27 +1,21 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
-import { supabase, optimizeImageUrl, proxyImageUrl, handleImageError } from '@/lib/supabase';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
+import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import MpesaModal from './MpesaModal';
-import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
 import ProfileViewsChart from './ProfileViewsChart';
 import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
 import { Badge } from '@/components/ui/badge';
-import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
 import CertificateViewer from './CertificateViewer';
 
-const AD_SLOT_PRICE: Record<string, number> = { job_listings_top: 500 };
-const slotPrice = (slot?: string | null) => AD_SLOT_PRICE[slot ?? 'job_listings_top'] ?? 500;
-const slotLabel = (slot?: string | null) => slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Banner Advert';
 const workerFallback = (id: string) => IMAGES.workers[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % IMAGES.workers.length];
-type AdvertPayload = Parameters<typeof updateMyAd>[2];
 
 interface DashboardPageProps {
   user: UserState;
@@ -44,7 +38,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [ads, setAds] = useState<DbServiceAd[]>([]);
-  const [myAds, setMyAds] = useState<DbAdvertisement[]>([]);
   const [myServiceAds, setMyServiceAds] = useState<DbServiceAd[]>([]);
   const [renewAd, setRenewAd] = useState<DbServiceAd | null>(null); // service ad pending renewal picker
   const [payments, setPayments] = useState<DbPayment[]>([]);
@@ -76,20 +69,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [totalJobViews, setTotalJobViews] = useState(0);
   const [siteTraffic, setSiteTraffic] = useState<{ date: string; visitors: number; page_views: number }[]>([]);
   const [userRanking, setUserRanking] = useState<{ rank: number; total: number; reviews_count: number; rating: number } | null>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
-  const [showAdForm, setShowAdForm] = useState(false);
-  const [showAdSpecs, setShowAdSpecs] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top', plan: '30-day' });
-  const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
-  const [advUrlInput, setAdvUrlInput] = useState('');
-  const [advSaving, setAdvSaving] = useState(false);
-  const [advError, setAdvError] = useState('');
-  const [adAnalyticsByAd, setAdAnalyticsByAd] = useState<AdAnalyticsByAd[]>([]);
-  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
-  const [lastCreatedAdId, setLastCreatedAdId] = useState<string | null>(null);
-  const [upgradePending, setUpgradePending] = useState<{ oldSlot: string; newSlot: string; diff: number; payload: AdvertPayload } | null>(null);
-  const [boostInfoAdId, setBoostInfoAdId] = useState<string | null>(null);
-  const [boostingAdId, setBoostingAdId] = useState<string | null>(null);
+const notifRef = useRef<HTMLDivElement>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
@@ -128,7 +108,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         } else if (isJobseeker) {
           promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getWeeklyBidCount(user.id), getMonthlyBidCount(user.id));
         } else if (isAdvertiser) {
-          promises.push(getMyAds(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getMyServiceAds(user.id));
+          promises.push(checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getMyServiceAds(user.id));
         } else {
           promises.push(getJobs({ postedBy: user.id }), getBidsReceivedOnMyJobs(user.id));
         }
@@ -156,11 +136,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setWeeklyBidCount(results[offset + 3] || 0);
           setMonthlyBidCount(results[offset + 4] || 0);
         } else if (isAdvertiser) {
-          setMyAds(results[offset] || []);
-          setSubscriptionActive(results[offset + 1] || false);
-          setSubscriptionDays(results[offset + 2] || 0);
-          setMyServiceAds(results[offset + 3] || []);
-          getAdAnalyticsByAd(user.id, 30).then(setAdAnalyticsByAd);
+          setSubscriptionActive(results[offset] || false);
+          setSubscriptionDays(results[offset + 1] || 0);
+          setMyServiceAds(results[offset + 2] || []);
         } else {
           setJobs(results[offset] || []);
           setReceivedBids(results[offset + 1] || []);
@@ -367,11 +345,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     const now = Date.now();
     const limit = now + 48 * 60 * 60 * 1000;
     const alerts: Array<{ id: string; title: string; daysLeft: number; relatedAdId?: string; relatedJobId?: string }> = [];
-    (myAds || []).forEach(ad => {
-      if (ad.featured && ad.boost_until && new Date(ad.boost_until).getTime() > now && new Date(ad.boost_until).getTime() <= limit) {
-        alerts.push({ id: ad.id, title: ad.title || 'Banner advert', daysLeft: Math.ceil((new Date(ad.boost_until).getTime() - now) / 86400000), relatedAdId: ad.id });
-      }
-    });
     (myServiceAds || []).forEach(ad => {
       if (ad.featured && ad.boost_until && new Date(ad.boost_until).getTime() > now && new Date(ad.boost_until).getTime() <= limit) {
         alerts.push({ id: ad.id, title: ad.business_name || 'Service advert', daysLeft: Math.ceil((new Date(ad.boost_until).getTime() - now) / 86400000), relatedAdId: ad.id });
@@ -383,7 +356,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       }
     });
     return alerts;
-  }, [isAdmin, myAds, myServiceAds, jobs]);
+  }, [isAdmin, myServiceAds, jobs]);
 
   const tabs = isAdmin
     ? [{ id: 'overview', label: 'Overview', icon: TrendingUp }, { id: 'users', label: 'Users', icon: Users }, { id: 'jobs', label: 'Jobs', icon: Briefcase }, { id: 'payments', label: 'Payments', icon: CreditCard }, { id: 'adverts', label: 'Adverts', icon: Building2 }, { id: 'settings', label: 'Settings', icon: Settings }]
@@ -454,155 +427,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       console.error(err);
     } finally {
       setFeeSaving(false);
-    }
-  };
-
-  const reloadMyAds = async () => {
-    const data = await getMyAds(user.id);
-    setMyAds(data || []);
-    const analytics = await getAdAnalyticsByAd(user.id, 30);
-    setAdAnalyticsByAd(analytics);
-  };
-
-  const addAdvFiles = (list: FileList | null) => {
-    if (!list) return;
-    const files = Array.from(list).filter(f => f.type.startsWith('image/'));
-    const added = files.slice(0, Math.max(0, 3 - advImageFiles.length));
-    if (added.length === 0) return;
-    const urls = added.map(f => URL.createObjectURL(f));
-    setAdvImageFiles(prev => [...prev, ...added]);
-    setAdForm(prev => {
-      const images = [...prev.images, ...urls];
-      return { ...prev, images, image_url: images[0] || prev.image_url };
-    });
-  };
-
-  const addAdvUrl = () => {
-    const url = advUrlInput.trim();
-    if (!url) return;
-    setAdvUrlInput('');
-    setAdForm(prev => {
-      const images = prev.images.length >= 8 ? prev.images : [...prev.images, url];
-      return { ...prev, images, image_url: images[0] || prev.image_url };
-    });
-    setAdvImageFiles(prev => (prev.length >= 8 ? prev : [...prev, null]));
-  };
-
-  const removeAdvImage = (idx: number) => {
-    setAdForm(prev => {
-      const images = prev.images.filter((_, i) => i !== idx);
-      return { ...prev, images, image_url: images[0] || '' };
-    });
-    setAdvImageFiles(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const handleSaveAdForm = async () => {
-    if (!adForm.title.trim() || adForm.images.length === 0) {
-      setAdvError('Title and at least one banner image are required.');
-      return;
-    }
-    setAdvSaving(true);
-    setAdvError('');
-    try {
-      const finalImages: string[] = [];
-      for (let i = 0; i < adForm.images.length; i++) {
-        const img = adForm.images[i];
-        const file = advImageFiles[i];
-        if (img.startsWith('blob:') && file) {
-          const compressed = await compressImage(file);
-          const safeName = compressed.name.replace(/[^a-zA-Z0-9._-]/g, '');
-          const fileName = `${user.id}/banner/${Date.now()}_${i}_${safeName}`;
-          const { error: upErr } = await supabase.storage.from('adverts').upload(fileName, compressed);
-          if (upErr) throw upErr;
-          finalImages.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
-        } else if (img && !img.startsWith('blob:')) {
-          finalImages.push(img);
-        }
-      }
-      if (finalImages.length === 0) throw new Error('At least one banner image is required.');
-      const payload = {
-        title: adForm.title,
-        image_url: finalImages[0],
-        images: finalImages,
-        destination_url: adForm.destination_url || null,
-        description: adForm.description,
-        cta_text: adForm.cta_text,
-        whatsapp_number: adForm.whatsapp_number,
-        is_affiliate: adForm.is_affiliate,
-        slot: adForm.slot,
-      };
-      if (adForm.id) {
-        const currentAd = myAds.find(a => a.id === adForm.id);
-        const oldPrice = slotPrice(currentAd?.slot);
-        const newPrice = slotPrice(adForm.slot);
-        if (newPrice > oldPrice) {
-          setUpgradePending({ oldSlot: currentAd?.slot || 'job_listings_top', newSlot: adForm.slot, diff: newPrice - oldPrice, payload });
-          return;
-        }
-        await updateMyAd(adForm.id, user.id, payload);
-      } else {
-        const created = await createAdForUser(user.id, payload);
-        setLastCreatedAdId(created.id);
-        setShowPaymentPrompt(true);
-      }
-      setShowAdForm(false);
-      setAdvImageFiles([]);
-      setAdvUrlInput('');
-      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top', plan: '30-day' });
-      await reloadMyAds();
-    } catch (err: any) {
-      setAdvError(err.message || 'Failed to save advert. Please try again.');
-    } finally {
-      setAdvSaving(false);
-    }
-  };
-
-  const applyAdUpgrade = () => {
-    if (!adForm.id || !upgradePending) return;
-    const { diff, oldSlot, newSlot, payload } = upgradePending;
-    setUpgradePending(null);
-    setAdvSaving(true);
-    onOpenMpesa(
-      diff,
-      `Advert upgrade — ${adForm.title} (${slotLabel(oldSlot)} → ${slotLabel(newSlot)})`,
-      `ADV-${adForm.id.slice(0, 8).toUpperCase()}`,
-      'advert_upgrade',
-      adForm.id,
-      undefined,
-      undefined,
-      async () => {
-        try {
-          await updateMyAd(adForm.id, user.id, payload);
-          setShowAdForm(false);
-          setAdvImageFiles([]);
-          setAdvUrlInput('');
-          setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top', plan: '30-day' });
-          await reloadMyAds();
-        } catch (err: any) {
-          setAdvError(err.message || 'Payment succeeded but the upgrade could not be applied. Please try saving again.');
-        } finally {
-          setAdvSaving(false);
-        }
-      }
-    );
-  };
-
-  const handleToggleAdActive = async (ad: DbAdvertisement) => {
-    try {
-      await updateMyAd(ad.id, user.id, { active: !ad.active });
-      await reloadMyAds();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update advert.');
-    }
-  };
-
-  const handleDeleteAd = async (ad: DbAdvertisement) => {
-    if (!window.confirm(`Delete advert "${ad.title}"?`)) return;
-    try {
-      await deleteMyAd(ad.id, user.id);
-      await reloadMyAds();
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete advert.');
     }
   };
 
@@ -1015,9 +839,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                     { label: 'Revenue', value: `KES ${((stats?.total_payments || 0) / 1000).toFixed(0)}K`, icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
                     { label: 'Active Adverts', value: (stats?.active_businesses || 0).toString(), icon: Building2, color: 'bg-purple-100 text-purple-600', tab: 'adverts' },
                   ] : isAdvertiser ? [
-                { label: 'Total Adverts', value: myAds.length.toString(), icon: Megaphone, color: 'bg-blue-100 text-blue-600', tab: 'adverts' },
-                { label: 'Displays', value: myAds.reduce((sum, a) => sum + (a.displays || 0), 0).toString(), icon: Eye, color: 'bg-green-100 text-green-600', tab: 'adverts' },
-                { label: 'Clicks', value: myAds.reduce((sum, a) => sum + (a.clicks || 0), 0).toString(), icon: MousePointerClick, color: 'bg-amber-100 text-amber-600', tab: 'adverts' },
                 { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-purple-100 text-purple-600', tab: 'payments' },
               ] : [
                 { label: 'Posted Jobs', value: jobs.length.toString(), icon: Briefcase, color: 'bg-blue-100 text-blue-600', tab: 'jobs' },
@@ -1052,7 +873,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                       <p className="text-sm text-gray-600">
                         {subscriptionActive
                           ? subscriptionDays <= 7 ? 'Your subscription is expiring soon. Renew to keep your adverts live.' : 'Your subscription is active.'
-                          : 'Subscribe to publish and run banner adverts on the homepage.'}
+                          : 'Subscribe to publish service ads and boost your listings.'}
                       </p>
                     </div>
                   </div>
@@ -1067,14 +888,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               </>
             )}
 
-            {/* Analytics Section */}
+{/* Analytics Section */}
             <div className="space-y-4">
-              {isAdvertiser && adAnalyticsByAd.length > 0 && (
-                <AdvertiserAnalyticsChart
-                  analyticsByAd={adAnalyticsByAd}
-                        ads={myAds}
-                />
-              )}
               {!isAdmin && !isJobseeker && !isAdvertiser && jobViewHistory.length > 0 && (
                 <JobViewsChart data={jobViewHistory} total={totalJobViews} />
               )}
@@ -1373,171 +1188,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           </div>
         )}
 
-        {activeTab === 'adverts' && isAdvertiser && (
+{activeTab === 'adverts' && isAdvertiser && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">My Adverts</h3>
-              <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top' }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
-                <Plus className="w-4 h-4" /> {showAdForm ? 'Close Form' : 'New Advert'}
-              </button>
-            </div>
-
-            {showAdForm && (
-              <div className="bg-white rounded-xl p-6 border border-gray-100 space-y-4">
-                <h4 className="font-semibold text-gray-900">{adForm.id ? 'Edit Advert' : 'Create Banner Advert'}</h4>
-                <p className="text-xs text-gray-500">Your advert appears in the full-width banner at the top of the Job Listings page. New adverts start unpublished — click "Publish" when ready.</p>
-                {advError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{advError}</div>}
-<div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                  <input type="text" value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="e.g. Kamau Hardware Mega Sale" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 mt-3">Banner Images * <span className="text-gray-400 font-normal">(up to 8)</span></label>
-                  <p className="text-xs text-gray-500 mb-2">The first image is the main banner. All images appear in the popup. 10-day plan: 3 images, 20-day: 5, 30-day: 8. Each is compressed automatically on save.</p>
-                  <div className="flex flex-wrap gap-3">
-                    {adForm.images.length === 0 && (
-                      <div className="w-24 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400"><Plus className="w-5 h-5" /></div>
-                    )}
-                    {adForm.images.map((img, i) => (
-                      <div key={i} className="relative w-24 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
-                        <img src={proxyImageUrl(img)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        {i === 0 && <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">Main</span>}
-                        <button onClick={() => removeAdvImage(i)} className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-colors"><X className="w-3 h-3" /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <label className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
-                      <Upload className="w-4 h-4 inline mr-1" /> Upload
-                      <input type="file" accept="image/*" multiple className="hidden" disabled={adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8)} onChange={e => { addAdvFiles(e.target.files); e.target.value = ''; }} />
-                    </label>
-                    <input type="url" value={advUrlInput} onChange={e => setAdvUrlInput(e.target.value)} placeholder="...or paste image URL" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                    <button onClick={addAdvUrl} disabled={adForm.images.length >= (adForm.plan === '10-day' ? 3 : adForm.plan === '20-day' ? 5 : 8) || !advUrlInput.trim()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">Add</button>
-                  </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Destination URL</label>
-                    <input type="url" value={adForm.destination_url} onChange={e => setAdForm({ ...adForm, destination_url: e.target.value })} placeholder="https://..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Number</label>
-                    <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="e.g. 254712345678" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
-                  <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Optional one-liner" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
-                    <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                  </div>
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input type="checkbox" checked={adForm.is_affiliate} onChange={e => setAdForm({ ...adForm, is_affiliate: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                      Affiliate link
-                    </label>
-                  </div>
-                </div>
-                {upgradePending && (
-                  <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 space-y-3">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <h5 className="text-sm font-semibold text-gray-900">Advert Placement Upgrade</h5>
-                        <p className="text-sm text-gray-600 mt-1">Changing from <strong>{slotLabel(upgradePending.oldSlot)}</strong> (KES {slotPrice(upgradePending.oldSlot)}/week) to <strong>{slotLabel(upgradePending.newSlot)}</strong> (KES {slotPrice(upgradePending.newSlot)}/week) costs an extra <strong>KES {upgradePending.diff}</strong>. Pay the difference to apply the new placement.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <button onClick={applyAdUpgrade} disabled={advSaving} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                        {advSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Pay KES {upgradePending.diff} & Apply Upgrade
-                      </button>
-                      <button onClick={() => { setAdForm(p => ({ ...p, slot: upgradePending.oldSlot })); setUpgradePending(null); }} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Keep Current Placement</button>
-                    </div>
-                  </div>
-                )}
-                <div className="flex gap-3 pt-2">
-                  <button onClick={handleSaveAdForm} disabled={advSaving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                    {advSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : adForm.id ? 'Save Changes' : 'Create Advert'}
-                  </button>
-                  <button onClick={() => { setShowAdForm(false); setUpgradePending(null); setAdvImageFiles([]); setAdvUrlInput(''); }} className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
-                </div>
-              </div>
-            )}
-
-            {showPaymentPrompt && lastCreatedAdId && (
-              <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
-                <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 500</strong> (Job Listings Top Banner — 7 days). Exclusive of ad design — user to provide.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(500, `Job Listings advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES 500
-                  </button>
-                  <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
-                    Pay Later
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {myAds.length > 0 ? myAds.map(ad => {
-              const isBoosted = ad.featured && ad.boost_until && new Date(ad.boost_until) > new Date();
-              const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
-              return (
-              <div key={ad.id} className={`bg-white rounded-xl p-4 border flex items-center gap-4 transition-all ${isBoosted ? 'border-amber-300 shadow-md shadow-amber-100' : 'border-gray-100'}`}>
-                <div className="w-20 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 relative">
-                  <img src={proxyImageUrl(ad.image_url)} alt={ad.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  {isBoosted && <span className="absolute top-0 left-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[7px] font-bold px-1 py-0.5 rounded-br-md flex items-center gap-0.5"><Zap className="w-2 h-2" /> HOT</span>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-medium text-gray-900 truncate">{ad.title}</h4>
-                    {isBoosted && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">⚡ {boostDaysLeft}d left</span>}
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {ad.displays || 0}</span>
-                    <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> {ad.clicks || 0}</span>
-                    <span className="text-gray-400">{new Date(ad.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
-                  <div className="flex gap-2 items-center">
-                    {!ad.active && <button onClick={() => onOpenMpesa(500, 'Job Listings Top Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
-                    {ad.active && (
-                      <>
-                        {!isBoosted && (
-                          <button onClick={() => onOpenMpesa(500, 'Boost — 7 days', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
-                            <Zap className="w-3 h-3" /> Boost
-                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Featured boost for 7 days</span>
-                          </button>
-                        )}
-                        {isBoosted && (
-                          <>
-                            <div className="flex items-center gap-1">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                              </span>
-                              <span className="text-[10px] text-amber-600 font-semibold">Live · {boostDaysLeft}d left</span>
-                            </div>
-                            <button onClick={() => onOpenMpesa(500, `Extend Boost — ${ad.title}`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
-                              <Zap className="w-3 h-3" /> Extend +7d
-                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Add 7 more days</span>
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
-                    <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'job_listings_top' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
-                    <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
-                    <button onClick={() => handleDeleteAd(ad)} className="text-xs text-red-600 hover:text-red-700">Delete</button>
-                  </div>
-                </div>
-              </div>
-              );
-            }) : <p className="text-gray-500 text-sm py-8 text-center">No adverts yet. Create your first banner advert!</p>}
-
             {/* Business Service Ads — renewal */}
             <div className="mt-8">
               <div className="flex items-center justify-between mb-3">

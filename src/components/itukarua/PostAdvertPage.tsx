@@ -3,10 +3,9 @@ import { ArrowLeft, CheckCircle, Upload, Loader2, X, Shield } from 'lucide-react
 import { supabase } from '@/lib/supabase';
 import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { createServiceAd, createPayment, createAdForUser, getCustomCategories, hasEntitlement } from '@/lib/database';
+import { createServiceAd, createPayment, getCustomCategories, hasEntitlement } from '@/lib/database';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
-import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
 
 interface PostAdvertPageProps {
   onNavigate: (page: Page) => void;
@@ -19,19 +18,7 @@ const MAX_IMAGES = 3;
 
 const ADVERT_PLANS = PRICING_PLANS.advertPlans.map(p => ({ ...p, kind: 'service' as const }));
 
-const BANNER_PLANS = [
-  {
-    name: 'Job Listings Banner',
-    duration: '7 days',
-    price: 500,
-    slot: 'job_listings_top' as const,
-    accountRef: 'ADV-JL-WEEK',
-    paymentDesc: 'Job Listings Banner (1 week)',
-    kind: 'banner' as const,
-  },
-];
-
-const ALL_PLANS = [...ADVERT_PLANS, ...BANNER_PLANS];
+const ALL_PLANS = ADVERT_PLANS;
 
 const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
   const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', plan: '' });
@@ -42,7 +29,6 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
-  const [showAdSpecs, setShowAdSpecs] = useState(false);
   const [dbCats, setDbCats] = useState<string[]>([]);
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
@@ -73,8 +59,6 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     if (!formData.location) errs.location = 'Select a location';
     if (!formData.contact.trim()) errs.contact = 'Contact is required';
     if (!formData.plan) errs.plan = 'Select a plan';
-    const bannerPlan = BANNER_PLANS.find(p => p.name === formData.plan);
-    if (bannerPlan && imageFiles.length === 0) errs.images = 'A banner requires at least one image.';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -83,11 +67,6 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     const files = Array.from(e.target.files || []);
     const remaining = MAX_IMAGES - imageFiles.length;
     const toAdd = files.slice(0, remaining);
-    
-    for (const file of toAdd) {
-      const err = await validateAdImage(file, 'job_listings_top');
-      if (err) { setServerError(err); e.target.value = ''; return; }
-    }
 
     setImageFiles(prev => [...prev, ...toAdd]);
     setImagePreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))]);
@@ -132,49 +111,28 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       }
 
       const planKey = formData.plan.includes('10') ? '10-day' : formData.plan.includes('20') ? '20-day' : '30-day';
-      const bannerPlan = BANNER_PLANS.find(p => p.name === formData.plan);
-
-      if (bannerPlan) {
-        const ad = await createAdForUser(user.id, {
-          title: formData.businessName,
-          image_url: imageUrls[0] || '',
-          images: imageUrls.length > 0 ? imageUrls : undefined,
-          description: formData.description,
-          whatsapp_number: formData.contact,
-          slot: bannerPlan.slot,
-        });
+      const ad = await createServiceAd({
+        business_name: formData.businessName,
+        description: formData.description,
+        category: formData.category,
+        image: imageUrls[0] || undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined,
+        location: formData.location,
+        county: formData.county || undefined,
+        subcounty: formData.subcounty || undefined,
+        contact: formData.contact,
+        plan: planKey as '10-day' | '20-day' | '30-day',
+        owner_id: user.id,
+      });
+      if (selectedPlan) {
         await createPayment({
           user_id: user.id,
           payment_type: 'advert',
-          amount: bannerPlan.price,
-          description: `${bannerPlan.paymentDesc} - ${formData.businessName}`,
+          amount: selectedPlan.price,
+          description: `${selectedPlan.name} - ${formData.businessName}`,
           related_ad_id: ad.id,
         });
-        onOpenMpesa(bannerPlan.price, `${bannerPlan.paymentDesc} - ${formData.businessName}`, bannerPlan.accountRef, 'advert', ad.id);
-      } else {
-        const ad = await createServiceAd({
-          business_name: formData.businessName,
-          description: formData.description,
-          category: formData.category,
-          image: imageUrls[0] || undefined,
-          images: imageUrls.length > 0 ? imageUrls : undefined,
-          location: formData.location,
-          county: formData.county || undefined,
-          subcounty: formData.subcounty || undefined,
-          contact: formData.contact,
-          plan: planKey as '10-day' | '20-day' | '30-day',
-          owner_id: user.id,
-        });
-        if (selectedPlan) {
-          await createPayment({
-            user_id: user.id,
-            payment_type: 'advert',
-            amount: selectedPlan.price,
-            description: `${selectedPlan.name} - ${formData.businessName}`,
-            related_ad_id: ad.id,
-          });
-          onOpenMpesa(selectedPlan.price, `${selectedPlan.name} - ${formData.businessName}`, `ADV-${ad.id.slice(0, 8)}`, 'advert', ad.id);
-        }
+        onOpenMpesa(selectedPlan.price, `${selectedPlan.name} - ${formData.businessName}`, `ADV-${ad.id.slice(0, 8)}`, 'advert', ad.id);
       }
       setSubmitted(true);
     } catch (err: any) {
@@ -218,7 +176,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               </div>
               <h2 className="text-xl font-bold text-gray-900">Advertiser Access Required</h2>
               <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-                Creating adverts requires an Advertiser account. Add advertiser access to your account to unlock banner and service ad placement.
+                Creating adverts requires an Advertiser account. Add advertiser access to your account to unlock service ad placement.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
                 <button
@@ -300,12 +258,12 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each. <button type="button" onClick={() => setShowAdSpecs(true)} className="text-blue-500 hover:underline">View ad specs</button></p>
+              <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB each.</p>
               {errors.images && <p className="text-red-500 text-xs mt-1">{errors.images}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">Select Advertising Plan *</label>
-              <p className="text-xs text-gray-400 mb-3">Choose a listing duration for your business advert, or a 7-day banner slot.</p>
+              <p className="text-xs text-gray-400 mb-3">Choose a listing duration for your business advert.</p>
               {errors.plan && <p className="text-red-500 text-xs mb-2">{errors.plan}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {ALL_PLANS.map((plan, i) => (
@@ -313,7 +271,6 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
                     <p className="font-semibold text-gray-900">{plan.name}</p>
                     <p className="text-xs text-gray-500">{plan.duration}</p>
                     <p className="text-lg font-bold text-green-700 mt-2">KES {plan.price}</p>
-                    {plan.kind === 'banner' && <p className="text-[10px] text-blue-600 mt-1 font-medium">Banner slot</p>}
                   </button>
                 ))}
               </div>
@@ -325,7 +282,6 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               </button>
             </div>
           </form>
-      <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="job_listings_top" />
             </>
           )}
         </div>
