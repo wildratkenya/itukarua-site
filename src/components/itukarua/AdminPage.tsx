@@ -2007,7 +2007,30 @@ const AdminPage: React.FC = () => {
                             {currentRole === 'super_admin' && (
                               <>
                                 <DropdownMenuSeparator />
-                                {advExpired ? (
+                                {!ad.billing_end ? (
+                                  <div className="px-2 py-1.5">
+                                    <p className="text-[11px] font-medium text-gray-500 mb-1">No billing — add days to make it live</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={addAdvertDays[ad.id] ?? 30}
+                                        onChange={e => {
+                                          const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                          setAddAdvertDays(prev => ({ ...prev, [ad.id]: v }));
+                                        }}
+                                        className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                      />
+                                      <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdvertDays(ad.id, addAdvertDays[ad.id] ?? 30, ad.title || 'Advert')}>
+                                        Add Days
+                                      </Button>
+                                      <Button variant="outline" size="sm" onClick={() => extendAdvertDays(ad.id, 1, ad.title || 'Advert')}>
+                                        +1 Day
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : advExpired ? (
                                   <div className="px-2 py-1.5">
                                     <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
                                     <div className="flex items-center gap-1.5">
