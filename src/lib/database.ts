@@ -51,6 +51,7 @@ export interface DbJob {
   urgent: boolean;
   status: 'open' | 'in-progress' | 'completed' | 'cancelled';
   bids_count: number;
+  views?: number;
   images?: string[];
   created_at: string;
   updated_at: string;
@@ -1989,6 +1990,12 @@ export interface BillingItem {
 }
 
 const SERVICE_PLAN_PRICE: Record<string, number> = { '10-day': 300, '20-day': 500, '30-day': 800 };
+const ADVERT_SLOT_PRICE: Record<string, number> = { homepage_banner: 200, job_listings_top: 500 };
+const advertAmount = (ad: any): number => {
+  const weekly = ADVERT_SLOT_PRICE[ad.slot] ?? 200;
+  const mult = ad.billing_cycle === '30 days' ? 4 : ad.billing_cycle === '20 days' ? 2.5 : ad.billing_cycle === '10 days' ? 1.5 : 1;
+  return Math.round(weekly * mult);
+};
 const DUE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // alert within 7 days of expiry
 
 export async function getBillingItems(): Promise<BillingItem[]> {
@@ -2027,7 +2034,7 @@ export async function getBillingItems(): Promise<BillingItem[]> {
       owner_id: ad.owner_id || null,
       owner_email: ownerEmail,
       billing_cycle: ad.billing_cycle || '7 days',
-      amount: ad.target_subcounty ? 150 : ad.target_county ? 300 : 500,
+      amount: advertAmount(ad),
       billing_start: ad.billing_start || null,
       billing_end: ad.billing_end || null,
       last_invoice_at: ad.last_invoice_at || null,

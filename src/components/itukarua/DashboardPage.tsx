@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown } from 'lucide-react';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, getMyAds, createAdForUser, updateMyAd, deleteMyAd, getAdAnalyticsByAd, boostAd, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, type DbAdvertisement, type AdAnalyticsByAd } from '@/lib/database';
-import { supabase, optimizeImageUrl, proxyImageUrl } from '@/lib/supabase';
+import { supabase, optimizeImageUrl, proxyImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { compressImage } from '@/lib/imageUtils';
@@ -21,6 +21,7 @@ import CertificateViewer from './CertificateViewer';
 const AD_SLOT_PRICE: Record<string, number> = { homepage_banner: 200, job_listings_top: 500 };
 const slotPrice = (slot?: string | null) => AD_SLOT_PRICE[slot || 'homepage_banner'] ?? 200;
 const slotLabel = (slot?: string | null) => slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Carousel Banner';
+const workerFallback = (id: string) => IMAGES.workers[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % IMAGES.workers.length];
 type AdvertPayload = Parameters<typeof updateMyAd>[2];
 
 interface DashboardPageProps {
@@ -38,7 +39,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [bids, setBids] = useState<(DbBid & { job?: DbJob })[]>([]);
   const [receivedBids, setReceivedBids] = useState<(DbBid & { job?: DbJob })[]>([]);
   const [expandedReceivedBid, setExpandedReceivedBid] = useState<string | null>(null);
+  const [expandedReceivedJobs, setExpandedReceivedJobs] = useState<Record<string, boolean>>({});
+  const [receivedSort, setReceivedSort] = useState<Record<string, 'all' | 'price-low' | 'price-high'>>({});
   const [acceptingBidId, setAcceptingBidId] = useState<string | null>(null);
+  const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const [ads, setAds] = useState<DbServiceAd[]>([]);
   const [myAds, setMyAds] = useState<DbAdvertisement[]>([]);
   const [myServiceAds, setMyServiceAds] = useState<DbServiceAd[]>([]);
@@ -347,6 +352,16 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     }
   };
 
+  const employerAccessActive = (() => {
+    const e = entitlementFor('employer');
+    if (e && e.paid && !isEntitlementExpired('employer')) return true;
+    if (user.role === 'employer' && user.profile?.registration_paid) {
+      const exp = user.profile.subscription_expires_at ? new Date(user.profile.subscription_expires_at).getTime() > Date.now() : false;
+      return exp;
+    }
+    return false;
+  })();
+
   const tabs = isAdmin
     ? [{ id: 'overview', label: 'Overview', icon: TrendingUp }, { id: 'users', label: 'Users', icon: Users }, { id: 'jobs', label: 'Jobs', icon: Briefcase }, { id: 'payments', label: 'Payments', icon: CreditCard }, { id: 'adverts', label: 'Adverts', icon: Building2 }, { id: 'settings', label: 'Settings', icon: Settings }]
     : isJobseeker
@@ -370,6 +385,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
     const filtered = isAdmin ? payments : payments.filter(p => p.payment_type === 'job_posting' || p.payment_type === 'registration' || p.payment_type === 'job_payment');
     return [...filtered].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
   }, [payments, isAdmin]);
+
+  const handleViewBidderProfile = async (bidderId: string) => {
+    setLoadingProfile(true);
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', bidderId).single();
+      if (data) setViewingBidder(data);
+    } catch (err) { console.error('Failed to load bidder profile:', err); }
+    setLoadingProfile(false);
+  };
 
   const handleAcceptReceivedBid = async (bid: DbBid & { job?: DbJob }) => {
     if (!bid.job) return;
@@ -1073,26 +1097,49 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               return [...grouped.entries()].map(([jobId, jobBids]) => {
                 const job = jobBids[0].job;
                 const hasAccepted = jobBids.some(b => b.status === 'accepted');
+                const isGroupExpanded = !!expandedReceivedJobs[jobId];
+                const sortValue = receivedSort[jobId] ?? 'all';
+                const sortedJobBids = [...jobBids].sort((a, b) => {
+                  if (sortValue === 'price-low') return a.price - b.price;
+                  if (sortValue === 'price-high') return b.price - a.price;
+                  return 0;
+                });
                 return (
                   <div key={jobId} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                     <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{job?.title || 'Job'}</h4>
-                        <p className="text-xs text-gray-500">{jobBids.length} bid{jobBids.length !== 1 ? 's' : ''} &middot; Budget: KES {(job?.budget_min || 0).toLocaleString()} - {(job?.budget_max || 0).toLocaleString()}</p>
+                      <button type="button" onClick={() => setExpandedReceivedJobs(p => ({ ...p, [jobId]: !p[jobId] }))} className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer group">
+                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isGroupExpanded ? 'rotate-180' : ''}`} />
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors">{job?.title || 'Job'}</h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[11px] font-semibold rounded-full">{jobBids.length} bid{jobBids.length !== 1 ? 's' : ''} received</span>
+                            <p className="text-xs text-gray-500">Budget: KES {(job?.budget_min || 0).toLocaleString()} - {(job?.budget_max || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isGroupExpanded && (
+                          <select value={sortValue} onChange={e => setReceivedSort(p => ({ ...p, [jobId]: e.target.value as 'all' | 'price-low' | 'price-high' }))} className="px-2 py-1 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-green-500 outline-none bg-white">
+                            <option value="all">All</option>
+                            <option value="price-low">Lowest Price</option>
+                            <option value="price-high">Highest Price</option>
+                          </select>
+                        )}
+                        {hasAccepted && <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">In Progress</span>}
                       </div>
-                      {hasAccepted && <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">In Progress</span>}
                     </div>
+                    {isGroupExpanded && (
                     <div className="divide-y divide-gray-50">
-                      {jobBids.map(bid => (
+                      {sortedJobBids.map(bid => (
                         <div key={bid.id} className={`p-4 transition-all ${expandedReceivedBid === bid.id ? 'bg-green-50/50' : 'hover:bg-gray-50'}`}>
                           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpandedReceivedBid(expandedReceivedBid === bid.id ? null : bid.id)}>
-                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                              <User className="w-5 h-5 text-green-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium text-gray-900">{bid.bidder_name || 'Anonymous'}</p>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleViewBidderProfile(bid.bidder_id); }} title="View worker profile" className="flex-shrink-0 rounded-full ring-2 ring-gray-100 hover:ring-green-400 transition-all cursor-pointer">
+                            <img src={optimizeImageUrl(bid.bidder_image || workerFallback(bid.bidder_id), 96, 96)} alt={bid.bidder_name || 'Bidder'} className="w-10 h-10 rounded-full object-cover" loading="lazy" onError={handleImageError} />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-gray-900 cursor-pointer hover:text-green-700 hover:underline" onClick={(e) => { e.stopPropagation(); handleViewBidderProfile(bid.bidder_id); }}>{bid.bidder_name || 'Anonymous'}</p>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     {bid.bidder_rating ? (
                                       <span className="flex items-center gap-1 text-xs text-amber-600"><Star className="w-3 h-3 fill-amber-400" /> {Number(bid.bidder_rating).toFixed(1)} ({bid.bidder_reviews || 0})</span>
@@ -1139,6 +1186,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
               </div>
             ))}
             </div>
+            )}
           </div>
                 );
               });
@@ -1898,6 +1946,124 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           </div>
         )}
       </div>
+      {(viewingBidder || loadingProfile) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewingBidder(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-center justify-between z-10">
+              <h2 className="text-lg font-bold text-gray-900">Worker Profile</h2>
+              <button onClick={() => setViewingBidder(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            {loadingProfile ? (
+              <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-green-600 mx-auto" /></div>
+            ) : viewingBidder && (
+              <div className="p-5 space-y-4">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={optimizeImageUrl(viewingBidder.profile_image || workerFallback(viewingBidder.id), 128, 128)}
+                    alt={viewingBidder.full_name}
+                    className="w-16 h-16 rounded-full object-cover ring-2 ring-green-200"
+                    onError={handleImageError}
+                  />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">{viewingBidder.full_name}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                      <span className="text-sm font-medium text-gray-700">{viewingBidder.rating || 0}</span>
+                      <span className="text-xs text-gray-400">({viewingBidder.reviews_count || 0} reviews)</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">{viewingBidder.jobs_completed || 0} jobs completed</p>
+                  </div>
+                </div>
+
+                {employerAccessActive ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                    {viewingBidder.phone && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Phone className="w-4 h-4 text-green-600" />
+                        <a href={`tel:${viewingBidder.phone}`} className="hover:text-green-700">{viewingBidder.phone}</a>
+                      </div>
+                    )}
+                    {viewingBidder.email && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Mail className="w-4 h-4 text-green-600" />
+                        <a href={`mailto:${viewingBidder.email}`} className="hover:text-green-700 truncate">{viewingBidder.email}</a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">Contact locked</p>
+                      <p className="text-xs text-amber-700">Subscribe to Employer Access to view this worker's phone and email.</p>
+                    </div>
+                    <button onClick={() => openRolePayment('employer')} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors">
+                      Subscribe
+                    </button>
+                  </div>
+                )}
+                {viewingBidder.location && (
+                  <div className="grid grid-cols-1 gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <MapPin className="w-4 h-4 text-green-600" />
+                      {viewingBidder.county ? `${viewingBidder.county}${viewingBidder.subcounty ? `, ${viewingBidder.subcounty}` : ''} - ${viewingBidder.location}` : viewingBidder.location}
+                    </div>
+                  </div>
+                )}
+
+                {(() => {
+                  const viewingSkills = typeof viewingBidder.skills === 'string' ? viewingBidder.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(viewingBidder.skills) ? viewingBidder.skills : [];
+                  return viewingSkills.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills</h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {viewingSkills.map((skill, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">{skill}</span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {viewingBidder.qualifications && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Qualifications</h4>
+                    <p className="text-sm text-gray-700">{viewingBidder.qualifications}</p>
+                  </div>
+                )}
+
+                {viewingBidder.experience && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Experience</h4>
+                    <p className="text-sm text-gray-700">{viewingBidder.experience}</p>
+                  </div>
+                )}
+
+                {Array.isArray(viewingBidder.certificates) && viewingBidder.certificates.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5" /> Certifications
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {viewingBidder.certificates.map((cert, i) => (
+                        <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">Certificate {i + 1}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {viewingBidder.resume && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5" /> Professional CV
+                    </h4>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-40 overflow-y-auto">{viewingBidder.resume}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </div>
   );
