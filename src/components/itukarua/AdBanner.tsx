@@ -69,10 +69,16 @@ const AdBanner: React.FC = () => {
   }, [pageCount]);
 
   useEffect(() => {
-    getAdsForDelivery("homepage_banner", undefined, undefined, 20, true).then(ads => {
-      if (ads && ads.length > 0) setAffiliateAds(ads);
-    }).catch(() => {});
-    getAdCarouselSettings().then(setSettings).catch(() => {});
+    const load = () => {
+      getAdsForDelivery("homepage_banner", undefined, undefined, 100, true).then(ads => {
+        if (ads && ads.length > 0) setAffiliateAds(ads);
+      }).catch(() => {});
+      getAdCarouselSettings().then(setSettings).catch(() => {});
+    };
+    load();
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   // Autoplay
