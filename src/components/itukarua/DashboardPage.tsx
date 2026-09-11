@@ -17,9 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import AdvertiserAnalyticsChart from './AdvertiserAnalyticsChart';
 import CertificateViewer from './CertificateViewer';
 
-const AD_SLOT_PRICE: Record<string, number> = { homepage_banner: 200, job_listings_top: 500 };
-const slotPrice = (slot?: string | null) => AD_SLOT_PRICE[slot || 'homepage_banner'] ?? 200;
-const slotLabel = (slot?: string | null) => slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Carousel Banner';
+const AD_SLOT_PRICE: Record<string, number> = { job_listings_top: 500 };
+const slotPrice = (slot?: string | null) => AD_SLOT_PRICE[slot ?? 'job_listings_top'] ?? 500;
+const slotLabel = (slot?: string | null) => slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Banner Advert';
 const workerFallback = (id: string) => IMAGES.workers[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % IMAGES.workers.length];
 type AdvertPayload = Parameters<typeof updateMyAd>[2];
 
@@ -79,7 +79,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const notifRef = useRef<HTMLDivElement>(null);
   const [showAdForm, setShowAdForm] = useState(false);
   const [showAdSpecs, setShowAdSpecs] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; slot: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top', plan: '30-day' });
   const [advImageFiles, setAdvImageFiles] = useState<(File | null)[]>([]);
   const [advUrlInput, setAdvUrlInput] = useState('');
   const [advSaving, setAdvSaving] = useState(false);
@@ -536,7 +536,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
         const oldPrice = slotPrice(currentAd?.slot);
         const newPrice = slotPrice(adForm.slot);
         if (newPrice > oldPrice) {
-          setUpgradePending({ oldSlot: currentAd?.slot || 'homepage_banner', newSlot: adForm.slot, diff: newPrice - oldPrice, payload });
+          setUpgradePending({ oldSlot: currentAd?.slot || 'job_listings_top', newSlot: adForm.slot, diff: newPrice - oldPrice, payload });
           return;
         }
         await updateMyAd(adForm.id, user.id, payload);
@@ -548,7 +548,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
       setShowAdForm(false);
       setAdvImageFiles([]);
       setAdvUrlInput('');
-      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
+      setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top', plan: '30-day' });
       await reloadMyAds();
     } catch (err: any) {
       setAdvError(err.message || 'Failed to save advert. Please try again.');
@@ -576,7 +576,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           setShowAdForm(false);
           setAdvImageFiles([]);
           setAdvUrlInput('');
-          setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner', plan: '30-day' });
+          setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top', plan: '30-day' });
           await reloadMyAds();
         } catch (err: any) {
           setAdvError(err.message || 'Payment succeeded but the upgrade could not be applied. Please try saving again.');
@@ -1377,7 +1377,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">My Adverts</h3>
-              <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'homepage_banner' }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+              <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, slot: 'job_listings_top' }); setAdvImageFiles([]); setAdvUrlInput(''); setShowAdForm(!showAdForm); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
                 <Plus className="w-4 h-4" /> {showAdForm ? 'Close Form' : 'New Advert'}
               </button>
             </div>
@@ -1385,15 +1385,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showAdForm && (
               <div className="bg-white rounded-xl p-6 border border-gray-100 space-y-4">
                 <h4 className="font-semibold text-gray-900">{adForm.id ? 'Edit Advert' : 'Create Banner Advert'}</h4>
-                <p className="text-xs text-gray-500">Your advert appears in the banner carousel on the homepage. New adverts start unpublished — click "Publish" when ready.</p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ad Placement *</label>
-                  <select value={adForm.slot} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm">
-                    <option value="homepage_banner">Homepage Carousel Banner — KES 200/week</option>
-                    <option value="job_listings_top">Job Listings Top Banner — KES 500/week</option>
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">{adForm.slot === 'job_listings_top' ? 'Full-width banner above all job listings — premium slot, exclusive to one advertiser per week.' : 'Rotating carousel banner at the top of the homepage.'}</p>
-                </div>
+                <p className="text-xs text-gray-500">Your advert appears in the full-width banner at the top of the Job Listings page. New adverts start unpublished — click "Publish" when ready.</p>
                 {advError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{advError}</div>}
 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
@@ -1476,10 +1468,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
             {showPaymentPrompt && lastCreatedAdId && (
               <div className="bg-green-50 rounded-xl p-5 border border-green-200 space-y-3">
                 <h4 className="font-semibold text-gray-900">Advert Created Successfully!</h4>
-                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES {adForm.slot === 'job_listings_top' ? 500 : 200}</strong> ({adForm.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Homepage Banner'} — 7 days). Exclusive of ad design — user to provide.</p>
+                <p className="text-sm text-gray-600">Your advert has been saved but is not yet published. To go live, complete the M-Pesa payment of <strong>KES 500</strong> (Job Listings Top Banner — 7 days). Exclusive of ad design — user to provide.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(adForm.slot === 'job_listings_top' ? 500 : 200, `${adForm.slot === 'job_listings_top' ? 'Job Listings' : 'Homepage'} advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Pay Now — KES {adForm.slot === 'job_listings_top' ? 500 : 200}
+                  <button onClick={() => { setShowPaymentPrompt(false); onOpenMpesa(500, `Job Listings advert — ${adForm.plan.replace('-', ' ')}`, `ADV-${lastCreatedAdId.slice(0, 8).toUpperCase()}`, 'advert', lastCreatedAdId); }} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Pay Now — KES 500
                   </button>
                   <button onClick={() => setShowPaymentPrompt(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                     Pay Later
@@ -1511,13 +1503,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                 <div className="flex flex-col items-end gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ad.active ? 'Published' : 'Unpublished'}</span>
                   <div className="flex gap-2 items-center">
-                    {!ad.active && <button onClick={() => onOpenMpesa(ad.slot === 'job_listings_top' ? 500 : 200, 'Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
+                    {!ad.active && <button onClick={() => onOpenMpesa(500, 'Job Listings Top Banner advert — 7 days', `ADV-${ad.id.slice(0, 8).toUpperCase()}`, 'advert', ad.id)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Pay</button>}
                     {ad.active && (
                       <>
                         {!isBoosted && (
-                          <button onClick={() => onOpenMpesa(500, 'Boost — 7 days homepage carousel', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                          <button onClick={() => onOpenMpesa(500, 'Boost — 7 days', `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
                             <Zap className="w-3 h-3" /> Boost
-                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Homepage carousel for 7 days</span>
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Featured boost for 7 days</span>
                           </button>
                         )}
                         {isBoosted && (
@@ -1537,7 +1529,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
                         )}
                       </>
                     )}
-                    <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'homepage_banner' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
+                    <button onClick={() => { setAdvError(''); setUpgradePending(null); setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : [ad.image_url], destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, slot: ad.slot || 'job_listings_top' }); setAdvImageFiles((ad.images?.length ? ad.images : [ad.image_url]).map(() => null)); setAdvUrlInput(''); setShowAdForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs text-green-600 hover:text-green-700">Edit</button>
                     <button onClick={() => handleToggleAdActive(ad)} className="text-xs text-blue-600 hover:text-blue-700">{ad.active ? 'Unpublish' : 'Publish'}</button>
                     <button onClick={() => handleDeleteAd(ad)} className="text-xs text-red-600 hover:text-red-700">Delete</button>
                   </div>

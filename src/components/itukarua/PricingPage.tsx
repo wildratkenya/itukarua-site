@@ -402,43 +402,6 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
           </div>
         </div>
 
-        {/* ═══ HOMEPAGE ADVERT ═══ */}
-        <div id="homepage-advert" className="mb-16 scroll-mt-20">
-          <div className="max-w-5xl mx-auto bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-3xl shadow-2xl overflow-hidden">
-            <div className="grid md:grid-cols-5">
-              <div className="md:col-span-3 p-8">
-                <div className="inline-flex items-center gap-1.5 bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide mb-3">
-                  <Zap className="w-3 h-3" /> Homepage Banner
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-1">{PRICING_PLANS.homepageAdvert.name}</h3>
-                <p className="text-amber-100 text-sm mb-5">Prime banner placement on the homepage carousel — seen by every visitor, 24/7.</p>
-                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
-                  {PRICING_PLANS.homepageAdvert.features.map((f, j) => (
-                    <li key={j} className="flex items-start gap-2 text-white/95 text-xs">
-                      <Check className="w-3.5 h-3.5 text-white flex-shrink-0 mt-0.5" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="md:col-span-2 bg-white/10 backdrop-blur border-t md:border-t-0 md:border-l border-white/20 p-8 flex flex-col justify-center text-center">
-                <p className="text-white/80 text-sm mb-1">Weekly price</p>
-                <p className="text-5xl font-extrabold text-white mb-1">
-                  KES {PRICING_PLANS.homepageAdvert.price}<span className="text-lg text-amber-200">/wk</span>
-                </p>
-                <p className="text-amber-100 text-xs mb-6">Live for 7 full days — Exclusive of ad design — user to provide</p>
-                <button
-                  onClick={() => onNavigate?.('post-advert')}
-                  className="w-full py-3.5 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                  Create your advert
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* ═══ JOB LISTINGS TOP BANNER ═══ */}
         <div id="job-listings-banner" className="mb-16 scroll-mt-20">
           <div className="max-w-6xl mx-auto bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-3xl shadow-2xl overflow-hidden">
@@ -479,8 +442,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
         {/* ═══ WHY JOB LISTINGS BANNER IS WORTH IT ═══ */}
         <div className="max-w-5xl mx-auto mb-16">
           <div className="text-center mb-8">
-            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">Why KES 500 Instead of KES 200?</h3>
-            <p className="text-gray-500 text-sm max-w-2xl mx-auto">The Job Listings Banner commands a premium because of where it sits and who sees it. Here's what makes it worth 2.5× the price of the Homepage Banner:</p>
+            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">Why KES 500 per week?</h3>
+            <p className="text-gray-500 text-sm max-w-2xl mx-auto">Here's what makes the Job Listings Banner worth every shilling:</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {PRICING_PLANS.jobListingsBanner.valueProps.map((vp, i) => (
@@ -493,12 +456,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
               </div>
             ))}
             <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-5 border border-emerald-100 flex flex-col justify-center">
-              <p className="text-sm text-emerald-800 font-semibold mb-2">Quick Comparison</p>
+              <p className="text-sm text-emerald-800 font-semibold mb-2">At a Glance</p>
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-600">Homepage Banner</span><span className="font-bold text-gray-900">KES 200/wk</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Job Listings Banner</span><span className="font-bold text-emerald-700">KES 500/wk</span></div>
-                <div className="h-px bg-emerald-200 my-1" />
-                <div className="flex justify-between"><span className="text-gray-600">Extra cost</span><span className="font-bold text-gray-900">+KES 300/wk</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Audience intent</span><span className="font-bold text-emerald-700">3× higher</span></div>
               </div>
             </div>

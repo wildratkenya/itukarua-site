@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Menu, X, User, LogOut, ChevronDown, Send, Briefcase, Building2, Megaphone, Home, PanelsTopLeft, Zap, Crown, ArrowRight } from 'lucide-react';
+import { Menu, X, User, LogOut, ChevronDown, Send, Briefcase, Building2, Megaphone, PanelsTopLeft, Zap, Crown, ArrowRight } from 'lucide-react';
 import { setPendingScrollTarget } from '@/lib/pricingScroll';
 
 export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate' | 'corporate-signup';
@@ -24,7 +24,6 @@ const PRODUCTS: ProductItem[] = [
   { id: 'jobseekers', label: 'Find Your Dream Job', blurb: 'Free & Premium plans for jobseekers hunting full-time, part-time or freelance work.', gradient: 'from-green-500 to-emerald-600', icon: Briefcase },
   { id: 'employers', label: 'Hire the Best Talent', blurb: 'Post single jobs or subscribe for unlimited access to vetted jobseekers.', gradient: 'from-sky-500 to-blue-600', icon: Building2 },
   { id: 'advert-plans', label: 'Promote Your Business', blurb: 'Pay-as-you-go advert listings with standout visibility across categories.', gradient: 'from-purple-500 to-indigo-600', icon: Megaphone },
-  { id: 'homepage-advert', label: 'Homepage Advert', blurb: 'Prime carousel banner seen by every visitor, 24/7 for a full week.', gradient: 'from-amber-500 to-orange-600', icon: Home },
   { id: 'job-listings-banner', label: 'Job Listings Banner', blurb: 'Full-width banner atop every Jobs page — 3× the audience intent.', gradient: 'from-emerald-500 to-teal-600', icon: PanelsTopLeft },
   { id: 'featured-boost', label: 'Featured Boost', blurb: 'Top of search, prime carousel and up to 5 images for 7 days.', gradient: 'from-amber-400 to-orange-500', icon: Zap },
   { id: 'corporate-placements', label: 'Corporate & Community Placements', blurb: 'Steady monthly presence for co-ops, churches, SACCOs & institutions.', gradient: 'from-gray-700 to-gray-900', icon: Crown },

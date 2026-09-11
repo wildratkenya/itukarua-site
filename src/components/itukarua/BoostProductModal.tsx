@@ -68,7 +68,7 @@ export default function BoostProductModal({
               id: a.id,
               title: a.title || 'Untitled Banner',
               image: a.image_url,
-              subtitle: a.slot || 'Homepage banner',
+              subtitle: a.slot === 'job_listings_top' ? 'Job Listings Top Banner' : 'Banner advert',
               boosted: !!a.featured && !!a.boost_until && new Date(a.boost_until) > now,
               boostUntil: a.boost_until,
             }));
