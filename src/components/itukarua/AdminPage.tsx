@@ -3101,6 +3101,7 @@ const AdminPage: React.FC = () => {
                         <TableHead className="text-center">Featured</TableHead>
                         <TableHead className="text-center">Boosted</TableHead>
                         <TableHead className="text-center">Active</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3116,7 +3117,6 @@ const AdminPage: React.FC = () => {
                         const isBoosted = !!ad.featured && !!ad.boost_until && new Date(ad.boost_until).getTime() > Date.now();
                         const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
                         return (
-                        <>
                         <TableRow key={ad.id}>
                           <TableCell>
                             <img src={proxyImageUrl(ad.image_url)} alt="" className="w-16 h-10 rounded object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -3172,78 +3172,83 @@ const AdminPage: React.FC = () => {
                               <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                             </button>
                           </TableCell>
-                        </TableRow>
-                        <TableRow key={`${ad.id}-actions`} className="bg-muted/20">
-                          <TableCell colSpan={10}>
-                            <div className="flex flex-wrap items-center gap-2">
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1.5">
                               {currentRole === 'super_admin' && (
-                              <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
-                                {advExpired ? (
-                                  <>
-                                    <span className="text-[10px] text-gray-400 font-medium">Revive·add days</span>
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={30}
-                                      value={addAdvertDays[ad.id] ?? 30}
-                                      onChange={e => {
-                                        const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
-                                        setAddAdvertDays(prev => ({ ...prev, [ad.id]: v }));
-                                      }}
-                                      className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
-                                    />
-                                    <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdvertDays(ad.id, addAdvertDays[ad.id] ?? 30, ad.title || 'Advert')}>
-                                      Add Days
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={() => extendAdvertDays(ad.id, 1, ad.title || 'Advert')}>
-                                      +1 Day
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
-                                )}
-                              </div>
-                              )}
-                              {currentRole === 'super_admin' && (
-                              <div className="flex items-center gap-1.5">
-                                {isBoosted ? (
-                                  <>
-                                    <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg"><Zap className="w-3 h-3" /> Boosted · {boostDaysLeft}d left</span>
-                                    <Button variant="outline" size="sm" onClick={async () => {
-                                      const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
-                                      if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                                      else loadAdverts();
-                                    }}>Unboost</Button>
-                                  </>
-                                ) : (
+                                isBoosted ? (
                                   <Button variant="outline" size="sm" onClick={async () => {
+                                    const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
+                                    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                    else loadAdverts();
+                                  }}>Unboost</Button>
+                                ) : (
+                                  <Button variant="outline" size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={async () => {
                                     const { error } = await proxyTable('advertisements').update({ featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }, 'id', ad.id);
                                     if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
                                     else { loadAdverts(); toast({ title: 'Boosted', description: `"${ad.title}" boosted for 7 days` }); }
-                                  }} className="bg-amber-500 hover:bg-amber-600 text-white">Boost +7d</Button>
-                                )}
-                              </div>
+                                  }}>Boost +7d</Button>
+                                )
                               )}
                               <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
                                 Edit
                               </Button>
-                              <Button variant="destructive" size="sm" onClick={async () => {
-                                if (!window.confirm(`Delete "${ad.title}"?`)) return;
-                                try {
-                                  const { error } = await proxyTable('advertisements').delete('id', ad.id);
-                                  if (error) throw error;
-                                  setAdverts(prev => prev.filter(a => a.id !== ad.id));
-                                  toast({ title: 'Deleted', description: `"${ad.title}" removed` });
-                                } catch (err: any) {
-                                  toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
-                                }
-                              }}>
-                                Delete
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" aria-label="More actions" className="h-8 w-8 p-0">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {currentRole === 'super_admin' && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      {advExpired ? (
+                                        <div className="px-2 py-1.5">
+                                          <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                          <div className="flex items-center gap-1.5">
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={30}
+                                              value={addAdvertDays[ad.id] ?? 30}
+                                              onChange={e => {
+                                                const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                                setAddAdvertDays(prev => ({ ...prev, [ad.id]: v }));
+                                              }}
+                                              className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                            />
+                                            <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdvertDays(ad.id, addAdvertDays[ad.id] ?? 30, ad.title || 'Advert')}>
+                                              Add Days
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => extendAdvertDays(ad.id, 1, ad.title || 'Advert')}>
+                                              +1 Day
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
+                                      )}
+                                    </>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={async () => {
+                                    if (!window.confirm(`Delete "${ad.title}"?`)) return;
+                                    try {
+                                      const { error } = await proxyTable('advertisements').delete('id', ad.id);
+                                      if (error) throw error;
+                                      setAdverts(prev => prev.filter(a => a.id !== ad.id));
+                                      toast({ title: 'Deleted', description: `"${ad.title}" removed` });
+                                    } catch (err: any) {
+                                      toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
+                                    }
+                                  }}>
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
-                        </>
                       )})}
                     </TableBody>
                   </Table>
