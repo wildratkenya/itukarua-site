@@ -17,7 +17,7 @@ const SPECS = {
     preview: 'Renders at ~230×280 px per card on desktop, full-width on mobile.',
   },
   job_listings_top: {
-    title: 'Job Listings Top Banner',
+    title: 'Corporate Top Banner',
     recommended: '1200 × 200 px',
     ratio: '6:1 (ultra-wide strip)',
     minHeight: '600 × 100 px',

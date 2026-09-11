@@ -18,7 +18,7 @@ const SLOT_LABELS: Record<string, string> = {
   sitewide_strip: 'Site-wide Strip',
   category_strip: 'Category Strip',
   homepage_banner: 'Homepage Carousel',
-  job_listings_top: 'Job Listings Top',
+  job_listings_top: 'Corporate Top Banner',
 };
 
 const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigate, onLogout }) => {
