@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -2015,6 +2016,7 @@ const AdminPage: React.FC = () => {
                       <TableHead>Phone</TableHead>
                       <TableHead>Expiry</TableHead>
                       <TableHead>Featured</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2027,7 +2029,6 @@ const AdminPage: React.FC = () => {
                       const expMs = ad.expiry_date ? new Date(`${ad.expiry_date}T23:59:59`).getTime() : 0;
                       const adActive = expMs > Date.now();
                       return (
-                      <>
                       <TableRow key={ad.id}>
                         <TableCell>
                           <img src={optimizeImageUrl(ad.image || ad.images?.[0] || '/images/services.png', 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
@@ -2059,38 +2060,8 @@ const AdminPage: React.FC = () => {
                             {ad.featured ? 'Featured' : 'Regular'}
                           </Badge>
                         </TableCell>
-                      </TableRow>
-                      <TableRow key={`${ad.id}-actions`} className="bg-muted/20">
-                        <TableCell colSpan={7}>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {currentRole === 'super_admin' && (
-                            <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
-                              {adActive ? (
-                                <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
-                              ) : (
-                                <>
-                                  <span className="text-[10px] text-gray-400 font-medium">Revive·add days</span>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={30}
-                                    value={addAdDays[ad.id] ?? 30}
-                                    onChange={e => {
-                                      const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
-                                      setAddAdDays(prev => ({ ...prev, [ad.id]: v }));
-                                    }}
-                                    className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
-                                  />
-                                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdDays(ad.id, addAdDays[ad.id] ?? 30, ad.business_name || ad.title || 'Ad')}>
-                                    Add Days
-                                  </Button>
-                                  <Button variant="outline" size="sm" onClick={() => extendAdDays(ad.id, 1, ad.business_name || ad.title || 'Ad')}>
-                                    +1 Day
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                            )}
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1.5">
                             <Button
                               variant="outline"
                               size="sm"
@@ -2101,28 +2072,60 @@ const AdminPage: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => updateAdPaymentStatus(ad.id, !ad.payment_confirmed)}
-                            >
-                              {ad.payment_confirmed ? 'Unconfirm' : 'Confirm'}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
                               onClick={() => { setEditingAd(ad); setIsAdModalOpen(true); }}
                             >
                               Edit
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteAd(ad.id)}
-                            >
-                              Delete
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" aria-label="More actions" className="h-8 w-8 p-0">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => updateAdPaymentStatus(ad.id, !ad.payment_confirmed)}>
+                                  {ad.payment_confirmed ? 'Unconfirm payment' : 'Confirm payment'}
+                                </DropdownMenuItem>
+                                {currentRole === 'super_admin' && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    {adActive ? (
+                                      <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
+                                    ) : (
+                                      <div className="px-2 py-1.5">
+                                        <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                        <div className="flex items-center gap-1.5">
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            max={30}
+                                            value={addAdDays[ad.id] ?? 30}
+                                            onChange={e => {
+                                              const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                              setAddAdDays(prev => ({ ...prev, [ad.id]: v }));
+                                            }}
+                                            className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                          />
+                                          <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdDays(ad.id, addAdDays[ad.id] ?? 30, ad.business_name || ad.title || 'Ad')}>
+                                            Add Days
+                                          </Button>
+                                          <Button variant="outline" size="sm" onClick={() => extendAdDays(ad.id, 1, ad.business_name || ad.title || 'Ad')}>
+                                            +1 Day
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteAd(ad.id)}>
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
-                      </>
                     )})}
                   </TableBody>
                 </Table>
