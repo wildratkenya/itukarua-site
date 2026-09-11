@@ -1516,38 +1516,6 @@ export async function updateAdCarouselSetting(key: string, value: string): Promi
   if (error) throw error;
 }
 
-// ─── Website Carousel Settings ──────────────────────────────────────────────
-
-export type WebsiteCarouselEffect = 'slide' | 'fade' | 'zoom' | 'fadeUp' | 'flip';
-
-export interface WebsitesCarouselSettings {
-  scrollIntervalSeconds: number;
-  transitionDurationSeconds: number;
-  effect: WebsiteCarouselEffect;
-}
-
-export async function getWebsitesCarouselSettings(): Promise<WebsitesCarouselSettings> {
-  const { data, error } = await supabase
-    .from('ad_carousel_settings')
-    .select('key, value');
-  if (error && error.name !== 'AbortError') { console.error('getWebsitesCarouselSettings error:', error); return { scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' }; }
-  const map: Record<string, string> = {};
-  (data || []).forEach((s: any) => { map[s.key] = s.value; });
-  const effect = map['web_effect'];
-  return {
-    scrollIntervalSeconds: parseFloat(map['web_scroll_interval_seconds']) || 5,
-    transitionDurationSeconds: parseFloat(map['web_transition_duration_seconds']) || 0.8,
-    effect: (effect === 'fade' || effect === 'zoom' || effect === 'fadeUp' || effect === 'flip') ? effect : 'slide',
-  };
-}
-
-export async function updateWebsitesCarouselSetting(key: 'web_scroll_interval_seconds' | 'web_transition_duration_seconds' | 'web_effect', value: string): Promise<void> {
-  const { error } = await supabase
-    .from('ad_carousel_settings')
-    .upsert({ key, value, updated_at: new Date().toISOString() });
-  if (error) throw error;
-}
-
 // ─── Profile Views ─────────────────────────────────────────────────────────
 
 export async function incrementProfileViews(profileId: string): Promise<void> {
@@ -2178,82 +2146,6 @@ export async function saveEmailProvider(provider: Partial<DbEmailProvider>): Pro
 
 export async function deleteEmailProvider(id: string): Promise<{ error?: string }> {
   const { error } = await supabase.from('email_providers').delete().eq('id', id);
-  if (error) return { error: error.message };
-  return {};
-}
-
-// ─── Testimonials ────────────────────────────────────────────────────────────
-
-export interface DbTestimonial {
-  id: string;
-  client_name: string;
-  company?: string;
-  comment: string;
-  rating: number;
-  created_at: string;
-}
-
-export async function getTestimonials(): Promise<DbTestimonial[]> {
-  const { data, error } = await supabase
-    .from('testimonials')
-    .select('id, client_name, company, comment, rating, created_at')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('getTestimonials error:', error); return []; }
-  return (data || []) as DbTestimonial[];
-}
-
-export async function addTestimonial(input: { client_name: string; company?: string; comment: string; rating: number }): Promise<{ error?: string }> {
-  const { error } = await supabase.from('testimonials').insert({
-    client_name: input.client_name,
-    company: input.company || null,
-    comment: input.comment,
-    rating: Math.min(5, Math.max(1, Math.round(input.rating) || 5)),
-  });
-  if (error) return { error: error.message };
-  return {};
-}
-
-export async function deleteTestimonial(id: string): Promise<{ error?: string }> {
-  const { error } = await supabase.from('testimonials').delete().eq('id', id);
-  if (error) return { error: error.message };
-  return {};
-}
-
-// ─── Portfolio Sites ─────────────────────────────────────────────────────────
-
-export interface DbPortfolioSite {
-  id: string;
-  title: string;
-  description?: string;
-  url?: string;
-  image_url?: string;
-  sort_order: number;
-  created_at: string;
-}
-
-export async function getPortfolioSites(): Promise<DbPortfolioSite[]> {
-  const { data, error } = await supabase
-    .from('portfolio_sites')
-    .select('id, title, description, url, image_url, sort_order, created_at')
-    .order('sort_order', { ascending: true });
-  if (error) { console.error('getPortfolioSites error:', error); return []; }
-  return (data || []) as DbPortfolioSite[];
-}
-
-export async function savePortfolioSite(input: Partial<DbPortfolioSite> & { title: string }): Promise<{ error?: string }> {
-  const { id, ...rest } = input;
-  if (id) {
-    const { error } = await supabase.from('portfolio_sites').update(rest).eq('id', id);
-    if (error) return { error: error.message };
-  } else {
-    const { error } = await supabase.from('portfolio_sites').insert(rest);
-    if (error) return { error: error.message };
-  }
-  return {};
-}
-
-export async function deletePortfolioSite(id: string): Promise<{ error?: string }> {
-  const { error } = await supabase.from('portfolio_sites').delete().eq('id', id);
   if (error) return { error: error.message };
   return {};
 }
