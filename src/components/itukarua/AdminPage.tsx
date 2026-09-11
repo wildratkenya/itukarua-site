@@ -3093,13 +3093,9 @@ const AdminPage: React.FC = () => {
                       <TableRow>
                         <TableHead>Image</TableHead>
                         <TableHead>Title</TableHead>
-                        <TableHead>Destination</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Expiry</TableHead>
-                        <TableHead>Clicks</TableHead>
-                        <TableHead className="text-center">Impr.</TableHead>
                         <TableHead className="text-center">Featured</TableHead>
-                        <TableHead className="text-center">Boosted</TableHead>
                         <TableHead className="text-center">Active</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -3115,7 +3111,6 @@ const AdminPage: React.FC = () => {
                         const advActive = advEndMs > Date.now();
                         const advExpired = !!ad.billing_end && advEndMs <= Date.now();
                         const isBoosted = !!ad.featured && !!ad.boost_until && new Date(ad.boost_until).getTime() > Date.now();
-                        const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
                         return (
                         <TableRow key={ad.id}>
                           <TableCell>
@@ -3125,7 +3120,6 @@ const AdminPage: React.FC = () => {
                             <div>{ad.title}</div>
                             <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Corporate Top Banner' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
                           </TableCell>
-                          <TableCell className="max-w-[160px]"><span className="block truncate text-gray-500">{ad.destination_url || '-'}</span></TableCell>
                           <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>
                           <TableCell>
                             {!ad.billing_end ? (
@@ -3142,8 +3136,6 @@ const AdminPage: React.FC = () => {
                               </>
                             )}
                           </TableCell>
-                          <TableCell className="text-center text-gray-600 text-xs font-mono">{ad.clicks || 0}</TableCell>
-                          <TableCell className="text-center text-gray-600 text-xs font-mono">{ad.display_count || 0}</TableCell>
                           <TableCell className="text-center">
                             <button onClick={async () => {
                               try {
@@ -3156,13 +3148,6 @@ const AdminPage: React.FC = () => {
                             }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
                               <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                             </button>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {isBoosted ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full"><Zap className="w-3 h-3" /> Boosted · {boostDaysLeft}d left</span>
-                            ) : (
-                              <span className="text-xs text-gray-400">—</span>
-                            )}
                           </TableCell>
                           <TableCell className="text-center">
                             <button onClick={async () => {
@@ -3184,7 +3169,16 @@ const AdminPage: React.FC = () => {
                                     More
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuContent align="end" className="w-60">
+                                  <div className="px-2 py-1.5 border-b border-gray-100 mb-1">
+                                    {ad.destination_url ? (
+                                      <a href={ad.destination_url} target="_blank" rel="noreferrer" title={ad.destination_url} className="block text-xs text-blue-600 truncate hover:underline">{ad.destination_url}</a>
+                                    ) : (
+                                      <p className="text-xs text-gray-400">No destination link</p>
+                                    )}
+                                    <p className="text-xs text-gray-500 mt-1">{ad.clicks || 0} clicks · {ad.display_count || 0} impressions</p>
+                                  </div>
+                                  <DropdownMenuSeparator />
                                   {currentRole === 'super_admin' && (
                                     isBoosted ? (
                                       <DropdownMenuItem onClick={async () => {
