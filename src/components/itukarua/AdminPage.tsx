@@ -3174,31 +3174,36 @@ const AdminPage: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1.5">
-                              {currentRole === 'super_admin' && (
-                                isBoosted ? (
-                                  <Button variant="outline" size="sm" onClick={async () => {
-                                    const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
-                                    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                                    else loadAdverts();
-                                  }}>Unboost</Button>
-                                ) : (
-                                  <Button variant="outline" size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={async () => {
-                                    const { error } = await proxyTable('advertisements').update({ featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }, 'id', ad.id);
-                                    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                                    else { loadAdverts(); toast({ title: 'Boosted', description: `"${ad.title}" boosted for 7 days` }); }
-                                  }}>Boost +7d</Button>
-                                )
-                              )}
                               <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
                                 Edit
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" aria-label="More actions" className="h-8 w-8 p-0">
+                                  <Button variant="outline" size="sm" className="h-8 gap-1">
                                     <MoreVertical className="w-4 h-4" />
+                                    More
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                                <DropdownMenuContent align="end" className="w-56">
+                                  {currentRole === 'super_admin' && (
+                                    isBoosted ? (
+                                      <DropdownMenuItem onClick={async () => {
+                                        const { error } = await proxyTable('advertisements').update({ boost_until: null }, 'id', ad.id);
+                                        if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                        else loadAdverts();
+                                      }}>
+                                        <Zap className="w-4 h-4 text-amber-500" /> End boost
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem onClick={async () => {
+                                        const { error } = await proxyTable('advertisements').update({ featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }, 'id', ad.id);
+                                        if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                                        else { loadAdverts(); toast({ title: 'Boosted', description: `"${ad.title}" boosted for 7 days` }); }
+                                      }}>
+                                        <Zap className="w-4 h-4 text-amber-500" /> Boost +7 days
+                                      </DropdownMenuItem>
+                                    )
+                                  )}
                                   {currentRole === 'super_admin' && (
                                     <>
                                       <DropdownMenuSeparator />
