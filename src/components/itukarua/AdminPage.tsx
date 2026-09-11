@@ -3169,7 +3169,7 @@ const AdminPage: React.FC = () => {
                         ) : (
                           <>
                             <option value="homepage_banner">Homepage Carousel Banner</option>
-                            <option value="job_listings_top">Job Listings Top Banner</option>
+                            <option value="job_listings_top">Corporate Top Banner</option>
                             <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
                             <option value="category_strip">Category Strip (corporate Silver)</option>
                           </>
@@ -3343,7 +3343,7 @@ const AdminPage: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             <div>{ad.title}</div>
-                            <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Job Listings Top' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
+                            <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Corporate Top Banner' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
                           </TableCell>
                           <TableCell className="max-w-[160px]"><span className="block truncate text-gray-500">{ad.destination_url || '-'}</span></TableCell>
                           <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>

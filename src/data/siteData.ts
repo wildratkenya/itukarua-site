@@ -327,7 +327,7 @@ const SLOT_LABELS_LOOKUP: Record<string, string> = {
   sitewide_strip: 'Site-wide strip',
   category_strip: 'Jobs & Services strip',
   homepage_banner: 'Homepage carousel',
-  job_listings_top: 'Job-listings top',
+  job_listings_top: 'Corporate Top Banner',
 };
 
 export const SLOT_FEATURE_IDS = ['slot_sitewide_strip', 'slot_category_strip', 'slot_homepage_banner', 'slot_job_listings_top'] as const;
@@ -349,8 +349,8 @@ export function slotLabel(slot: string): string {
 export const FEATURE_CATALOG: CorporateFeature[] = [
   { id: 'slot_sitewide_strip', label: 'Site-wide strip', group: 'Placements', monthly: 3000, description: 'Slim branded strip under the header on every page' },
   { id: 'slot_category_strip', label: 'Jobs & Services strip', group: 'Placements', monthly: 3000, description: 'Branded strip across Jobs and Services pages' },
-  { id: 'slot_homepage_banner', label: 'Homepage carousel', group: 'Placements', monthly: 4000, description: 'Premium carousel rotation on the homepage' },
-  { id: 'slot_job_listings_top', label: 'Job-listings top', group: 'Placements', monthly: 2000, description: 'Banner atop job and service listings' },
+  { id: 'slot_homepage_banner', label: 'Homepage carousel', group: 'Placements', monthly: 4000, description: 'Rotating banner carousel on the homepage, directly below the hero section' },
+  { id: 'slot_job_listings_top', label: 'Corporate Top Banner', group: 'Placements', monthly: 2000, description: 'Full-width banner atop every Jobs & Services listing page' },
   { id: 'featured', label: 'Featured + priority delivery', group: 'Capabilities', monthly: 2000, description: 'Featured boost for the entire term' },
   { id: 'full_analytics', label: 'Full analytics dashboard', group: 'Capabilities', monthly: 1500, description: 'Clicks & daily detail breakouts in analytics' },
   { id: 'multi_images', label: 'Multi-image creatives', group: 'Capabilities', monthly: 1000, description: 'Up to 5 images per advert' },
