@@ -1649,6 +1649,15 @@ const AdminPage: React.FC = () => {
     );
   }
 
+  const openBannerForm = (payload: any) => {
+    setAdForm(payload);
+    setAdvUrlInput('');
+    setShowAdForm(true);
+    setTimeout(() => {
+      document.getElementById('admin-banner-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
+  };
+
   const renderCarouselSettings = () => (
     <Card className="mb-6">
       <CardHeader>
@@ -1703,7 +1712,7 @@ const AdminPage: React.FC = () => {
                 </button>
               ))}
             </div>
-            <Button onClick={() => { setAdForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: homeOnly ? 'homepage_banner' : 'job_listings_top', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>{homeOnly ? '+ Add Homepage Banner' : '+ Add Advert'}</Button>
+            <Button onClick={() => { openBannerForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: homeOnly ? 'homepage_banner' : 'job_listings_top', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); }}>{homeOnly ? '+ Add Homepage Banner' : '+ Add Advert'}</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -1712,7 +1721,7 @@ const AdminPage: React.FC = () => {
             <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder={homeOnly ? 'Search homepage banners by title...' : 'Search banners by title...'} className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
           </div>
           {showAdForm && (
-            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+            <div id="admin-banner-form" className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
               <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : homeOnly ? 'New Homepage Banner' : 'New Advert'}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <div>
@@ -1965,7 +1974,7 @@ const AdminPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => { setAdForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top'), billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); setAdvUrlInput(''); setShowAdForm(true); }}>
+                        <Button variant="outline" size="sm" onClick={() => { openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top'), billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); }}>
                           Edit
                         </Button>
                         <DropdownMenu>
