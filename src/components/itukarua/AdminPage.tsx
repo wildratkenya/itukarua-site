@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, MonitorPlay, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
@@ -520,7 +520,6 @@ const AdminPage: React.FC = () => {
   const accountPlacements = selectedCorporate ? adverts.filter(a => a.corporate_account_id === selectedCorporate.id) : [];
 
   const corpForAdForm = adForm.corporate_account_id ? corporateAccounts.find(a => a.id === adForm.corporate_account_id) : undefined;
-  const corpAdSlots = corpForAdForm ? effectiveFeaturesFor(corpForAdForm).slots : null;
 
   const loadBilling = async () => {
     setBillingLoading(true);
@@ -1692,18 +1691,15 @@ const AdminPage: React.FC = () => {
     </Card>
   );
 
-  const renderBannerManager = ({ slotFilter }: { slotFilter: string }) => {
-    const homeOnly = slotFilter === 'homepage_banner';
-    const scope = homeOnly
-      ? adverts.filter(a => a.slot === 'homepage_banner')
-      : adverts.filter(a => a.slot !== 'homepage_banner');
+  const renderBannerManager = () => {
+    const scope = adverts.filter(a => a.slot === 'homepage_banner');
     const expCount = scope.filter(a => a.billing_end && new Date(a.billing_end).getTime() <= Date.now()).length;
     const actCount = scope.filter(a => !a.billing_end || new Date(a.billing_end).getTime() > Date.now()).length;
 
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-          <CardTitle>{homeOnly ? 'Homepage Banners' : 'Banners'} ({scope.length})</CardTitle>
+          <CardTitle>Homepage Banners ({scope.length})</CardTitle>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
               {(['all', 'active', 'expired'] as const).map(v => (
@@ -1712,17 +1708,17 @@ const AdminPage: React.FC = () => {
                 </button>
               ))}
             </div>
-            <Button onClick={() => { openBannerForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: homeOnly ? 'homepage_banner' : 'job_listings_top', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); }}>{homeOnly ? '+ Add Homepage Banner' : '+ Add Advert'}</Button>
+            <Button onClick={() => { openBannerForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); }}>+ Add Homepage Banner</Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder={homeOnly ? 'Search homepage banners by title...' : 'Search banners by title...'} className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+            <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search homepage banners by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
           </div>
           {showAdForm && (
             <div id="admin-banner-form" className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : homeOnly ? 'New Homepage Banner' : 'New Advert'}</h4>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Homepage Banner'}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Title <span className="text-red-500">*</span></label>
@@ -1757,19 +1753,7 @@ const AdminPage: React.FC = () => {
                 <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                {homeOnly ? (
-                  <div className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500">Homepage Carousel Banner</div>
-                ) : corpAdSlots ? (
-                  <select value={adForm.slot || 'job_listings_top'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                    {corpAdSlots.length > 0 ? corpAdSlots.filter(s => s !== 'homepage_banner').map(s => <option key={s} value={s}>{slotLabel(s)}</option>) : <option value="">No slots in this bundle</option>}
-                  </select>
-                ) : (
-                  <select value={adForm.slot || 'job_listings_top'} onChange={e => setAdForm({ ...adForm, slot: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                    <option value="job_listings_top">Corporate Top Banner</option>
-                    <option value="sitewide_strip">Sitewide Strip (corporate Bronze)</option>
-                    <option value="category_strip">Category Strip (corporate Silver)</option>
-                  </select>
-                )}
+                <div className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500">Homepage Carousel Banner</div>
                 <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="7 days">7 Days (KES 200)</option>
                   <option value="10 days">10 Days (KES 300)</option>
@@ -1784,7 +1768,7 @@ const AdminPage: React.FC = () => {
                   <option value="gold">Corporate — Gold</option>
                   <option value="custom">Corporate — Custom</option>
                 </select>
-                <select value={adForm.corporate_account_id || ''} onChange={e => { const id = e.target.value === '' ? undefined : e.target.value; const acc = id ? corporateAccounts.find(a => a.id === id) : undefined; setAdForm({ ...adForm, corporate_account_id: id, corporate_tier: acc?.tier, featured: acc ? effectiveFeaturesFor(acc).featured : adForm.featured, slot: acc && homeOnly ? 'homepage_banner' : adForm.slot }); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                <select value={adForm.corporate_account_id || ''} onChange={e => { const id = e.target.value === '' ? undefined : e.target.value; const acc = id ? corporateAccounts.find(a => a.id === id) : undefined; setAdForm({ ...adForm, corporate_account_id: id, corporate_tier: acc?.tier, featured: acc ? effectiveFeaturesFor(acc).featured : adForm.featured }); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">No corporate account (personal/regular)</option>
                   {corporateAccounts.map(acc => (
                     <option key={acc.id} value={acc.id}>{acc.company_name} — {acc.tier} {acc.is_active ? '' : '(suspended)'}</option>
@@ -1813,7 +1797,7 @@ const AdminPage: React.FC = () => {
                   }
                   if (corpForAdForm) {
                     const eff = effectiveFeaturesFor(corpForAdForm);
-                    const chosenSlot = adForm.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top');
+                    const chosenSlot = 'homepage_banner';
                     if (!eff.slots.includes(chosenSlot)) {
                       toast({ title: 'Slot not in bundle', description: `${corpForAdForm.company_name}'s bundle does not include ${slotLabel(chosenSlot)}. Choose one of: ${eff.slots.map(s => slotLabel(s)).join(', ') || 'none'}.`, variant: 'destructive' });
                       return;
@@ -1851,7 +1835,7 @@ const AdminPage: React.FC = () => {
                     const cycleEndIso = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
                     if (adForm.id) {
                       const { id, image_url, images: _oldImages, ...updateData } = adForm;
-                      const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: updateData.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top') };
+                      const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: 'homepage_banner' };
                       patch.corporate_account_id = patch.corporate_account_id || null;
                       if (!adForm.is_affiliate) {
                         patch.billing_cycle = adForm.billing_cycle || '7 days';
@@ -1867,7 +1851,7 @@ const AdminPage: React.FC = () => {
                         finishSaved();
                         return;
                       }
-                      const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: insertData.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top') };
+                      const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: 'homepage_banner' };
                       insert.corporate_account_id = insert.corporate_account_id || null;
                       if (!insertData.is_affiliate) {
                         insert.billing_cycle = insertData.billing_cycle || '7 days';
@@ -1901,7 +1885,7 @@ const AdminPage: React.FC = () => {
             </div>
           )}
           {scope.length === 0 ? (
-            <p className="text-sm text-gray-400">{homeOnly ? 'No homepage banners yet.' : 'No advertisements yet.'}</p>
+            <p className="text-sm text-gray-400">No homepage banners yet.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -1974,7 +1958,7 @@ const AdminPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => { openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || (homeOnly ? 'homepage_banner' : 'job_listings_top'), billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); }}>
+                        <Button variant="outline" size="sm" onClick={() => { openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); }}>
                           Edit
                         </Button>
                         <DropdownMenu>
@@ -2115,7 +2099,6 @@ const AdminPage: React.FC = () => {
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
-                { id: 'adverts', label: 'Banners', icon: <MonitorPlay className="w-4 h-4" /> },
                 { id: 'homepage-banners', label: 'Homepage banner', icon: <Images className="w-4 h-4" /> },
                 { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
               ].map(item => (
@@ -3295,13 +3278,9 @@ const AdminPage: React.FC = () => {
             </Card>
           )}
 
-          {activeTab === 'adverts' && renderCarouselSettings()}
-
           {activeTab === 'homepage-banners' && renderCarouselSettings()}
 
-          {activeTab === 'adverts' && renderBannerManager({ slotFilter: '' })}
-
-          {activeTab === 'homepage-banners' && renderBannerManager({ slotFilter: 'homepage_banner' })}
+          {activeTab === 'homepage-banners' && renderBannerManager()}
 
           {activeTab === 'corporate' && (
             <>
@@ -3363,7 +3342,7 @@ const AdminPage: React.FC = () => {
                   {corporateAds.length === 0 ? (
                     <div className="py-8 text-center">
                       <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-400">No corporate placements yet. Create one via the Banners tab with slot <b>sitewide_strip</b> or <b>category_strip</b>.</p>
+                      <p className="text-sm text-gray-400">No corporate placements yet. Corporate clients create their own placements from their panel (Corporate Dashboard → New Placement) — this list is admin oversight only.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
