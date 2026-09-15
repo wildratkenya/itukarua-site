@@ -149,7 +149,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   // Load homepage data with retry logic
   const { data: jobsData = [], isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useJobs({ limit: 6 });
   const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ featured: true, limit: 4 });
-  const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 5, ratings_enabled: true, role: 'jobseeker' });
+  const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
 
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
