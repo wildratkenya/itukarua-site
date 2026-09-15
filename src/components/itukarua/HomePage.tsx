@@ -6,6 +6,7 @@ import AdBanner from './AdBanner';
 import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
 import WorkerSearchModal from './WorkerSearchModal';
+import TopRatedWorkersModal from './TopRatedWorkersModal';
 import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
@@ -43,11 +44,14 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [myVote, setMyVote] = useState<'up' | 'down' | null>(null);
   const [workerVotes, setWorkerVotes] = useState<Record<string, { likes: number; dislikes: number }>>({});
   const [viewerCert, setViewerCert] = useState<string | null>(null);
+  const [showTopRated, setShowTopRated] = useState(false);
+  const [userCategories, setUserCategories] = useState<string[]>([]);
 
   useEffect(() => {
     const loadUser = async (authUser: any) => {
-      if (!authUser) { setUser(null); return; }
+      if (!authUser) { setUser(null); setUserCategories([]); return; }
       const { data: profile } = await supabase.from('profiles').select('role, registration_paid, subscription_expires_at').eq('id', authUser.id).maybeSingle();
+      setUserCategories((authUser.user_metadata?.selected_categories as string[]) || []);
       setUser({
         ...authUser,
         role: profile?.role || 'employer',
@@ -145,7 +149,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   // Load homepage data with retry logic
   const { data: jobsData = [], isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useJobs({ limit: 6 });
   const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ featured: true, limit: 4 });
-  const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 4, ratings_enabled: true });
+  const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 5, ratings_enabled: true, role: 'jobseeker' });
 
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
@@ -218,6 +222,19 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       return null;
     }
   }).filter(Boolean);
+
+  // Sort top-rated workers: rating desc, then thumbs-up desc, then reviews desc
+  const topRatedWorkers = useMemo(() => {
+    const list = [...workersData];
+    list.sort((a, b) => {
+      const r = (Number(b.rating) || 0) - (Number(a.rating) || 0);
+      if (r !== 0) return r;
+      const l = (Number(b.likes_count) || 0) - (Number(a.likes_count) || 0);
+      if (l !== 0) return l;
+      return (Number(b.reviews_count) || 0) - (Number(a.reviews_count) || 0);
+    });
+    return list;
+  }, [workersData]);
 
   return (
     <div className="relative pb-12">
@@ -437,6 +454,18 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         onNeedAuth={() => onWorkerSearchAuth?.()}
       />
 
+      <TopRatedWorkersModal
+        isOpen={showTopRated}
+        onClose={() => setShowTopRated(false)}
+        defaultCategories={userCategories}
+        onSelectWorker={(worker) => {
+          setShowTopRated(false);
+          setSelectedWorker(worker);
+          incrementProfileViews(worker.id);
+          onWorkerPopupOpen?.();
+        }}
+      />
+
       <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
 
 
@@ -511,6 +540,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
             <div>
               <h2 className="text-lg lg:text-xl font-bold text-gray-900">Top Rated Workers</h2>
               <p className="text-gray-500 text-sm mt-1">Verified and trusted professionals in your area</p>
+              <button onClick={() => setShowTopRated(true)} className="mt-3 flex items-center gap-2 px-4 py-2 border border-gray-300 hover:border-green-600 hover:text-green-700 text-sm font-semibold rounded-lg transition-colors">
+                More <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
             <div className="lg:col-span-3">
               {loading ? (
@@ -524,7 +556,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {workersData.map((worker) => {
+                  {topRatedWorkers.map((worker) => {
                     const firstSkill = typeof worker.skills === 'string' ? worker.skills.split(',')[0]?.trim() : worker.skills?.[0];
                     return (
                     <div key={worker.id} onClick={() => { setSelectedWorker(worker); incrementProfileViews(worker.id); onWorkerPopupOpen?.(); }} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer">
