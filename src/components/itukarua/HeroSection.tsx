@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Briefcase, Building2, Users, ArrowRight, UserCheck, Star, CreditCard, SlidersHorizontal, ChevronRight, UserPlus, Compass, Send, Banknote } from 'lucide-react';
 import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { getCustomCategories, getNewsletterSubscriberCount } from '@/lib/database';
@@ -18,6 +18,13 @@ const steps = [
   { icon: UserCheck, title: 'Receive Bids', color: 'bg-blue-100 text-blue-600' },
   { icon: Star, title: 'Choose Best', color: 'bg-amber-100 text-amber-600' },
   { icon: CreditCard, title: 'Pay via M-Pesa', color: 'bg-purple-100 text-purple-600' },
+];
+
+const jobseekerSteps = [
+  { icon: UserPlus, title: 'Sign Up', color: 'bg-cyan-100 text-cyan-600' },
+  { icon: Compass, title: 'Browse Jobs / Make Yourself Available', color: 'bg-green-100 text-green-600' },
+  { icon: Send, title: 'Bid on Jobs', color: 'bg-blue-100 text-blue-600' },
+  { icon: Banknote, title: 'Get Jobs', color: 'bg-purple-100 text-purple-600' },
 ];
 
 const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenWorkerSearch, stats }) => {
@@ -70,9 +77,9 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-1 pb-2 lg:pt-2 lg:pb-3">
-        <div className="grid lg:grid-cols-5 gap-8 items-start">
+        <div className="grid lg:grid-cols-7 gap-8 items-start">
           {/* Left Column: Hero Content */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full mb-4">
               <MapPin className="w-3 h-3 text-green-400" />
               <span className="text-xs text-green-300 font-medium">Itukarua County & Surrounding Areas</span>
@@ -162,45 +169,89 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
 
           </div>
 
-          {/* Right Column: How It Works Timeline */}
-          <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
-            <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
-              <span className="w-1 h-4 bg-green-400 rounded-full" />
-              How Local Jobs Works
-            </h3>
-            <div className="relative">
-              <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-white/20" />
-              {steps.map((step, i) => (
-                <div key={i} className="relative flex items-start gap-3 pb-1 last:pb-0">
-                  <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white text-xs font-bold">
-                    {i + 1}
-                  </div>
-                  <div className="flex items-start gap-3 flex-1 min-w-0 pt-0.5">
-                    <div className={`w-9 h-9 ${step.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                      <step.icon className="w-4 h-4" />
+          {/* Right Column: How It Works — two cards */}
+          <div className="lg:col-span-3 flex gap-3">
+            {/* Card 1: Employer — How Local Jobs Works */}
+            <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+              <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                <span className="w-1 h-4 bg-green-400 rounded-full" />
+                How Local Jobs Works
+              </h3>
+              <div className="relative">
+                <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-white/20" />
+                {steps.map((step, i) => (
+                  <div key={i} className="relative flex items-start gap-3 pb-1 last:pb-0">
+                    <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white text-xs font-bold">
+                      {i + 1}
                     </div>
-                    <div>
-                      <h4 className="text-xs font-semibold text-white">{step.title}</h4>
+                    <div className="flex items-start gap-3 flex-1 min-w-0 pt-0.5">
+                      <div className={`w-9 h-9 ${step.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <step.icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-semibold text-white">{step.title}</h4>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={onOpenWorkerSearch}
-              className="mt-2 w-full flex items-center justify-between gap-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Users className="w-6 h-6 text-green-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-white font-semibold text-lg">Find a Worker</p>
-                  <p className="text-gray-400 text-sm">Search jobseekers by skill</p>
-                </div>
+                ))}
               </div>
-              <ChevronRight className="w-6 h-6 text-green-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
+              <button
+                onClick={onOpenWorkerSearch}
+                className="mt-2 w-full flex items-center justify-between gap-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <Users className="w-6 h-6 text-green-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-white font-semibold text-lg">Find a Worker</p>
+                    <p className="text-gray-400 text-sm">Search jobseekers by skill</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-6 h-6 text-green-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+
+            {/* Card 2: Jobseeker — How to Apply for Jobs */}
+            <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+              <h3 className="text-white font-bold text-sm mb-3 flex items-center justify-end gap-2">
+                How to Apply for Jobs
+                <span className="w-1 h-4 bg-green-400 rounded-full" />
+              </h3>
+              <div className="relative">
+                <div className="absolute right-4 top-3 bottom-3 w-0.5 bg-white/20" />
+                {jobseekerSteps.map((step, i) => (
+                  <div key={i} className="relative flex items-start justify-end gap-3 pb-1 last:pb-0">
+                    <div className="flex items-start gap-3 flex-1 min-w-0 pt-0.5 flex-row-reverse">
+                      <div className={`w-9 h-9 ${step.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <step.icon className="w-4 h-4" />
+                      </div>
+                      <div className="text-right">
+                        <h4 className="text-xs font-semibold text-white">{step.title}</h4>
+                      </div>
+                    </div>
+                    <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white text-xs font-bold">
+                      {i + 1}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => onNavigate('jobs')}
+                className="mt-2 w-full flex items-center justify-between gap-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <Briefcase className="w-6 h-6 text-green-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-white font-semibold text-lg">Browse Jobs</p>
+                    <p className="text-gray-400 text-sm">Find work near you</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-6 h-6 text-green-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
