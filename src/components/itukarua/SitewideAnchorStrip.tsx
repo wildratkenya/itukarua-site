@@ -12,6 +12,8 @@ const SLOT_BY_PAGE: Record<string, string> = {
   home: 'sitewide_strip',
   jobs: 'category_strip',
   services: 'category_strip',
+  'job-detail': 'category_strip',
+  'service-detail': 'category_strip',
 };
 
 const TIER_DURATION_MS: Record<string, number> = {

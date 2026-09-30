@@ -5,9 +5,9 @@ import ServiceCard from './ServiceCard';
 import VerticalAdRail from './VerticalAdRail';
 import JobListingsTopBanner from './JobListingsTopBanner';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { IMAGES, KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
-import { useServiceAds } from '@/hooks/useQueries';
+import { useInfiniteServiceAds } from '@/hooks/useQueries';
 import { createServiceRating, checkServiceRating, getCustomCategories, getMyServiceAds } from '@/lib/database';
 import type { Page } from './Header';
 import ImageViewerModal from './ImageViewerModal';
@@ -56,31 +56,24 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
     search: search.trim() || undefined,
   }), [category, subcounty, county, search]);
 
-  const { data: servicesData = [], isLoading, error, refetch } = useServiceAds(filters);
+  const { data: servicesData, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteServiceAds(filters);
 
-  const [timedOut, setTimedOut] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 3000);
-    return () => clearTimeout(timer);
-  }, []);
+  const allServices = useMemo(() => (servicesData?.pages ?? []).flat(), [servicesData]);
 
-  const loading = isLoading && !timedOut;
-  const hasError = !!error;
-
-  const services = servicesData.map((s: any) => {
+  const services = allServices.map((s: any) => {
     try {
       const serviceImages = Array.isArray(s.images) && s.images.length > 0 
         ? s.images 
         : s.image 
           ? [s.image] 
-          : [IMAGES.services[0]];
+          : [];
       
       return {
         id: s.id,
         businessName: s.business_name,
         description: s.description,
         category: s.category,
-        image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
+        image: s.image || (Array.isArray(s.images) && s.images[0]) || '',
         images: serviceImages,
         location: s.location,
         county: s.county,
@@ -90,6 +83,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
         featured: s.featured,
         rating: Number(s.rating) || 0,
         reviews: s.reviews_count,
+        corporate_account_id: s.corporate_account_id,
       };
     } catch (err) {
       console.error('Mapping error for service:', s.id, err);
@@ -219,6 +213,15 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
                 {services.map(service => (
                   <ServiceCard key={service.id} service={service} onClick={() => onViewService(service.id)} compact />
                 ))}
+                {hasNextPage && (
+                  <button
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="mt-2 mx-auto px-6 py-2.5 bg-white border border-gray-200 text-sm font-semibold text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isFetchingNextPage ? 'Loading…' : 'Load more services'}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="text-center py-16">

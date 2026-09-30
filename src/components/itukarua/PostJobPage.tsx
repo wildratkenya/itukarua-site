@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield, Phone, Zap, Briefcase } from 'lucide-react';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
-import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement } from '@/lib/database';
+import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement, employerReactivateJob, JOB_LISTING_PLANS } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
@@ -35,6 +35,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
   const [hasSubscription, setHasSubscription] = useState(false);
   const [recentSingleCount, setRecentSingleCount] = useState(0);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [jobPublished, setJobPublished] = useState(false);
 
   // OTP state
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
@@ -204,7 +205,6 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
 
       // Create the job with the stored data
       const newJob = await createJob(result.job_data);
-      notifyJobseekersOfNewJob(newJob.id).catch(console.error);
       setCreatedJobId(newJob.id);
 
       // Check if employer has active subscription
@@ -212,7 +212,15 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
         const active = await checkSubscriptionActive(user.id);
         setHasSubscription(active);
         if (active) {
-          setStep('success');
+          try {
+            const res = await employerReactivateJob(newJob.id);
+            notifyJobseekersOfNewJob(newJob.id).catch(console.error);
+            setJobPublished(true);
+            setStep('success');
+          } catch (err: any) {
+            setOtpError(err.message || 'Could not publish the job. Please try again.');
+            setStep('payment');
+          }
         } else {
           const count = await countRecentSingleJobs(user.id);
           setRecentSingleCount(count);
@@ -278,6 +286,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     setHasSubscription(false);
     setRecentSingleCount(0);
     setShowUpsell(false);
+    setJobPublished(false);
     setStep('form');
   };
 
@@ -287,8 +296,12 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-lg">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-green-600" /></div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Job Posted Successfully!</h2>
-          <p className="text-gray-500 mb-6">Your job is now live and visible to workers. You'll start receiving bids soon.</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{jobPublished ? 'Job Published!' : 'Job Saved as Draft'}</h2>
+          <p className="text-gray-500 mb-6">
+            {jobPublished
+              ? "Your job is live and visible to workers. You'll start receiving bids soon."
+              : 'Your job is saved but hidden. Choose a listing plan from your dashboard to publish it.'}
+          </p>
           {hasSubscription && <p className="text-xs text-green-600 mb-4 font-medium">Your Employer Access subscription gives you full contact access for all bids.</p>}
           <div className="flex gap-3 justify-center">
             <button onClick={() => onNavigate('jobs')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">View Jobs</button>
@@ -299,86 +312,88 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     );
   }
 
-  // Payment prompt screen (after job created, non-subscriber)
+  // Payment / plan screen (after job created — the ad is held until a plan is paid)
   if (step === 'payment') {
+    const planRef = `JOB-${createdJobId.slice(0, 8)}`;
+    const payListing = (amount: number, days: number, label: string) => {
+      if (!user) return;
+      onOpenMpesa?.(
+        amount,
+        `${label} — ${formData.title || 'Job ad'}`,
+        `${planRef}-${days}D`,
+        'job_listing',
+        undefined,
+        createdJobId,
+        undefined,
+        // The edge function publishes the job (valid_until/status), so the ad goes
+        // live even if this tab is closed. Telling jobseekers is still ours.
+        async () => { notifyJobseekersOfNewJob(createdJobId).catch(console.error); setJobPublished(true); setStep('success'); },
+        false, false, null, 'employer', undefined, undefined,
+        { metadata: { kind: 'job_listing', days } },
+      );
+    };
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-lg">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-blue-600" /></div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Job Posted!</h2>
-            <p className="text-gray-500">Your job is live. Unlock bidder contacts with a one-time payment.</p>
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><Briefcase className="w-8 h-8 text-blue-600" /></div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Job Drafted!</h2>
+            <p className="text-gray-500">Choose a listing plan to publish it. Your ad stays hidden until a plan is active.</p>
           </div>
 
-          {/* Single Job Post option */}
-          <div className="border-2 border-blue-200 rounded-xl p-5 mb-4 bg-blue-50/50">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Briefcase className="w-5 h-5 text-blue-600" />
+          {/* Listing plans */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {JOB_LISTING_PLANS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => payListing(p.amount, p.days, p.name)}
+                className="border-2 border-green-200 hover:border-green-500 rounded-xl p-3 text-center transition-colors"
+              >
+                <p className="text-xs font-semibold text-gray-500">{p.days} days</p>
+                <p className="text-lg font-bold text-gray-900">KES {p.amount}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Quick options */}
+          <div className="space-y-3 mb-4">
+            <div className="border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">1-Day Token</h3>
+                  <p className="text-xs text-gray-500">Publish this one job for 24 hours</p>
+                </div>
+                <span className="font-bold text-gray-900">KES 100</span>
               </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Post & Unlock This Job</h3>
-                <p className="text-xs text-gray-500">1-day access — no commitment</p>
-              </div>
+              <button onClick={() => payListing(100, 1, '1-Day Job Token')} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                <Phone className="w-4 h-4" /> Pay KES 100
+              </button>
             </div>
-            <p className="text-sm text-gray-600 mb-3">Pay KES 100 for 24 hours to unlock contact details (phone, email, WhatsApp) for all jobseekers who bid on this job.</p>
-            <button
-              onClick={() => {
-                if (!user) return;
-                if (onOpenEmployerPayment) {
-                  onOpenEmployerPayment(createdJobId, undefined, () => {
-                    setShowUpsell(recentSingleCount >= 1);
-                    setStep('success');
-                  });
-                } else if (onOpenMpesa) {
-                  onOpenMpesa(100, `Single Job Access — unlock contacts (1 day)`, `SJP-${createdJobId.slice(0, 8)}`, 'employer_day_token', undefined, createdJobId, undefined, () => {
-                    setShowUpsell(recentSingleCount >= 1);
-                    setStep('success');
-                  }, false, false, null, 'employer');
-                }
-              }}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-              <Phone className="w-4 h-4" /> Pay KES 100 with M-Pesa
-            </button>
-          </div>
-
-          {/* Subscription upsell */}
-          <div className="border border-gray-200 rounded-xl p-5 mb-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
-                <Shield className="w-5 h-5 text-indigo-600" />
+            <div className="border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">Employer Weekly Access</h3>
+                  <p className="text-xs text-gray-500">Publish all eligible jobs for 7 days</p>
+                </div>
+                <span className="font-bold text-gray-900">KES 200</span>
               </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Employer Access</h3>
-                <p className="text-xs text-gray-500">KES 200/week — best for repeat hiring</p>
-              </div>
+              <button
+                onClick={() => {
+                  if (!user) return;
+                  // The weekly grant re-enables every eligible job server-side.
+                  const done = async () => { notifyJobseekersOfNewJob(createdJobId).catch(console.error); setHasSubscription(true); setJobPublished(true); setStep('success'); };
+                  if (onOpenEmployerPayment) onOpenEmployerPayment(createdJobId, undefined, done);
+                  else onOpenMpesa?.(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, done, false, false, null, 'employer');
+                }}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <Phone className="w-4 h-4" /> Pay KES 200
+              </button>
             </div>
-            <p className="text-sm text-gray-600 mb-3">Post unlimited jobs & access all jobseeker contacts in your category. No per-contact fees.</p>
-            <button
-              onClick={() => {
-                if (!user) return;
-                if (onOpenEmployerPayment) {
-                  onOpenEmployerPayment(createdJobId, undefined, () => {
-                    setHasSubscription(true);
-                    setStep('success');
-                  });
-                } else if (onOpenMpesa) {
-                  onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, () => {
-                    setHasSubscription(true);
-                    setStep('success');
-                  }, false, false, null, 'employer');
-                }
-              }}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-              <Phone className="w-4 h-4" /> Subscribe — KES 200/week
-            </button>
           </div>
 
-          {/* Skip option */}
-          <button onClick={() => setStep('success')} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
-            Skip for now — I'll pay later
+          <button onClick={() => { setJobPublished(false); setStep('success'); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            Skip for now — pay later to publish
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ExternalLink, X } from 'lucide-react';
-import { getActiveAds, incrementAdClick, incrementAdDisplay } from '@/lib/database';
+import { getRailAds, incrementAdClick, incrementAdDisplay } from '@/lib/database';
 import { proxyImageUrl } from '@/lib/supabase';
 
 const VerticalAdRail: React.FC = () => {
@@ -20,7 +20,7 @@ const VerticalAdRail: React.FC = () => {
   }, [modalAd]);
 
   useEffect(() => {
-    getActiveAds().then(setAds).catch(() => {});
+    getRailAds('homepage_banner').then(setAds).catch(() => {});
   }, []);
 
   useEffect(() => {

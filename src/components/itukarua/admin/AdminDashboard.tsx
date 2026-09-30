@@ -5,6 +5,7 @@ import AnalyticsCard from './AnalyticsCard';
 import RevenueChart from './RevenueChart';
 import PaymentBreakdownChart from './PaymentBreakdownChart';
 import RecentTransactions from './RecentTransactions';
+import CorporateExpiryAlerts from './CorporateExpiryAlerts';
 
 interface DbPayment {
   id: string;
@@ -28,7 +29,7 @@ interface BreakdownItem {
   amount: number;
 }
 
-const AdminDashboard: React.FC<{ onNavigatePayments: () => void }> = ({ onNavigatePayments }) => {
+const AdminDashboard: React.FC<{ onNavigatePayments: () => void; onNavigateCorporate: () => void }> = ({ onNavigatePayments, onNavigateCorporate }) => {
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -85,6 +86,8 @@ const AdminDashboard: React.FC<{ onNavigatePayments: () => void }> = ({ onNaviga
 
   return (
     <div className="space-y-6">
+      <CorporateExpiryAlerts onNavigateCorporate={onNavigateCorporate} />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <AnalyticsCard

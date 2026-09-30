@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { getJobs, getServiceAds, getProfiles, getPayments, getMessages, type DbJob, type DbServiceAd, type DbProfile, type DbPayment, type DbMessage } from '@/lib/database';
 
@@ -10,6 +10,7 @@ export function useJobs(filters?: {
   search?: string;
   status?: string;
   activeOnly?: boolean;
+  featured?: boolean;
   limit?: number;
   postedBy?: string;
 }) {
@@ -34,6 +35,28 @@ export function useJob(jobId: string) {
       return data;
     },
     enabled: !!jobId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+export function useInfiniteJobs(filters?: {
+  category?: string;
+  location?: string;
+  county?: string;
+  search?: string;
+  activeOnly?: boolean;
+  featured?: boolean;
+  limit?: number;
+}) {
+  const pageSize = filters?.limit || 50;
+  return useInfiniteQuery<DbJob[]>({
+    queryKey: ['jobs', 'infinite', filters],
+    queryFn: ({ pageParam }) =>
+      getJobs({ ...filters, activeOnly: filters?.activeOnly ?? true, limit: pageSize, from: pageParam as number }),
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < pageSize ? undefined : allPages.length * pageSize,
+    initialPageParam: 0,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -71,6 +94,29 @@ export function useServiceAd(adId: string) {
     },
     enabled: !!adId,
     staleTime: 0,
+  });
+}
+
+export function useInfiniteServiceAds(filters?: {
+  category?: string;
+  location?: string;
+  county?: string;
+  subcounty?: string;
+  search?: string;
+  activeOnly?: boolean;
+  featured?: boolean;
+  limit?: number;
+}) {
+  const pageSize = filters?.limit || 50;
+  return useInfiniteQuery<DbServiceAd[]>({
+    queryKey: ['serviceAds', 'infinite', filters],
+    queryFn: ({ pageParam }) =>
+      getServiceAds({ ...filters, activeOnly: filters?.activeOnly ?? true, limit: pageSize, from: pageParam as number }),
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < pageSize ? undefined : allPages.length * pageSize,
+    initialPageParam: 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 

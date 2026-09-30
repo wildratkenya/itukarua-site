@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
-import { MapPin, Star, Sparkles, Camera } from 'lucide-react';
+import { MapPin, Star, Sparkles, Camera, ExternalLink } from 'lucide-react';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import CorporateBadge from './CorporateBadge';
 
 interface ServiceAd {
   id: string; 
@@ -17,6 +18,8 @@ interface ServiceAd {
   featured: boolean; 
   rating: number; 
   reviews: number;
+  corporate_account_id?: string | null;
+  destination_url?: string | null;
 }
 
 
@@ -33,7 +36,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
     : service.image 
       ? [service.image] 
       : [];
+  const hasImage = allImages.length > 0;
   const hasMultipleImages = allImages.length > 1;
+  const cardShell = hasImage
+    ? 'bg-white border-gray-100'
+    : 'bg-gray-100 border-dashed border-gray-300';
 
   const categoryColors: Record<string, string> = {
     Shops: 'bg-blue-100 text-blue-700',
@@ -50,15 +57,16 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
   };
 
   if (compact) {
-    const imgSrc = allImages.length > 0 ? optimizeImageUrl(allImages[0], 200, 150) : '/images/services-fallback.jpg';
     return (
       <div
         onClick={onClick}
-        className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-md transition-all cursor-pointer flex gap-3 p-3"
+        className={`${cardShell} rounded-xl border hover:border-green-200 hover:shadow-md transition-all cursor-pointer flex gap-3 p-3`}
       >
-        <div className="w-36 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-          <img src={imgSrc} alt={service.businessName} className="w-full h-full object-cover" loading="lazy" onError={handleImageError} />
-        </div>
+        {allImages.length > 0 && (
+          <div className="w-36 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+            <img src={optimizeImageUrl(allImages[0], 200, 150)} alt={service.businessName} className="w-full h-full object-cover" loading="lazy" onError={handleImageError} />
+          </div>
+        )}
         <div className="flex-1 min-w-0 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
@@ -71,8 +79,9 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
                   Featured
                 </span>
               )}
+              <CorporateBadge accountId={service.corporate_account_id} />
             </div>
-            <h3 className="text-sm font-semibold text-gray-900 line-clamp-1">{service.businessName}</h3>
+            <h3 className={`text-sm font-semibold ${hasImage ? 'text-gray-900' : 'text-gray-700'} line-clamp-1`}>{service.businessName}</h3>
             <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{service.description}</p>
           </div>
           <div className="flex items-center gap-3 mt-1">
@@ -99,79 +108,57 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group"
+      className={`${cardShell} rounded-xl border hover:border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer group`}
     >
+      {allImages.length > 0 && (
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-sm">
-        {allImages.length > 0 ? (
+        <img
+          src={optimizeImageUrl(allImages[currentImageIndex], 400, 400)}
+          alt={`${service.businessName} - Image ${currentImageIndex + 1}`}
+          loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={handleImageError}
+          draggable={false}
+        />
+        {hasMultipleImages && (
           <>
-<img
-              src={optimizeImageUrl(allImages[currentImageIndex], 400, 400)}
-              alt={`${service.businessName} - Image ${currentImageIndex + 1}`}
-              loading="lazy"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              onError={handleImageError}
-              draggable={false}
-            />
-            {hasMultipleImages && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1);
-                  }}
-                  className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ‹
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1);
-                  }}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ›
-                </button>
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                  {allImages.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentImageIndex(i);
-                      }}
-                      className={`w-2 h-2 rounded-full transition-colors ${i === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
-                    />
-                  ))}
-                </div>
-                <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full flex items-center gap-1">
-                  <Camera className="w-3 h-3" />
-                  {allImages.length}
-                </div>
-              </>
-            )}
-            {hasMultipleImages && (
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                {allImages.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentImageIndex(i);
-                    }}
-                    className={`w-2 h-2 rounded-full transition-colors ${i === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
-                  />
-                ))}
-              </div>
-            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1);
+              }}
+              className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              ‹
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1);
+              }}
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              ›
+            </button>
+            <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full flex items-center gap-1">
+              <Camera className="w-3 h-3" />
+              {allImages.length}
+            </div>
           </>
-        ) : (
-          <img
-            src='/images/services-fallback.jpg'
-            alt={service.businessName}
-            loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+        )}
+        {hasMultipleImages && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+            {allImages.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(i);
+                }}
+                className={`w-2 h-2 rounded-full transition-colors ${i === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
+              />
+            ))}
+          </div>
         )}
         {service.featured && (
           <div className="absolute top-3 left-3 px-2.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold rounded-full flex items-center gap-1 shadow-lg">
@@ -179,7 +166,21 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
             Featured
           </div>
         )}
+        {service.destination_url && (
+          <a
+            href={`${service.destination_url}?ref=ad_${service.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-3 left-3 px-2.5 py-1 bg-white/90 hover:bg-white text-gray-800 text-xs font-semibold rounded-full flex items-center gap-1 shadow transition-colors"
+            title="Visit website"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Website
+          </a>
+        )}
       </div>
+      )}
       {allImages.length > 0 && (
         <div className="flex gap-1 p-2 bg-gray-50 overflow-x-auto min-h-[52px] items-center">
           {allImages.length === 1 ? (
@@ -209,13 +210,33 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, compact }) 
       )}
 
       <div className="p-4">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${categoryColors[service.category] || 'bg-gray-100 text-gray-700'}`}>
             {service.category}
           </span>
+          <CorporateBadge accountId={service.corporate_account_id} />
+          {allImages.length === 0 && service.featured && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              Featured
+            </span>
+          )}
+          {allImages.length === 0 && service.destination_url && (
+            <a
+              href={`${service.destination_url}?ref=ad_${service.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800 flex items-center gap-1 transition-colors"
+              title="Visit website"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Website
+            </a>
+          )}
         </div>
 
-        <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors mb-1 line-clamp-1">
+        <h3 className={`font-semibold ${hasImage ? 'text-gray-900' : 'text-gray-700'} group-hover:text-green-700 transition-colors mb-1 line-clamp-1`}>
           {service.businessName}
         </h3>
 

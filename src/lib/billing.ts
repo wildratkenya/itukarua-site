@@ -16,8 +16,8 @@ export function billingAccountRef(itemId: string): string {
 
 export function billingNote(billingEnd: string | null | undefined): string {
   return billingStatus(billingEnd) === 'expired'
-    ? 'Your advert has expired. Renew it now to keep it visible to customers.'
-    : 'Your advert is due for renewal. Pay below to keep it running without interruption.';
+    ? 'Your advert has expired. Renew it now to keep it visible across the homepage, jobs and services.'
+    : 'Your advert is due for renewal. Pay below to keep it visible across the homepage, jobs and services.';
 }
 
 function esc(s: any): string {
@@ -42,7 +42,7 @@ export interface BillingInvoiceOpts {
 export function buildBillingInvoiceHtml(opts: BillingInvoiceOpts): string {
   const label = opts.item_type === 'service_ad' ? 'Business Advert' : 'Banner Advert';
   const eBusiness = esc(opts.business_name || 'Your advert');
-  const eCycle = esc(opts.billing_cycle || '7 days');
+  const eCycle = esc(opts.billing_cycle || '10 days');
   const eNote = esc(opts.note);
   const amt = Number(opts.amount) || 0;
   return `
@@ -94,7 +94,7 @@ Hi ${opts.business_name || 'there'},
 ${opts.note}
 
 Advert: ${opts.business_name || '—'}
-Billing Cycle: ${opts.billing_cycle || '7 days'}
+Billing Cycle: ${opts.billing_cycle || '10 days'}
 Due Date: ${dueLabel(opts.billing_end)}
 Amount Due: KES ${amt.toLocaleString()}
 

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Building2, LayoutDashboard, BarChart3, User, Receipt, Users, Plus, X, Upload, Eye, EyeOff, Loader2, Zap, Crown, Settings, LogOut, ChevronDown, ChevronUp, ExternalLink, Trash2, Save } from 'lucide-react';
 import { supabase, proxyRequest, proxyTable, proxyImageUrl } from '@/lib/supabase';
 import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
-import { effectiveFeaturesFor, type EffectiveCorporateFeatures } from '@/data/siteData';
+import { effectiveFeaturesFor, corporateMonthlyAmount, type EffectiveCorporateFeatures } from '@/data/siteData';
+import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { compressImage } from '@/lib/imageUtils';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +11,7 @@ interface CorporateDashboardProps {
   user: { id: string; name: string; email: string; role: string; profile?: any };
   onNavigate: (page: string) => void;
   onLogout: () => void;
+  onOpenMpesa: (...args: any[]) => void;
 }
 
 type Tab = 'placements' | 'analytics' | 'profile' | 'billing' | 'team';
@@ -21,7 +23,7 @@ const SLOT_LABELS: Record<string, string> = {
   job_listings_top: 'Corporate Top Banner',
 };
 
-const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigate, onLogout }) => {
+const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigate, onLogout, onOpenMpesa }) => {
   const [account, setAccount] = useState<DbCorporateAccount | null>(null);
   const [members, setMembers] = useState<DbCorporateMember[]>([]);
   const [ads, setAds] = useState<any[]>([]);
@@ -29,8 +31,6 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('placements');
-  const [tabLoading, setTabLoading] = useState(false);
-  const [error, setError] = useState('');
 
   // Edit ad state
   const [editingAd, setEditingAd] = useState<any | null>(null);
@@ -62,7 +62,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
         setProfileForm({ company_name: acct.company_name, contact_person: acct.contact_person || '', contact_phone: acct.contact_phone || '', contact_email: acct.contact_email || '', billing_email: acct.billing_email || '' });
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load account');
+      console.error('Failed to load account:', err);
     }
   }, [user.id]);
 
@@ -132,6 +132,8 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
         image_url: imageUrls[0] || '', images: imageUrls.length > 0 ? imageUrls : [],
         slot: createForm.slot, corporate_account_id: account.id, corporate_tier: account.tier, active: true,
         featured: features?.featured || false, is_affiliate: false,
+        billing_start: new Date().toISOString(),
+        billing_end: account.next_billing_date || null,
       });
       if (error) throw error;
       setShowCreateAd(false);
@@ -143,8 +145,13 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
 
   const handleToggleActive = async (ad: any) => {
     try {
-      await proxyTable('advertisements').update({ active: !ad.active }, 'id', ad.id);
-      setAds(prev => prev.map(a => a.id === ad.id ? { ...a, active: !a.active } : a));
+      const turningOn = !ad.active;
+      if (turningOn && ad.billing_end && new Date(ad.billing_end).getTime() <= Date.now()) {
+        alert('This advert has expired. Renew billing before activating it.');
+        return;
+      }
+      await proxyTable('advertisements').update({ active: turningOn }, 'id', ad.id);
+      setAds(prev => prev.map(a => a.id === ad.id ? { ...a, active: turningOn } : a));
     } catch (err: any) { alert(err.message); }
   };
 
@@ -224,8 +231,6 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     { id: 'team', label: 'Team', icon: <Users className="w-4 h-4" /> },
   ];
 
-  const currentTabLabel = tabs.find(t => t.id === activeTab)?.label || '';
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -280,29 +285,43 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
               </div>
             ) : (
               <div className="space-y-3">
-                {ads.map(ad => (
+                {ads.map(ad => {
+                  // `ad.active` alone is not the status: an unpaid or expired
+                  // placement is also active=false, and telling a paying
+                  // customer their advert is "Paused" sends them to the wrong
+                  // action. Derive it the same way the database and /admin do.
+                  const status = localAdStatus(ad, 'banner');
+                  return (
                   <div key={ad.id} className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5">
                     <div className="flex items-start gap-4">
                       <img src={proxyImageUrl(ad.image_url)} alt="" className="w-20 h-14 sm:w-28 sm:h-[72px] object-cover rounded-lg bg-gray-100 flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-semibold text-gray-900 truncate">{ad.title}</h3>
-                          <span className={cn('px-2 py-0.5 text-[10px] font-bold rounded-full uppercase', ad.active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500')}>{ad.active ? 'Live' : 'Paused'}</span>
+                          <span className={cn('px-2 py-0.5 text-[10px] font-bold rounded-full uppercase', AD_STATUS_TONE[status])}>{AD_STATUS_LABEL[status]}</span>
                           <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-medium rounded-full">{SLOT_LABELS[ad.slot] || ad.slot}</span>
                         </div>
                         {ad.description && <p className="text-xs text-gray-500 line-clamp-1 mb-2">{ad.description}</p>}
                         <div className="flex items-center gap-3 text-xs text-gray-400">
+                          <span>{statusLine(ad, status, 'banner')}</span>
                           {ad.display_count != null && <span>👁 {ad.display_count}</span>}
                           {ad.billing_end && <span>Ends {new Date(ad.billing_end).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button onClick={() => { setEditingAd(ad); setAdForm({ title: ad.title, description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', destination_url: ad.destination_url || '', images: ad.images || [] }); }} className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Edit</button>
-                        <button onClick={() => handleToggleActive(ad)} className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', ad.active ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-white bg-green-600 hover:bg-green-700')}>{ad.active ? 'Pause' : 'Activate'}</button>
+                        {status === 'active' || status === 'paused' ? (
+                          <button onClick={() => handleToggleActive(ad)} className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', ad.active ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-white bg-green-600 hover:bg-green-700')}>{ad.active ? 'Pause' : 'Activate'}</button>
+                        ) : (
+                          <button onClick={() => { setActiveTab('billing'); }} className="px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition-colors">
+                            {status === 'expired' ? 'Renew' : 'Pay & publish'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -387,30 +406,61 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
         {/* ── BILLING TAB ── */}
         {activeTab === 'billing' && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">Payment and invoice history for your placements.</p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Monthly Amount</p>
+                <p className="text-2xl font-bold text-gray-900">KES {corporateMonthlyAmount(account).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Next Billing Date</p>
+                <p className="text-2xl font-bold text-gray-900">{account.next_billing_date ? new Date(account.next_billing_date + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Invoices</p>
+                <p className="text-2xl font-bold text-gray-900">{invoices.length}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-500">Invoices are emailed to {account.billing_email || account.contact_email || 'your billing email'} and payable via M-Pesa. Each successful payment extends all active placements for 30 days.</p>
             {invoices.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
                 <Receipt className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-sm text-gray-400">No invoices yet.</p>
+                <p className="text-sm text-gray-400">No invoices yet. Your first invoice is generated at your next billing date.</p>
               </div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Date</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Description</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500">Period</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500">Due</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-500">Amount</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500">Action</th>
                   </tr></thead>
                   <tbody>
-                    {invoices.map((inv: any) => (
-                      <tr key={inv.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                        <td className="px-4 py-3 text-gray-600">{new Date(inv.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                        <td className="px-4 py-3 text-gray-900 font-medium">{inv.description || inv.payment_type}</td>
-                        <td className="px-4 py-3 text-gray-900">KES {Number(inv.amount).toLocaleString()}</td>
-                        <td className="px-4 py-3"><span className={cn('px-2 py-0.5 text-[10px] font-bold rounded-full uppercase', inv.status === 'completed' ? 'bg-green-50 text-green-700' : inv.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500')}>{inv.status}</span></td>
-                      </tr>
-                    ))}
+                    {invoices.map((inv: any) => {
+                      const unpaid = inv.status === 'issued' || inv.status === 'overdue';
+                      return (
+                        <tr key={inv.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                          <td className="px-4 py-3 text-gray-900 font-medium">
+                            {inv.period_start ? new Date(inv.period_start + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short' }) + ' – ' + new Date(inv.period_end + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{inv.due_date ? new Date(inv.due_date + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                          <td className="px-4 py-3 text-gray-900">KES {Number(inv.amount).toLocaleString()}</td>
+                          <td className="px-4 py-3"><span className={cn('px-2 py-0.5 text-[10px] font-bold rounded-full uppercase', inv.status === 'paid' ? 'bg-green-50 text-green-700' : inv.status === 'overdue' ? 'bg-red-50 text-red-600' : inv.status === 'issued' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500')}>{inv.status}</span></td>
+                          <td className="px-4 py-3 text-right">
+                            {unpaid ? (
+                              <button
+                                onClick={() => onOpenMpesa(Number(inv.amount), `Corporate Renewal — ${account.company_name}`, 'ITK-CORP', 'corporate', undefined, undefined, undefined, () => loadInvoices(), false, false, undefined, '', account.id, inv.id)}
+                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                              >Pay Now</button>
+                            ) : (
+                              <span className="text-xs text-gray-300">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

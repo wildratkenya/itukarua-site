@@ -7,7 +7,7 @@ import JobListingsTopBanner from './JobListingsTopBanner';
 import BoostProductModal from './BoostProductModal';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
-import { useJobs } from '@/hooks/useQueries';
+import { useInfiniteJobs } from '@/hooks/useQueries';
 import { getCustomCategories, getJobs, type DbJob } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
@@ -74,11 +74,13 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     activeOnly: true,
   }), [category, subcounty, county, search]);
 
-  const { data: jobsData = [], isLoading, refetch } = useJobs(filters);
+  const { data: jobsData, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, refetch } = useInfiniteJobs(filters);
+
+  const allJobs = useMemo(() => (jobsData?.pages ?? []).flat(), [jobsData]);
 
   // Client-side sort
   const jobs = useMemo(() => {
-    let sorted = [...jobsData];
+    let sorted = [...allJobs];
     if (preferredCategories.length > 0) {
       sorted.sort((a, b) => {
         const aMatch = preferredCategories.includes(a.category) ? 0 : 1;
@@ -104,7 +106,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     const boosted = sorted.filter(isBoosted);
     const rest = sorted.filter(j => !isBoosted(j));
     return [...boosted, ...rest];
-  }, [jobsData, sortBy, preferredCategories]);
+  }, [allJobs, sortBy, preferredCategories]);
 
   const mapJob = (j: DbJob) => ({
     id: j.id,
@@ -125,6 +127,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     images: j.images,
     featured: j.featured,
     boost_until: j.boost_until,
+    corporate_account_id: j.corporate_account_id,
   });
 
   const clearFilters = () => {
@@ -274,6 +277,15 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
             ) : jobs.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {jobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} compact />)}
+                {hasNextPage && (
+                  <button
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="mt-2 mx-auto px-6 py-2.5 bg-white border border-gray-200 text-sm font-semibold text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isFetchingNextPage ? 'Loading…' : 'Load more jobs'}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="text-center py-16">

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { CheckCircle, CalendarX2, X, Lock } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
-import { getProfile, boostAd, type DbProfile, getRoleEntitlements, ensureJobseekerEntitlement, setRoleEntitlement, extendRoleSubscription, type ProfileRoleEntitlement, type EntitlementRole } from '@/lib/database';
+import { getProfile, type DbProfile, getRoleEntitlements, ensureJobseekerEntitlement, type ProfileRoleEntitlement, type EntitlementRole } from '@/lib/database';
 import { getPendingScrollTarget, clearPendingScrollTarget } from '@/lib/pricingScroll';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
@@ -104,16 +104,21 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     amount: number;
     description: string;
     accountRef: string;
-    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access';
+    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing';
     relatedAdId?: string;
     relatedJobId?: string;
     relatedJobTitle?: string;
     relatedProfileId?: string;
+    relatedAccountId?: string;
+    relatedInvoiceId?: string;
     employerPlans?: boolean;
     employerExpired?: boolean;
     employerExpiredAt?: string | null;
     onComplete?: () => void;
     role?: EntitlementRole;
+    metadata?: Record<string, unknown>;
+    defaultPhone?: string;
+    payingOnBehalfOf?: string;
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -434,8 +439,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     setCurrentPage('jobs');
   }, [currentPage]);
 
-  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: EntitlementRole) => {
-    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt, role });
+  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: EntitlementRole, relatedAccountId?: string, relatedInvoiceId?: string, opts?: { metadata?: Record<string, unknown>; defaultPhone?: string; payingOnBehalfOf?: string }) => {
+    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt, role, relatedAccountId, relatedInvoiceId, metadata: opts?.metadata, defaultPhone: opts?.defaultPhone, payingOnBehalfOf: opts?.payingOnBehalfOf });
   }, []);
 
   // Open the employer payment popup offering BOTH plans (KES 100/1-day job token
@@ -530,6 +535,16 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           );
         case 'services':
           return <ServicesPage onNavigate={handleNavigate} user={user} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+        case 'service-detail':
+          return (
+            <ServiceDetailPage
+              serviceId={selectedServiceId}
+              onNavigate={handleNavigate}
+              onBack={() => setCurrentPage('services')}
+              user={user}
+              onOpenAuth={handleOpenAuth}
+            />
+          );
         case 'pricing':
           return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onStayAfterLogin={() => { loginFromBoost.current = true; }} user={user} />;
         case 'about':
@@ -556,7 +571,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           if (!user || user.role !== 'corporate') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
-          return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />;
+          return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} onOpenMpesa={handleOpenMpesa} />;
         case 'corporate-signup':
           return <CorporateSignupPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onAuthComplete={handleAuthComplete} />;
         case 'admin':
@@ -675,7 +690,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         </div>
       )}
 
-      {['home', 'jobs', 'services', 'contact'].includes(currentPage) && (
+      {['home', 'jobs', 'services', 'contact', 'job-detail', 'service-detail'].includes(currentPage) && (
         <SitewideAnchorStrip page={currentPage} />
       )}
 
@@ -811,49 +826,22 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         employerPlans={mpesaModal.employerPlans}
         employerExpired={mpesaModal.employerExpired}
         employerExpiredAt={mpesaModal.employerExpiredAt}
+        metadata={mpesaModal.metadata}
+        defaultPhone={mpesaModal.defaultPhone}
+        payingOnBehalfOf={mpesaModal.payingOnBehalfOf}
         user={user}
         onPaymentComplete={() => {
           handleCloseMpesa();
-          if (mpesaModal.paymentType === 'featured_boost') {
-            if (mpesaModal.relatedJobId) {
-              boostAd('jobs', mpesaModal.relatedJobId).catch(() => {});
-            } else if (mpesaModal.relatedAdId) {
-              boostAd('advertisements', mpesaModal.relatedAdId).catch(() => {
-                boostAd('service_ads', mpesaModal.relatedAdId!).catch(() => {});
-              });
-            }
-          }
+          // Refresh only. Everything this used to do here — boosting the advert,
+          // flipping registration_paid, extending the role subscription — is now
+          // done by the edge function from the payment row, so it lands even if
+          // the customer closes the tab. Writing it again from the browser would
+          // double every purchase (2x days, 2x boost length).
           if (user) {
-            const refreshProfile = () => {
-              getProfile(user.id).then(p => {
-                if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
-                syncSubscriptionNotice(p);
-              });
-            };
-            if (mpesaModal.paymentType === 'registration') {
-              // A completed registration payment marks the account as paid so the
-              // employer/jobseeker gate passes even for self-service signups.
-              supabase.from('profiles').update({ registration_paid: true }).eq('id', user.id)
-                .then(refreshProfile)
-                .catch(refreshProfile);
-            } else {
-              refreshProfile();
-            }
-
-            // Write the paid entitlement for the role being purchased / renewed.
-            // Advertiser registration is a one-time paid flag; employer and
-            // jobseeker subscriptions carry an expiry.
-            const paidRole = mpesaModal.role;
-            if (paidRole) {
-              const isDay = mpesaModal.accountRef === 'EMP-DAY' || mpesaModal.paymentType === 'employer_day_access' || mpesaModal.paymentType === 'employer_day_token';
-              const days = isDay ? 1 : mpesaModal.accountRef === 'PREM-NEW' ? 30 : mpesaModal.accountRef === 'EMP-WK' ? 7 : 0;
-              if (days > 0) {
-                extendRoleSubscription(user.id, paidRole, days).catch(() => {});
-              } else {
-                setRoleEntitlement(user.id, paidRole, { paid: true }).catch(() => {});
-              }
-            }
-            // Refresh the entitlements so role pickers / gates update immediately.
+            getProfile(user.id).then(p => {
+              if (p) setUser(prev => prev ? { ...prev, profile: p } : prev);
+              syncSubscriptionNotice(p);
+            });
             getRoleEntitlements(user.id).then(ents => {
               setUser(prev => prev ? { ...prev, entitlements: ents } : prev);
             }).catch(() => {});

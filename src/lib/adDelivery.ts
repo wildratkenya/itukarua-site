@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { isCorporateOnlySlot } from '@/data/siteData';
 import type { DbAdvertisement } from './database';
 
 // ============================================================
@@ -189,6 +190,16 @@ function weightedRandomSelect(candidates: ScoredAd[], count: number): DbAdvertis
 // Main delivery function: fetch + filter + rotate
 // ============================================================
 
+/**
+ * Fetch the banners to serve for a slot.
+ *
+ * The corporate-only gate is derived from the slot, never passed in by the
+ * caller. It used to be a `corporateOnly` argument, which put the rule in the
+ * hands of each surface: the homepage carousel passed `true` for
+ * `homepage_banner`, so an ordinary paid banner could never appear there even
+ * though that slot is open to one. Deriving it here means a component cannot get
+ * it wrong, and only the reserved branded strips require a corporate account.
+ */
 export async function getAdsForDelivery(
   slot: string,
   county?: string,
@@ -200,32 +211,40 @@ export async function getAdsForDelivery(
   const now = new Date().toISOString();
 
   // Fetch all active ads in this slot that are within their billing period
+  // (NULL billing_start/billing_end = open start / no expiry, so they still deliver)
   const { data: ads, error } = await supabase
     .from('advertisements')
     .select('*')
     .eq('active', true)
     .eq('slot', slot)
-    .lte('billing_start', now)
-    .gte('billing_end', now);
+    .or(`billing_start.is.null,billing_start.lte.${now},billing_end.is.null,billing_end.gte.${now}`);
 
   if (error || !ads || ads.length === 0) return [];
 
+  // Reserved branded strips may only serve placements tied to a corporate
+  // account/tier. The homepage carousel is an ordinary placement, so a plain
+  // paid banner serves there like anywhere else.
+  const rows: DbAdvertisement[] = isCorporateOnlySlot(slot)
+    ? ads.filter((a: DbAdvertisement) => a.corporate_account_id || a.corporate_tier)
+    : ads;
+  if (rows.length === 0) return [];
+
   // Fetch frequency cap counts for this visitor (batch)
-  const capPromises = ads.map(async ad => {
+  const capPromises = rows.map(async ad => {
     const counts = await getVisitorImpressionCount(ad.id, visitorId);
     return { adId: ad.id, capped: isCapped(counts.daily, counts.weekly), daily: counts.daily, weekly: counts.weekly };
   });
   const caps = await Promise.all(capPromises);
 
   // Filter out capped ads
-  const eligible = ads.filter(ad => {
+  const eligible = rows.filter(ad => {
     const cap = caps.find(c => c.adId === ad.id);
     return cap && !cap.capped;
   });
 
   if (eligible.length === 0) {
     // All capped — return the uncapped ones sorted by least-seen
-    return ads
+    return rows
       .sort((a, b) => {
         const ca = caps.find(c => c.adId === a.id);
         const cb = caps.find(c => c.adId === b.id);
@@ -234,31 +253,17 @@ export async function getAdsForDelivery(
       .slice(0, limit);
   }
 
-  // When featuredOnly, only paid premium (featured) ads are eligible for delivery
-  const deliverable = featuredOnly ? eligible.filter(a => a.featured) : eligible;
+  // When featuredOnly, only currently-boosted ads (featured + boost within window)
+// are eligible for delivery; a boost that expires drops the ad to the rail.
+const isActivelyBoosted = (a: DbAdvertisement) => a.featured && a.boost_until && new Date(a.boost_until).getTime() > Date.now();
+const deliverable = featuredOnly ? eligible.filter(isActivelyBoosted) : eligible;
 
-  if (deliverable.length === 0) {
-    // Fall back to featured-only among the raw fetched ads (billing/per-cap relaxed)
-    const featuredFallback = (ads || []).filter(a => a.featured && (!a.boost_until || new Date(a.boost_until).getTime() > Date.now()));
-    return featuredFallback.slice(0, limit);
-  }
+if (deliverable.length === 0) {
+  // Fall back to currently-boosted among the raw fetched ads (billing/per-cap relaxed)
+  const featuredFallback = (rows || []).filter(a => isActivelyBoosted(a));
+  return featuredFallback.slice(0, limit);
+}
 
   // Select ads with fair rotation (featured boosted in scoring)
   return selectAdsForDelivery(deliverable, county, subcounty, limit);
-}
-
-// ============================================================
-// Advertiser dashboard: pacing data
-// ============================================================
-
-export async function getAdPacingData(adId: string): Promise<DeliveryPace> {
-  const { data: ad } = await supabase.from('advertisements').select('*').eq('id', adId).single();
-  if (!ad) return { adId, pace: 0, delivered: 0, expected: 0, daysLeft: 0, totalDays: 0 };
-  return calculatePace(ad);
-}
-
-export async function getImpressionsByCounty(adId: string, days: number = 30): Promise<Array<{ county: string; impressions: number }>> {
-  const { data, error } = await supabase.rpc('get_impressions_by_county', { p_ad_id: adId, p_days: days });
-  if (error) { console.error('[AdDelivery] county impressions failed:', error); return []; }
-  return data || [];
 }

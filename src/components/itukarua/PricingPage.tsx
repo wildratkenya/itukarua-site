@@ -375,7 +375,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   <button
                     onClick={() => {
                       if (user) {
-                        onOpenMpesa(plan.price, plan.name, `ADV-${plan.duration.replace(' ', '')}`, 'advert');
+                        sessionStorage.setItem('advert_selected_plan', plan.name);
+                        onNavigate('post-advert');
                       } else {
                         setPendingPlan(plan);
                         onOpenAuth?.('signup', 'advertiser');
@@ -389,8 +390,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   >
                     {user ? (
                       <>
-                        <Phone className="w-4 h-4" />
-                        Pay with M-Pesa
+                        <ArrowRight className="w-4 h-4" />
+                        Advertise Business
                       </>
                     ) : (
                       'Subscribe'
