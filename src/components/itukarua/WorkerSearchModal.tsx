@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement } from '@/lib/database';
+import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import CertificateViewer from './CertificateViewer';
@@ -74,34 +74,50 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
     getCustomCategories('service').then(setDbServiceCats);
   }, []);
 
+  // Contact details are only ever read through the server-side gate, which
+  // enforces both the payment window and the jobseeker's consent flag.
+  const loadContact = async (profileId: string): Promise<boolean> => {
+    const result = await getProfileContact(profileId);
+    if (!result) return false;
+    if (!result.allowed) {
+      setOptedOutIds(prev => new Set(prev).add(profileId));
+      return false;
+    }
+    setUnlockedIds(prev => new Set(prev).add(profileId));
+    setWorkerDetails(prev => {
+      const next = new Map(prev);
+      next.set(profileId, {
+        phone: result.contact?.phone || '',
+        email: result.contact?.email || '',
+        whatsapp_number: result.contact?.whatsapp || '',
+        location: result.contact?.location || '',
+        county: result.contact?.county || '',
+        subcounty: result.contact?.subcounty || '',
+        certificates: result.certificates || [],
+        resume: result.resume || '',
+        access_expires_at: result.expiresAt || null,
+      });
+      return next;
+    });
+    return true;
+  };
+
   useEffect(() => {
     if (!isOpen || !user || workers.length === 0) return;
-    if (hasSubscription) {
-      workers.forEach(w => {
-        setUnlockedIds(prev => new Set(prev).add(w.id));
-        setWorkerDetails(prev => {
-          if (prev.has(w.id)) return prev;
-          const next = new Map(prev);
-          next.set(w.id, w);
-          return next;
-        });
-      });
-    } else {
-      workers.forEach(async (w) => {
-        try {
-          const hasAccess = await checkContactAccess(user.id, w.id);
-          if (hasAccess) {
-            setUnlockedIds(prev => new Set(prev).add(w.id));
-            setWorkerDetails(prev => {
-              if (prev.has(w.id)) return prev;
-              const next = new Map(prev);
-              next.set(w.id, w);
-              return next;
-            });
-          }
-        } catch {}
-      });
-    }
+    workers.forEach(async (w) => {
+      try {
+        // A live subscription covers every contact, so skip the per-worker
+        // payment check and go straight to the reveal.
+        if (hasSubscription) {
+          await loadContact(w.id);
+          return;
+        }
+        const hasAccess = await checkContactAccess(user.id, w.id);
+        if (hasAccess) await loadContact(w.id);
+      } catch (err) {
+        console.error('[WorkerSearch] access check failed:', err);
+      }
+    });
   }, [workers, user, isOpen, hasSubscription]);
 
   useEffect(() => {
@@ -153,6 +169,17 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
   const [redeemTokenValue, setRedeemTokenValue] = useState('');
   const [redeemLoading, setRedeemLoading] = useState(false);
   const [redeemMsg, setRedeemMsg] = useState('');
+  const [optedOutIds, setOptedOutIds] = useState<Set<string>>(new Set());
+  const [contactTarget, setContactTarget] = useState<any>(null);
+  const [contactFee, setContactFee] = useState(CONTACT_ACCESS_FEE_DEFAULT);
+  const [contactWindowHours, setContactWindowHours] = useState(CONTACT_ACCESS_WINDOW_HOURS_DEFAULT);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    getContactAccessConfig()
+      .then(cfg => { setContactFee(cfg.fee); setContactWindowHours(cfg.windowHours); })
+      .catch(() => {});
+  }, [isOpen]);
 
   const handleUnlock = (worker: any) => {
     if (!user) {
@@ -164,6 +191,33 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
       setShowSubscriptionPrompt(true);
       return;
     }
+  };
+
+  // Per-contact unlock: pay once, see this worker for the window, no
+  // subscription required.
+  const handleUnlockThisContact = (worker: any) => {
+    if (!user) {
+      setShowGuestPrompt(true);
+      return;
+    }
+    if (worker.allow_contact_display === false) return;
+    setContactTarget(worker);
+  };
+
+  const handleConfirmContactPurchase = () => {
+    const worker = contactTarget;
+    setContactTarget(null);
+    if (!worker) return;
+    onOpenMpesa?.(
+      contactFee,
+      `One-Day Access — ${worker.full_name}`,
+      'ITK-CONTACT',
+      'contact_access',
+      undefined,
+      undefined,
+      worker.id,
+      () => { loadContact(worker.id); },
+    );
   };
 
   const handleGuestSignIn = () => {
@@ -199,13 +253,16 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
     setRedeemLoading(true);
     setRedeemMsg('');
     try {
+      // The RPC validates the token, checks the window has not lapsed, and
+      // binds a guest purchase to the signed-in account.
       const result = await redeemToken(token);
       if (!result) { setRedeemMsg('Invalid or expired token.'); setRedeemLoading(false); return; }
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', result.profileId).single();
-      if (error || !data) { setRedeemMsg('Could not load worker profile.'); setRedeemLoading(false); return; }
-      setUnlockedIds(prev => new Set(prev).add(data.id));
-      setWorkerDetails(prev => new Map(prev).set(data.id, data));
-      setRedeemMsg('');
+      const revealed = await loadContact(result.profileId);
+      if (!revealed) { setRedeemMsg('This worker has chosen not to share contact details.'); setRedeemLoading(false); return; }
+      const until = result.expiresAt
+        ? new Date(result.expiresAt).toLocaleString('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        : '';
+      setRedeemMsg(until ? `Unlocked until ${until}.` : 'Unlocked.');
       setShowRedeemInput(false);
       setRedeemTokenValue('');
     } catch {
@@ -214,20 +271,6 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
       setRedeemLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!isOpen || !hasSubscription || workers.length === 0) return;
-    const load = async () => {
-      const ids = workers.map(w => w.id);
-      const { data } = await supabase.from('profiles').select('*').in('id', ids);
-      if (data) {
-        const map = new Map<string, any>();
-        data.forEach(p => map.set(p.id, p));
-        setWorkerDetails(map);
-      }
-    };
-    load();
-  }, [isOpen, hasSubscription, workers.length]);
 
   const handlePaymentComplete = async () => {
     setHasSubscription(true);
@@ -378,22 +421,49 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                             )}
                           </div>
                         </div>
-                        {!isUnlocked ? (
-                          <div className="flex flex-col items-end gap-1">
-                            <button
-                              onClick={() => handleUnlock(worker)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
-                            >
-                              <Lock className="w-3 h-3" />
-                              Subscribe to view
-                            </button>
+                        {!isUnlocked && (
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            {worker.allow_contact_display === false ? (
+                              <span className="text-[10px] text-gray-400 text-right max-w-[9rem] leading-tight">
+                                Contact details not shared
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleUnlockThisContact(worker)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                                >
+                                  <Key className="w-3 h-3" />
+                                  KES {contactFee} — 24h access
+                                </button>
+                                <button
+                                  onClick={() => handleUnlock(worker)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors"
+                                >
+                                  <Lock className="w-3 h-3" />
+                                  Subscribe to all
+                                </button>
+                              </>
+                            )}
                           </div>
-                        ) : hasSubscription && (
+                        )}
+                        {isUnlocked && hasSubscription && (
                           <div className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-semibold rounded-lg flex-shrink-0">
                             <Crown className="w-3 h-3" /> Subscribed
                           </div>
                         )}
+                        {isUnlocked && !hasSubscription && (
+                          <div className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-semibold rounded-lg flex-shrink-0">
+                            <Key className="w-3 h-3" /> {contactWindowHours}h access
+                          </div>
+                        )}
                       </div>
+
+                      {isUnlocked && optedOutIds.has(worker.id) && (
+                        <p className="text-xs text-gray-400 italic mt-2">
+                          This worker has chosen not to share their contact details.
+                        </p>
+                      )}
 
                       {isUnlocked && details && (
                         <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
@@ -445,8 +515,8 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
       {showGuestPrompt && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowGuestPrompt(false); }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Employer Access Required</h3>
-            <p className="text-sm text-gray-600 mb-1">Subscribe to unlock <span className="font-semibold">all</span> jobseeker contacts in your category.</p>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Sign in to view contacts</h3>
+            <p className="text-sm text-gray-600 mb-1">Unlock a single worker for <span className="font-bold text-green-700">KES {contactFee}</span> for {contactWindowHours} hours, or subscribe for <span className="font-semibold">all</span> contacts.</p>
             <p className="text-sm text-gray-500 mb-5">Choose how you'd like to continue:</p>
             <div className="space-y-3">
               <button onClick={handleGuestSubscribe} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
@@ -469,15 +539,45 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
             <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Crown className="w-6 h-6 text-indigo-600" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Employer Subscription</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Subscribe or Unlock This Worker</h3>
             <p className="text-sm text-gray-600 mb-1 text-center">Subscribe for <span className="font-bold text-indigo-600">KES 200/week</span> (or <span className="font-bold text-blue-600">KES 100</span> for 1 day) to access jobseeker contacts in your category.</p>
-            <p className="text-sm text-gray-500 mb-5 text-center">No per-contact fees — one flat rate.</p>
+            <p className="text-sm text-gray-500 mb-5 text-center">Prefer just this one? Unlock a single contact for <span className="font-bold text-green-700">KES {contactFee}</span> for {contactWindowHours} hours instead.</p>
             <div className="space-y-3">
+              {contactTarget && (
+                <button onClick={handleConfirmContactPurchase} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                  <Key className="w-4 h-4" /> Unlock this worker — KES {contactFee}
+                </button>
+              )}
               <button onClick={() => { setShowSubscriptionPrompt(false); handleSubscribe(); }} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                 <Phone className="w-4 h-4" /> Subscribe with M-Pesa
               </button>
               <button onClick={() => { setShowSubscriptionPrompt(false); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
                 Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {contactTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setContactTarget(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Key className="w-6 h-6 text-green-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Unlock {contactTarget.full_name}</h3>
+            <p className="text-sm text-gray-600 mb-1 text-center">
+              Pay <span className="font-bold text-green-700">KES {contactFee}</span> once to view this worker's phone, email and WhatsApp for <span className="font-bold">{contactWindowHours} hours</span>.
+            </p>
+            <p className="text-sm text-gray-500 mb-5 text-center">
+              Works on any device you sign in from. After {contactWindowHours} hours you pay again to reopen it.
+            </p>
+            <div className="space-y-3">
+              <button onClick={handleConfirmContactPurchase} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                <Phone className="w-4 h-4" /> Pay KES {contactFee} with M-Pesa
+              </button>
+              <button onClick={() => setContactTarget(null)} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                Cancel
               </button>
             </div>
           </div>

@@ -1,5 +1,24 @@
+// M-Pesa STK push: initiate a payment, receive Safaricom's callback, and let the
+// browser poll for the outcome.
+//
+// All fulfilment lives in _shared/paymentEffects.ts and is applied server-side.
+// This file only moves the payment through its states:
+//
+//   pending ──callback(ResultCode 0)──> completed  (+ effects applied)
+//           ──callback(other)───────> failed
+//           ──/status poll + Daraja STK query──> completed  (+ effects applied)
+//           ──simulate + 15s─────────────────> completed  (+ effects applied)
+//
+// The /status poll is a real fallback, not just a mirror: Safaricom retries a
+// timed-out callback and then stops, so a lost callback would otherwise leave a
+// customer charged and unfulfilled forever.
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
+import {
+  applyPaymentEffects,
+  sendPaymentReceipt,
+  type PaymentRow,
+} from '../_shared/paymentEffects.ts'
 
 const ALLOWED_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
@@ -12,74 +31,6 @@ function corsHeadersFor(req: Request) {
   }
 }
 
-const PAYMENT_TYPE_LABELS: Record<string, string> = {
-  registration: 'Account Registration',
-  contact_access: 'Contact Access',
-  job_posting: 'Job Posting',
-  job_payment: 'Job Payment',
-  advert: 'Advertisement',
-  featured_boost: 'Featured Boost',
-  single_job_post: 'Single Job Access',
-  employer_day_token: 'Employer Day Token',
-  employer_day_access: 'Employer Day Access',
-}
-
-async function sendPaymentReceipt(supabase: any, payment: any, mpesaRef: string) {
-  try {
-    if (!payment?.user_id) return
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, full_name')
-      .eq('id', payment.user_id)
-      .maybeSingle()
-    const recipient = profile?.email
-    if (!recipient) return
-
-    const label = PAYMENT_TYPE_LABELS[payment.payment_type] || 'Payment'
-    const amount = Number(payment.amount || 0).toLocaleString()
-    const ref = mpesaRef || payment.mpesa_ref || 'Pending'
-    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    const html = `
-<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-<table cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;background:#ffffff">
-  <tr><td style="background:linear-gradient(135deg,#059669,#047857);padding:24px;text-align:center">
-    <h1 style="color:#fff;font-size:20px;margin:0">Payment Received ✅</h1>
-    <p style="color:#d1fae5;font-size:13px;margin:6px 0 0">${dateStr}</p>
-  </td></tr>
-  <tr><td style="padding:24px">
-    <p style="margin:0 0 4px;color:#374151;font-size:14px">Hello ${escapeHtml(profile?.full_name || 'there')},</p>
-    <p style="margin:0 0 16px;color:#374151;font-size:14px">Thank you! Your payment for <strong>${escapeHtml(label)}</strong> has been received successfully.</p>
-    <table style="width:100%;border:1px solid #e5e7eb;border-radius:10px;border-collapse:collapse">
-      <tr><td style="padding:12px;background:#f9fafb;font-weight:600;width:45%">Amount Paid</td><td style="padding:12px">KES ${amount}</td></tr>
-      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Payment Type</td><td style="padding:12px">${escapeHtml(label)}</td></tr>
-      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">M-Pesa Reference</td><td style="padding:12px">${escapeHtml(ref)}</td></tr>
-      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Account Reference</td><td style="padding:12px">${escapeHtml(payment.description || payment.checkout_request_id || 'ITUKARUA')}</td></tr>
-    </table>
-    <a href="${SITE_URL}" style="display:inline-block;margin-top:20px;padding:10px 24px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Continue on Itukarua →</a>
-  </td></tr>
-  <tr><td style="background:#f3f4f6;padding:20px 24px;text-align:center;border-top:1px solid #e5e7eb">
-    <p style="color:#9ca3af;font-size:11px;margin:0">This is a receipt for a payment made on <a href="${SITE_URL}" style="color:#059669;text-decoration:none">Itukarua Classifieds</a>.</p>
-  </td></tr>
-</table>
-</body>
-</html>`
-
-    const smtp = await loadSmtpConfig(supabase)
-    const transport = createFreshTransport(smtp)
-    await transport.sendMail({
-      from: smtp.from,
-      to: recipient,
-      subject: `Itukarua — Payment Received: ${label}`,
-      text: `Hello, thank you! Your payment for ${label} (KES ${amount}, Ref ${ref}) has been received.`,
-      html,
-    })
-  } catch (err) {
-    console.error('[STK Push] Receipt email failed:', err.message)
-  }
-}
-
 const CONSUMER_KEY = Deno.env.get('MPESA_CONSUMER_KEY')!
 const CONSUMER_SECRET = Deno.env.get('MPESA_CONSUMER_SECRET')!
 const PASSKEY = Deno.env.get('MPESA_PASSKEY') || ''
@@ -89,6 +40,10 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SIMULATE = Deno.env.get('MPESA_SIMULATE') === 'true'
 
 const DARAJA_BASE = Deno.env.get('MPESA_BASE_URL') || 'https://sandbox.safaricom.co.ke'
+
+// How long before we start asking Daraja directly, and how often.
+const QUERY_AFTER_MS = 20_000
+const SIMULATE_AFTER_MS = 15_000
 
 function getTimestamp(): string {
   const now = new Date()
@@ -109,6 +64,21 @@ function formatPhone(phone: string): string {
   return p
 }
 
+/**
+ * One-Day Contact Access redemption token. Minted server-side with
+ * crypto.getRandomValues (never Math.random) so it is unpredictable and can be
+ * enforced unique by the payments_token_unique index. Only contact_access
+ * purchases receive a token.
+ */
+function generateContactToken(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  let token = 'ITK-'
+  for (const b of bytes) token += chars[b % chars.length]
+  return token
+}
+
 async function getOAuthToken(): Promise<string> {
   const auth = btoa(`${CONSUMER_KEY}:${CONSUMER_SECRET}`)
   const res = await fetch(`${DARAJA_BASE}/oauth/v1/generate?grant_type=client_credentials`, {
@@ -120,121 +90,59 @@ async function getOAuthToken(): Promise<string> {
   return data.access_token.trim()
 }
 
-async function applySubscriptionExtension(supabase: any, payment: any) {
-  const { data: profile } = await supabase.from('profiles').select('subscription_expires_at').eq('id', payment.user_id).maybeSingle()
-  const base = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date()
-  if (base.getTime() < Date.now()) base.setTime(Date.now())
-  // Employer weekly ("Employer Weekly Access" / EMP-WK) = 7 days; worker day
-  // access = 1 day; all other registration payments (jobseeker premium, etc.) = 30 days.
-  const days = payment.payment_type === 'employer_day_access'
-    ? 1
-    : payment.description?.includes('Employer Weekly') ? 7 : 30
-  base.setDate(base.getDate() + days)
-  await supabase.from('profiles').update({
-    subscription_expires_at: base.toISOString(),
-    registration_paid: true,
-  }).eq('id', payment.user_id)
-}
-
-function cycleDays(cycle?: string | null): number {
-  const days = parseInt(String(cycle || '').replace(/[^0-9]/g, ''), 10)
-  return days > 0 ? days : 30
-}
-
-// Activate a paid placement regardless of which table owns it:
-//  - service_ads  -> confirm payment (self-serve "promote" / advert renewal)
-//  - advertisements -> bring the banner/carousel advert live so it starts serving
-async function activateAdvertPlacement(supabase: any, payment: any): Promise<void> {
-  if (!payment.related_ad_id) return
-
-  const { data: srv } = await supabase
-    .from('service_ads')
-    .update({ payment_confirmed: true })
-    .eq('id', payment.related_ad_id)
-    .select('id')
-    .maybeSingle()
-  if (srv) return
-
-  const { data: ad } = await supabase
-    .from('advertisements')
-    .select('id, billing_cycle')
-    .eq('id', payment.related_ad_id)
-    .maybeSingle()
-  if (!ad) return
-
-  const start = new Date()
-  const end = new Date()
-  end.setDate(end.getDate() + cycleDays(ad.billing_cycle))
-  await supabase
-    .from('advertisements')
-    .update({ active: true, billing_start: start.toISOString(), billing_end: end.toISOString() })
-    .eq('id', payment.related_ad_id)
-}
-
-// Paid "Featured Boost" — activates/stacks featured status on whichever table owns
-// the ad. KES 500 adds exactly 7 days onto the current boost when one is active,
-// otherwise it starts a fresh 7-day window.
-async function applyFeaturedBoost(supabase: any, payment: any): Promise<void> {
-  if (!payment.related_ad_id && !payment.related_job_id) return
-  const BOOST_MS = 7 * 24 * 60 * 60 * 1000
-
-  // Resolve which table owns the paid item.
-  let table: string | null = null
-  if (payment.related_job_id) {
-    table = 'jobs'
-  } else {
-    const { data: srv } = await supabase
-      .from('service_ads')
-      .select('id')
-      .eq('id', payment.related_ad_id)
-      .maybeSingle()
-    if (srv) table = 'service_ads'
-    const { data: ad } = await supabase
-      .from('advertisements')
-      .select('id')
-      .eq('id', payment.related_ad_id)
-      .maybeSingle()
-    if (ad) table = 'advertisements'
+/**
+ * Ask Daraja what actually happened to a checkout request.
+ *
+ * Safaricom's own docs describe this as the way to settle an ambiguous
+ * transaction, which is exactly the gap a lost callback leaves. Returns null
+ * when Daraja has no record yet (still waiting on the customer).
+ */
+async function queryDaraja(checkoutRequestId: string): Promise<{ resultCode: number; mpesaRef?: string } | null> {
+  try {
+    const token = await getOAuthToken()
+    const timestamp = getTimestamp()
+    const password = btoa(`${SHORTCODE}${PASSKEY}${timestamp}`)
+    const res = await fetch(`${DARAJA_BASE}/mpesa/stkpushquery/v1/query`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Itukarua/1.0',
+      },
+      body: JSON.stringify({
+        BusinessShortCode: SHORTCODE,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId,
+      }),
+    })
+    const data = JSON.parse(await res.text())
+    const payload = data?.Response ?? data?.response ?? {}
+    const resultCode = Number(payload.ResultCode ?? payload.responseCode)
+    if (!Number.isFinite(resultCode)) return null
+    // The receipt number has moved around between Daraja response shapes.
+    const mpesaRef =
+      payload.MpesaReceiptNumber ??
+      payload.mpesaReceiptNumber ??
+      payload.ReceiptNumber ??
+      undefined
+    return { resultCode, mpesaRef: mpesaRef ? String(mpesaRef) : undefined }
+  } catch (err) {
+    console.error('[STK Query] failed:', err.message)
+    return null
   }
-  if (!table) return
-
-  const id = payment.related_job_id || payment.related_ad_id
-  const now = Date.now()
-  const { data: row } = await supabase
-    .from(table)
-    .select('boost_until')
-    .eq('id', id)
-    .maybeSingle()
-
-  const base = row?.boost_until && new Date(row.boost_until).getTime() > now
-    ? new Date(row.boost_until).getTime()
-    : now
-  const boostUntil = new Date(base + BOOST_MS).toISOString()
-
-  await supabase
-    .from(table)
-    .update({ featured: true, boost_until: boostUntil })
-    .eq('id', id)
 }
 
-async function completePayment(supabase: any, payment: any) {
-  const mpesaRef = `MPE${Date.now().toString().slice(-8)}`
-  await supabase.from('payments').update({
-    status: 'completed',
-    mpesa_ref: mpesaRef,
-  }).eq('id', payment.id)
-
-  if (payment.payment_type === 'registration' || payment.payment_type === 'employer_day_access') {
-    await applySubscriptionExtension(supabase, payment)
-  } else if (payment.payment_type === 'advert') {
-    await activateAdvertPlacement(supabase, payment)
-  } else if (payment.payment_type === 'featured_boost') {
-    await applyFeaturedBoost(supabase, payment)
+function extractCallbackRef(callbackData: any): string {
+  const items = callbackData?.Body?.stkCallback?.CallbackMetadata?.Item || []
+  for (const item of items) {
+    if (item?.Name === 'MpesaReceiptNumber' && item?.Value) return String(item.Value)
   }
-  // 'advert_upgrade' records the payment + receipt only; the slot change is
-  // applied by the client on completion so billing period stays untouched.
+  return ''
+}
 
-  await sendPaymentReceipt(supabase, payment, mpesaRef)
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
 
 Deno.serve(async (req) => {
@@ -249,55 +157,83 @@ Deno.serve(async (req) => {
   try {
     // ─── Initiate STK Push ──────────────────────────────────────────
     if (req.method === 'POST' && (path === '/' || path === '')) {
-      const { phone, amount, accountRef, description, user_id, payment_type, related_job_id, related_ad_id, related_profile_id, token } = await req.json()
+      const {
+        phone,
+        amount,
+        accountRef,
+        description,
+        user_id,
+        payment_type,
+        related_job_id,
+        related_ad_id,
+        related_profile_id,
+        related_account_id,
+        related_invoice_id,
+        token,
+        metadata,
+      } = await req.json()
 
       if (!phone || !amount) {
-        return new Response(
-          JSON.stringify({ error: 'Phone and amount required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'Phone and amount required' }, 400)
       }
 
+      // A contact unlock redeems against a specific jobseeker profile.
+      if ((payment_type === 'contact_access' || payment_type === 'contact unlock') && !related_profile_id) {
+        return json({ error: 'Contact access requires a profile to unlock' }, 400)
+      }
+
+      // Mint the redemption token server-side, and only for contact purchases.
+      const mintToken = payment_type === 'contact_access' ? generateContactToken() : null
+      void token
+
       const formattedPhone = formatPhone(phone)
-      const checkoutId = `WS${Date.now()}`
+      // Our own id, kept on the row as local_checkout_id. Daraja replaces
+      // checkout_request_id with its own id below, and the browser needs an id
+      // it can poll with before Daraja has answered, so both are stored.
+      const localCheckoutId = `WS${Date.now()}`
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-      // Create pending payment record
-      const { data: paymentData, error: insertErr } = await supabase.from('payments').insert({
-        user_id,
-        payment_type: payment_type || 'registration',
-        amount: Math.round(amount),
-        mpesa_phone: formattedPhone,
-        status: 'pending',
-        description: description || accountRef || 'Payment',
-        checkout_request_id: checkoutId,
-        related_job_id: related_job_id || null,
-        related_ad_id: related_ad_id || null,
-        related_profile_id: related_profile_id || null,
-        token: token || null,
-      }).select('id').single()
+      const { data: paymentData, error: insertErr } = await supabase
+        .from('payments')
+        .insert({
+          user_id,
+          payment_type: payment_type || 'registration',
+          amount: Math.round(amount),
+          mpesa_phone: formattedPhone,
+          status: 'pending',
+          description: description || accountRef || 'Payment',
+          checkout_request_id: localCheckoutId,
+          local_checkout_id: localCheckoutId,
+          metadata: metadata && typeof metadata === 'object' ? metadata : null,
+          related_job_id: related_job_id || null,
+          related_ad_id: related_ad_id || null,
+          related_profile_id: related_profile_id || null,
+          related_account_id: related_account_id || null,
+          related_invoice_id: related_invoice_id || null,
+          token: mintToken,
+        })
+        .select('id')
+        .single()
 
       if (insertErr) {
         console.error('[STK Push] DB insert error:', insertErr)
-        return new Response(
-          JSON.stringify({ error: 'Failed to create payment record' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'Failed to create payment record' }, 500)
       }
 
+      let darajaCheckoutId: string | null = null
+
       if (SIMULATE) {
-        console.log('[STK Push] Simulation mode — payment will auto-complete on first status poll after 15s')
+        console.log('[STK Push] Simulation mode — payment auto-completes on first status poll after 15s')
       } else {
-        // Real Daraja integration
         try {
           const timestamp = getTimestamp()
           const password = btoa(`${SHORTCODE}${PASSKEY}${timestamp}`)
-          const token = await getOAuthToken()
+          const oauthToken = await getOAuthToken()
 
           const stkRes = await fetch(`${DARAJA_BASE}/mpesa/stkpush/v1/processrequest`, {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${oauthToken}`,
               'Content-Type': 'application/json',
               'User-Agent': 'Itukarua/1.0',
             },
@@ -322,146 +258,161 @@ Deno.serve(async (req) => {
 
           if (darajaCode !== '0' && darajaCode !== 0) {
             console.error('[STK Push] Daraja error code:', darajaCode, 'desc:', darajaDesc)
-            return new Response(
-              JSON.stringify({ error: `Daraja: ${darajaDesc}`, daraja: stkData }),
-              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
+            // Mark the row failed so it does not sit pending forever.
+            await supabase.from('payments').update({ status: 'failed' }).eq('id', paymentData?.id)
+            return json({ error: `Daraja: ${darajaDesc}`, daraja: stkData }, 400)
           }
 
-          // Update checkout_request_id with real Daraja ID
-          await supabase.from('payments').update({
-            checkout_request_id: stkData.CheckoutRequestID,
-          }).eq('id', paymentData?.id)
+          darajaCheckoutId = stkData.CheckoutRequestID || null
+          await supabase
+            .from('payments')
+            .update({ checkout_request_id: darajaCheckoutId })
+            .eq('id', paymentData?.id)
         } catch (err) {
           console.error('[STK Push] Daraja call failed:', err.message)
-          return new Response(
-            JSON.stringify({ error: 'Payment service unavailable. Please try again.' }),
-            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
+          await supabase.from('payments').update({ status: 'failed' }).eq('id', paymentData?.id)
+          return json({ error: 'Payment service unavailable. Please try again.' }, 502)
         }
       }
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          CheckoutRequestID: checkoutId,
-          payment_id: paymentData?.id,
-          simulated: SIMULATE,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return json({
+        success: true,
+        // Prefer Daraja's id so the browser polls the row the callback will find.
+        // Falls back to our local id, which /status also resolves.
+        CheckoutRequestID: darajaCheckoutId || localCheckoutId,
+        local_checkout_id: localCheckoutId,
+        payment_id: paymentData?.id,
+        simulated: SIMULATE,
+        // Only contact purchases carry a redemption token, and only the minted
+        // value is ever echoed back to the browser.
+        token: mintToken,
+      })
     }
 
     // ─── Handle Safaricom Callback ─────────────────────────────────
     if (req.method === 'POST' && path === '/callback') {
       const callbackData = await req.json()
-      const safeCallback = { ...callbackData, Body: { ...callbackData.Body, stkCallback: { ResultCode: callbackData.Body?.stkCallback?.ResultCode, CheckoutRequestID: callbackData.Body?.stkCallback?.CheckoutRequestID } } }
-      console.log('[STK Callback] ResultCode:', safeCallback.Body?.stkCallback?.ResultCode, 'CheckoutRequestID:', safeCallback.Body?.stkCallback?.CheckoutRequestID)
-
       const { Body } = callbackData
       if (!Body?.stkCallback) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid callback data' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'Invalid callback data' }, 400)
       }
 
-      const { ResultCode, ResultDesc, CheckoutRequestID, CallbackMetadata } = Body.stkCallback
+      const { ResultCode, ResultDesc, CheckoutRequestID } = Body.stkCallback
+      const mpesaRef = extractCallbackRef(callbackData)
+      console.log('[STK Callback] ResultCode:', ResultCode, 'CheckoutRequestID:', CheckoutRequestID)
+
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-      let mpesaRef = ''
-      if (CallbackMetadata?.Item) {
-        for (const item of CallbackMetadata.Item) {
-          if (item.Name === 'MpesaReceiptNumber') mpesaRef = item.Value
-        }
+      // Accept either id: Daraja sends its own, but be forgiving if it echoes
+      // ours, and fall back to a phone/time match if the id is unrecognised.
+      let payment: PaymentRow | null = null
+      {
+        const { data } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('checkout_request_id', CheckoutRequestID)
+          .maybeSingle()
+        payment = data as PaymentRow | null
+      }
+      if (!payment && CheckoutRequestID) {
+        const { data } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('local_checkout_id', CheckoutRequestID)
+          .maybeSingle()
+        payment = data as PaymentRow | null
       }
 
-      const newStatus = ResultCode === 0 ? 'completed' : 'failed'
-      const updates: any = { status: newStatus }
-      if (mpesaRef) updates.mpesa_ref = mpesaRef
-      if (newStatus === 'failed') updates.mpesa_ref = ResultDesc
+      if (!payment) {
+        console.error('[STK Callback] no payment for CheckoutRequestID', CheckoutRequestID)
+        // Always 200: Safaricom retries non-2xx responses, and retrying an
+        // unresolvable id cannot help.
+        return json({ ResultCode: 0, ResultDesc: 'Success' })
+      }
 
-      const { data: payment } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('checkout_request_id', CheckoutRequestID)
-        .maybeSingle()
-
-      if (payment) {
-        await supabase.from('payments').update(updates).eq('id', payment.id)
-
-        if (newStatus === 'completed') {
-          if (payment.payment_type === 'registration' || payment.payment_type === 'employer_day_access') {
-            await applySubscriptionExtension(supabase, payment)
-          } else if (payment.payment_type === 'advert') {
-            await activateAdvertPlacement(supabase, payment)
-          } else if (payment.payment_type === 'featured_boost') {
-            await applyFeaturedBoost(supabase, payment)
+      if (Number(ResultCode) === 0) {
+        const result = await applyPaymentEffects(supabase, payment, { mpesaRef: mpesaRef || null })
+        if (result.claimed) {
+          if (result.error) {
+            // Fulfilment failed but the money arrived. effects_applied_at stays
+            // NULL so payments-reconcile repairs it.
+            console.error('[STK Callback] payment completed but fulfilment failed:', result.error)
+          } else {
+            await sendPaymentReceipt(supabase, payment, mpesaRef || payment.mpesa_ref)
           }
-
-          await sendPaymentReceipt(supabase, payment, mpesaRef)
         }
+      } else {
+        await supabase
+          .from('payments')
+          .update({ status: 'failed', mpesa_ref: mpesaRef || ResultDesc || null })
+          .eq('id', payment.id)
+        console.error('[STK Callback] payment failed:', ResultCode, ResultDesc)
       }
 
-      return new Response(
-        JSON.stringify({ ResultCode: 0, ResultDesc: 'Success' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return json({ ResultCode: 0, ResultDesc: 'Success' })
     }
 
     // ─── Query STK Push Status ─────────────────────────────────────
     if (req.method === 'GET' && path === '/status') {
-      const checkoutRequestId = url.searchParams.get('CheckoutRequestID')
+      const checkoutRequestId = url.searchParams.get('CheckoutRequestID') || url.searchParams.get('checkout_request_id')
       if (!checkoutRequestId) {
-        return new Response(
-          JSON.stringify({ error: 'CheckoutRequestID required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'CheckoutRequestID required' }, 400)
       }
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-      const { data: payment } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('checkout_request_id', checkoutRequestId)
-        .maybeSingle()
+
+      const lookup = async (column: string) => {
+        const { data } = await supabase.from('payments').select('*').eq(column, checkoutRequestId).maybeSingle()
+        return data as PaymentRow | null
+      }
+      let payment = await lookup('checkout_request_id')
+      if (!payment) payment = await lookup('local_checkout_id')
 
       if (!payment) {
-        return new Response(
-          JSON.stringify({ success: true, resultCode: 1, resultDesc: 'Payment not found' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return json({ success: true, resultCode: 1, resultDesc: 'Payment not found' })
       }
 
-      // In simulation mode, auto-complete pending payments after 15 seconds
-      if (SIMULATE && payment.status === 'pending') {
-        const createdAt = new Date(payment.created_at).getTime()
-        const elapsed = Date.now() - createdAt
-        if (elapsed >= 15000 || isNaN(createdAt)) {
-          await completePayment(supabase, payment)
-          payment.status = 'completed'
+      if (payment.status === 'pending') {
+        const createdAt = payment.created_at ? new Date(payment.created_at).getTime() : NaN
+        const age = Date.now() - createdAt
+        const threshold = SIMULATE ? SIMULATE_AFTER_MS : QUERY_AFTER_MS
+
+        if (isNaN(createdAt) || age >= threshold) {
+          if (SIMULATE) {
+            const result = await applyPaymentEffects(supabase, payment)
+            if (result.claimed && !result.error) {
+              await sendPaymentReceipt(supabase, payment)
+            }
+            const { data: fresh } = await supabase.from('payments').select('*').eq('id', payment.id).maybeSingle()
+            payment = (fresh as PaymentRow) || { ...payment, status: 'completed' }
+          } else {
+            // Ask Daraja directly. This is what makes a lost callback survivable.
+            const queried = await queryDaraja(checkoutRequestId)
+            if (queried && queried.resultCode === 0) {
+              const result = await applyPaymentEffects(supabase, payment, { mpesaRef: queried.mpesaRef || null })
+              if (result.claimed && !result.error) {
+                await sendPaymentReceipt(supabase, payment, queried.mpesaRef)
+              }
+              const { data: fresh } = await supabase.from('payments').select('*').eq('id', payment.id).maybeSingle()
+              payment = (fresh as PaymentRow) || { ...payment, status: 'completed' }
+            } else if (queried && queried.resultCode !== 0) {
+              await supabase
+                .from('payments')
+                .update({ status: 'failed', mpesa_ref: payment.mpesa_ref })
+                .eq('id', payment.id)
+                .eq('status', 'pending')
+              payment = { ...payment, status: 'failed' }
+            }
+          }
         }
       }
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          status: payment.status,
-          payment,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return json({ success: true, status: payment.status, payment })
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Not found' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return json({ error: 'Not found' }, 404)
   } catch (error) {
     console.error('[STK Push] Error:', error.message)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return json({ error: error.message }, 500)
   }
 })

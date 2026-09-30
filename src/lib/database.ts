@@ -1,5 +1,5 @@
-import { supabase, proxyRequest, proxyTable, proxyRpc } from './supabase';
-import type { SavedCorporateFeatures } from '@/data/siteData';
+import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
+import { isCorporateOnlySlot, type SavedCorporateFeatures } from '@/data/siteData';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -54,12 +54,19 @@ export interface DbJob {
   views?: number;
   featured?: boolean;
   boost_until?: string | null;
+  valid_until?: string | null;
+  retired_at?: string | null;
+  retired_by?: 'employer' | 'system' | null;
   images?: string[];
   created_at: string;
   updated_at: string;
   // from view
   poster_name?: string;
   poster_image?: string;
+  corporate_account_id?: string | null;
+  corporate_tier?: string | null;
+  // corporate account name (resolved for display)
+  corporate_company_name?: string | null;
 }
 
 export interface DbBid {
@@ -97,9 +104,13 @@ export interface DbServiceAd {
   subcounty?: string;
   contact: string;
   plan: '10-day' | '20-day' | '30-day';
-  expiry_date: string;
+  /** NULL until the advert is paid for. See createServiceAd. */
+  expiry_date: string | null;
   featured: boolean;
   boost_until?: string | null;
+  views_count?: number;
+  clicks_count?: number;
+  social_links?: Record<string, string> | null;
   rating: number;
   reviews_count: number;
   owner_id: string;
@@ -108,15 +119,21 @@ export interface DbServiceAd {
   billing_start?: string | null;
   billing_end?: string | null;
   last_invoice_at?: string | null;
+  /** Set when the expiry notice has been sent, so it is only ever sent once. */
+  expired_notified_at?: string | null;
   payment_confirmed: boolean;
   created_at: string;
   updated_at: string;
+  corporate_account_id?: string | null;
+  corporate_tier?: string | null;
+  // corporate account name (resolved for display)
+  corporate_company_name?: string | null;
 }
 
 export interface DbPayment {
   id: string;
   user_id: string;
-  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access';
+  payment_type: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'job_listing';
   amount: number;
   mpesa_ref: string;
   mpesa_phone: string;
@@ -210,7 +227,11 @@ export async function getProfiles(filters?: {
   limit?: number;
   ratings_enabled?: boolean;
 }): Promise<DbProfile[]> {
-  let query = supabase.from('profiles').select('*');
+  let query = supabase
+    .from('profiles')
+    .select(
+      `id, full_name, profile_image, rating, reviews_count, qualifications, experience, skills, location, created_at, role, verified, registration_paid, updated_at, suspended, ratings_enabled, terms_accepted, data_sharing_consent, accepted_terms_at, subscription_expires_at, county, subcounty, profile_views, likes_count, dislikes_count, is_featured, allow_contact_display`
+    );
 
   if (filters?.role) {
     query = query.eq('role', filters.role);
@@ -258,7 +279,9 @@ export async function getJobs(filters?: {
   search?: string;
   status?: string;
   activeOnly?: boolean;
+  featured?: boolean;
   limit?: number;
+  from?: number;
   postedBy?: string;
 }): Promise<DbJob[]> {
   let query = supabase.from('jobs').select('*');
@@ -276,10 +299,16 @@ export async function getJobs(filters?: {
     query = query.eq('status', filters.status);
   }
   if (filters?.activeOnly) {
-    query = query.eq('status', 'open');
+    query = query
+      .in('status', ['open', 'in-progress'])
+      .gte('valid_until', new Date().toISOString())
+      .is('retired_at', null);
   }
   if (filters?.postedBy) {
     query = query.eq('posted_by', filters.postedBy);
+  }
+  if (filters?.featured) {
+    query = query.eq('featured', true);
   }
   if (filters?.search) {
     const terms = filters.search.split(/\s+/).filter(Boolean);
@@ -293,7 +322,9 @@ export async function getJobs(filters?: {
 
   query = query.order('featured', { ascending: false }).order('created_at', { ascending: false });
 
-  if (filters?.limit) {
+  if (typeof filters?.from === 'number') {
+    query = query.range(filters.from, filters.from + (filters.limit || 50) - 1);
+  } else if (filters?.limit) {
     query = query.limit(filters.limit);
   }
 
@@ -351,6 +382,10 @@ export async function createJob(job: {
 }
 
 export async function updateJob(jobId: string, updates: Partial<DbJob>) {
+  const locked = JOB_LOCKED_COLUMNS.filter(c => (updates as any)[c] !== undefined);
+  if (locked.length > 0) {
+    throw new Error(`Field${locked.length > 1 ? 's' : ''} ${locked.join(', ')} cannot be edited directly — use a sanctioned reactivation/publish flow.`);
+  }
   const { data, error } = await supabase
     .from('jobs')
     .update(updates)
@@ -364,6 +399,37 @@ export async function updateJob(jobId: string, updates: Partial<DbJob>) {
 export async function deleteJob(jobId: string) {
   const { error } = await supabase.from('jobs').delete().eq('id', jobId);
   if (error) throw error;
+}
+
+// ─── Job listing lifecycle ──────────────────────────────────────────────────
+
+export const JOB_LISTING_PLANS = [
+  { id: '10-day', name: '10-Day Listing', days: 10, amount: 300, description: 'Job ad live for 10 days' },
+  { id: '20-day', name: '20-Day Listing', days: 20, amount: 500, description: 'Job ad live for 20 days' },
+  { id: '30-day', name: '30-Day Listing', days: 30, amount: 800, description: 'Job ad live for 30 days' },
+] as const;
+
+// Columns a job owner/admin may never write directly from the client — the
+// serving window and boost state only move through sanctioned flows. Editing
+// an "expiry date" can therefore never silently re-activate a post. Retirement
+// (retired_at/by) stays writable because it only ever hides a job.
+const JOB_LOCKED_COLUMNS = ['valid_until', 'featured', 'boost_until', 'posted_by', 'published_at'] as const;
+
+// Reactivate a job under an active Employer Access subscription. The RPC
+// enforces ownership + coverage and caps the window at the subscription end.
+export async function employerReactivateJob(jobId: string): Promise<{ id: string; valid_until: string; status: string; granted_days: number }> {
+  const { data, error } = await supabase.rpc('employer_reactivate_job', { p_job: jobId });
+  if (error) throw new Error(error.message);
+  return data as { id: string; valid_until: string; status: string; granted_days: number };
+}
+
+// Retire an ad: hidden from the frontend, reversible through reactivation
+// (subscription-covered RPC / paid listing).
+export async function retireJob(jobId: string, by: 'employer' | 'system' = 'employer'): Promise<DbJob> {
+  return updateJob(jobId, {
+    retired_at: new Date().toISOString(),
+    retired_by: by,
+  } as Partial<DbJob>);
 }
 
 // ─── Bids ───────────────────────────────────────────────────────────────────
@@ -449,6 +515,7 @@ export async function getServiceAds(filters?: {
   activeOnly?: boolean;
   featured?: boolean;
   limit?: number;
+  from?: number;
 }): Promise<DbServiceAd[]> {
   let query = supabase.from('service_ads').select('*');
 
@@ -469,6 +536,10 @@ export async function getServiceAds(filters?: {
   }
   if (filters?.activeOnly) {
     query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
+    // An unpaid advert has no expiry_date, so the window check above already
+    // excludes it. Keep the explicit payment gate so the rule survives a future
+    // change to how an unpaid row is dated.
+    query = query.eq('payment_confirmed', true);
   }
   if (filters?.featured) {
     query = query.eq('featured', true);
@@ -485,7 +556,9 @@ export async function getServiceAds(filters?: {
 
   query = query.order('featured', { ascending: false }).order('created_at', { ascending: false });
 
-  if (filters?.limit) {
+  if (typeof filters?.from === 'number') {
+    query = query.range(filters.from, filters.from + (filters.limit || 50) - 1);
+  } else if (filters?.limit) {
     query = query.limit(filters.limit);
   }
 
@@ -526,23 +599,28 @@ export async function createServiceAd(ad: {
   plan: '10-day' | '20-day' | '30-day';
   owner_id: string;
   featured?: boolean;
+  social_links?: Record<string, string> | null;
+  destination_url?: string | null;
 }): Promise<DbServiceAd> {
-  const days = ad.plan === '10-day' ? 10 : ad.plan === '20-day' ? 20 : 30;
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + days);
   const billingCycle = ad.plan === '10-day' ? '10 days' : ad.plan === '20-day' ? '20 days' : '30 days';
-  const featured = ad.plan === '30-day';
+  const { social_links, ...rest } = ad;
 
+  // Deliberately grants no billing window. An advert is created unpaid and stays
+  // off air until the M-Pesa callback fulfils it, so an abandoned checkout can
+  // never leave a free listing running. See supabase/functions/_shared/
+  // paymentEffects.ts fulfilServiceAd, which opens the window from the plan.
   const { data, error } = await supabase
     .from('service_ads')
     .insert({
-      ...ad,
-      featured,
-      boost_until: featured ? expiryDate.toISOString() : null,
-      expiry_date: expiryDate.toISOString().split('T')[0],
+      ...rest,
+      featured: false,
+      social_links: social_links || null,
+      boost_until: null,
+      payment_confirmed: false,
+      expiry_date: null,
       billing_cycle: billingCycle,
-      billing_start: new Date().toISOString(),
-      billing_end: expiryDate.toISOString(),
+      billing_start: null,
+      billing_end: null,
     })
     .select()
     .single();
@@ -571,22 +649,52 @@ export async function getMyServiceAds(userId: string): Promise<DbServiceAd[]> {
   return data || [];
 }
 
+/**
+ * Admin/manual extension of a self-serve advert's window.
+ *
+ * Not the customer renewal path: that runs server-side in
+ * supabase/functions/_shared/paymentEffects.ts once the M-Pesa payment lands, so
+ * it survives the customer closing the tab. This stays for admin overrides and
+ * comps, and extends from the later of now and the current expiry so paid days
+ * are never lost.
+ */
 export async function renewServiceAd(adId: string, plan: '10-day' | '20-day' | '30-day'): Promise<DbServiceAd> {
   const days = plan === '10-day' ? 10 : plan === '20-day' ? 20 : 30;
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + days);
-  const expiryDateStr = expiryDate.toISOString().split('T')[0];
-  const featured = plan === '30-day';
-  const update = await updateServiceAd(adId, {
+  const now = new Date();
+  const { data: current } = await supabase
+    .from('service_ads')
+    .select('billing_end')
+    .eq('id', adId)
+    .maybeSingle();
+  const currentEnd = current?.billing_end ? new Date(current.billing_end) : null;
+  const base = currentEnd && currentEnd.getTime() > now.getTime() ? currentEnd : now;
+  base.setDate(base.getDate() + days);
+  const expiryDateStr = base.toISOString().split('T')[0];
+  const endIso = new Date(`${expiryDateStr}T00:00:00`).toISOString();
+  // A purchased Featured Boost is a separate product with its own expiry, so a
+  // plan renewal must not cancel it.
+  const liveBoost = await hasLiveAdBoost(adId);
+
+  const patch: Partial<DbServiceAd> = {
     plan,
-    featured,
-    boost_until: featured ? new Date(`${expiryDateStr}T00:00:00`).toISOString() : null,
+    payment_confirmed: true,
     expiry_date: expiryDateStr,
     billing_cycle: plan === '10-day' ? '10 days' : plan === '20-day' ? '20 days' : '30 days',
-    billing_start: new Date().toISOString(),
-    billing_end: new Date(`${expiryDateStr}T00:00:00`).toISOString(),
-  });
-  return update;
+    billing_start: now.toISOString(),
+    billing_end: endIso,
+    expired_notified_at: null,
+  };
+  if (!liveBoost) {
+    patch.featured = plan === '30-day';
+    patch.boost_until = plan === '30-day' ? endIso : null;
+  }
+
+  return updateServiceAd(adId, patch);
+}
+
+async function hasLiveAdBoost(adId: string): Promise<boolean> {
+  const { data } = await supabase.from('service_ads').select('boost_until').eq('id', adId).maybeSingle();
+  return !!(data?.boost_until && new Date(data.boost_until).getTime() > Date.now());
 }
 
 // ─── Payments ───────────────────────────────────────────────────────────────
@@ -950,6 +1058,7 @@ export async function checkContactAccess(userId: string, profileId: string): Pro
     .eq('payment_type', 'contact_access')
     .eq('related_profile_id', profileId)
     .eq('status', 'completed')
+    .gte('access_expires_at', new Date().toISOString())
     .maybeSingle();
   return !!data;
 }
@@ -994,27 +1103,70 @@ export async function countRecentSingleJobs(userId: string): Promise<number> {
   return count || 0;
 }
 
-export async function redeemToken(token: string): Promise<{ profileId: string } | null> {
-  const { data } = await supabase
-    .from('payments')
-    .select('related_profile_id')
-    .eq('token', token)
-    .eq('payment_type', 'contact_access')
-    .eq('status', 'completed')
-    .maybeSingle();
-  if (!data?.related_profile_id) return null;
-  return { profileId: data.related_profile_id };
+export async function redeemToken(token: string): Promise<{ profileId: string; expiresAt: string | null } | null> {
+  const { data, error } = await supabase.rpc('redeem_contact_token', { p_token: token.trim().toUpperCase() });
+  if (error || !data?.allowed) return null;
+  return { profileId: data.profile_id as string, expiresAt: data.expires_at as string | null };
+}
+
+export interface ProfileContactResult {
+  allowed: boolean;
+  reason?: 'opted_out' | 'locked' | 'expired' | 'missing';
+  expiresAt?: string | null;
+  contact?: {
+    phone?: string | null;
+    email?: string | null;
+    whatsapp?: string | null;
+    location?: string | null;
+    county?: string | null;
+    subcounty?: string | null;
+  } | null;
+  certificates?: string[] | null;
+  resume?: string | null;
+}
+
+export async function getProfileContact(profileId: string): Promise<ProfileContactResult | null> {
+  const { data, error } = await supabase.rpc('get_profile_contact', { p_profile_id: profileId });
+  if (error) {
+    console.error('[getProfileContact] error:', error);
+    return null;
+  }
+  if (!data) return null;
+  return {
+    allowed: !!data.allowed,
+    reason: data.reason as ProfileContactResult['reason'],
+    expiresAt: data.expires_at as string | null,
+    contact: data.contact || null,
+    certificates: data.certificates,
+    resume: data.resume,
+  };
+}
+
+export const CONTACT_ACCESS_FEE_DEFAULT = 100;
+export const CONTACT_ACCESS_WINDOW_HOURS_DEFAULT = 24;
+
+export interface ContactAccessConfig {
+  fee: number;
+  windowHours: number;
+}
+
+export async function getContactAccessConfig(): Promise<ContactAccessConfig> {
+  const settings = await getPlatformSettings();
+  const fee = settings.contact_access_fee || CONTACT_ACCESS_FEE_DEFAULT;
+  const windowHours = settings.contact_access_window_hours || CONTACT_ACCESS_WINDOW_HOURS_DEFAULT;
+  return { fee, windowHours };
 }
 
 // ─── Terms & Conditions ─────────────────────────────────────────────────────
 
-export async function acceptTerms(userId: string, dataSharingConsent: boolean): Promise<void> {
+export async function acceptTerms(userId: string, dataSharingConsent: boolean, allowContactDisplay?: boolean): Promise<void> {
   const { error } = await supabase
     .from('profiles')
     .update({
       terms_accepted: true,
       data_sharing_consent: dataSharingConsent,
-      accepted_terms_at: new Date().toISOString()
+      accepted_terms_at: new Date().toISOString(),
+      ...(allowContactDisplay !== undefined ? { allow_contact_display: allowContactDisplay } : {}),
     })
     .eq('id', userId);
   if (error) throw error;
@@ -1698,46 +1850,22 @@ export async function getActiveAds(featured?: boolean) {
   return (data || []).filter(ad => !ad.boost_until || ad.boost_until >= now || !ad.featured);
 }
 
-export async function getAllAds() {
+export async function getRailAds(slot: string): Promise<DbAdvertisement[]> {
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('advertisements')
     .select('*')
+    .eq('active', true)
+    .eq('slot', slot)
+    .or(`billing_start.is.null,billing_start.lte.${now},billing_end.is.null,billing_end.gte.${now}`)
+    .order('featured', { ascending: false })
     .order('sort_order');
   if (error) throw error;
-  return data || [];
-}
-
-export async function createAd(ad: { title: string; image_url: string; images?: string[]; destination_url: string; is_affiliate?: boolean; sort_order?: number; featured?: boolean }) {
-  const nowIso = new Date().toISOString();
-  const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from('advertisements')
-    .insert({
-      ...ad,
-      billing_cycle: '7 days',
-      billing_start: nowIso,
-      billing_end: billingEnd,
-    })
-    .select('id')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateAd(id: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string; is_affiliate: boolean; active: boolean; sort_order: number; featured: boolean }>) {
-  const { error } = await supabase
-    .from('advertisements')
-    .update(updates)
-    .eq('id', id);
-  if (error) throw error;
-}
-
-export async function deleteAd(id: string) {
-  const { error } = await supabase
-    .from('advertisements')
-    .delete()
-    .eq('id', id);
-  if (error) throw error;
+  // Only the reserved branded strips are corporate-only. The homepage carousel
+  // also feeds the Jobs/Services rail, where an ordinary paid banner belongs —
+  // filtering unconditionally here is what kept plain banners off the site.
+  if (!isCorporateOnlySlot(slot)) return data || [];
+  return (data || []).filter((a: DbAdvertisement) => a.corporate_account_id || a.corporate_tier);
 }
 
 export async function incrementAdClick(adId: string) {
@@ -1750,6 +1878,16 @@ export async function incrementAdDisplay(adId: string) {
   const { error } = await supabase.rpc('increment_ad_display', { ad_id: adId });
   if (error) console.error('[Ad] display increment failed:', error);
   await logAdEvent(adId, 'impression');
+}
+
+export async function incrementServiceAdViews(serviceAdId: string) {
+  const { error } = await supabase.rpc('increment_service_ad_views', { p_ad_id: serviceAdId });
+  if (error) console.error('[ServiceAd] view increment failed:', error);
+}
+
+export async function incrementServiceAdClicks(serviceAdId: string) {
+  const { error } = await supabase.rpc('increment_service_ad_clicks', { p_ad_id: serviceAdId });
+  if (error) console.error('[ServiceAd] click increment failed:', error);
 }
 
 // ─── Advert Analytics ──────────────────────────────────────────────────────
@@ -1773,88 +1911,6 @@ export interface AdAnalyticsByAd {
   data: AdAnalyticsPoint[];
   totalClicks: number;
   totalImpressions: number;
-}
-
-export async function getAdAnalyticsByAd(userId: string, days: number = 30): Promise<AdAnalyticsByAd[]> {
-  const ads = await getMyAds(userId);
-  if (ads.length === 0) return [];
-  const adIds = ads.map(a => a.id);
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-  const { data, error } = await supabase
-    .from('advert_analytics')
-    .select('ad_id, event_type, created_at')
-    .in('ad_id', adIds)
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (error) { console.error('getAdAnalyticsByAd error:', error); return []; }
-
-  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const dateKeys: string[] = [];
-  for (let i = 0; i < days; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
-    dateKeys.push(d.toISOString().slice(0, 10));
-  }
-
-  const byAd: Record<string, Record<string, { clicks: number; impressions: number }>> = {};
-  for (const ad of ads) {
-    byAd[ad.id] = {};
-    for (const key of dateKeys) byAd[ad.id][key] = { clicks: 0, impressions: 0 };
-  }
-
-  for (const row of data || []) {
-    const key = row.created_at.slice(0, 10);
-    if (!byAd[row.ad_id]) byAd[row.ad_id] = {};
-    if (!byAd[row.ad_id][key]) byAd[row.ad_id][key] = { clicks: 0, impressions: 0 };
-    if (row.event_type === 'click') byAd[row.ad_id][key].clicks++;
-    else byAd[row.ad_id][key].impressions++;
-  }
-
-  return ads.map(ad => {
-    const byDate = byAd[ad.id] || {};
-    const analyticsData = Object.entries(byDate)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, v]) => ({ date, ...v }));
-    const totalClicks = analyticsData.reduce((s, p) => s + p.clicks, 0);
-    const totalImpressions = analyticsData.reduce((s, p) => s + p.impressions, 0);
-    return { adId: ad.id, title: ad.title, active: ad.active, created_at: ad.created_at, data: analyticsData, totalClicks, totalImpressions };
-  });
-}
-
-export async function getAdAnalytics(userId: string, days: number = 30): Promise<AdAnalyticsPoint[]> {
-  const ads = await getMyAds(userId);
-  if (ads.length === 0) return [];
-  const adIds = ads.map(a => a.id);
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-  const { data, error } = await supabase
-    .from('advert_analytics')
-    .select('event_type, created_at')
-    .in('ad_id', adIds)
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (error) { console.error('getAdAnalytics error:', error); return []; }
-
-  const byDate: Record<string, { clicks: number; impressions: number }> = {};
-  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  for (let i = 0; i < days; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
-    byDate[key] = { clicks: 0, impressions: 0 };
-  }
-
-  for (const row of data || []) {
-    const key = row.created_at.slice(0, 10);
-    if (!byDate[key]) byDate[key] = { clicks: 0, impressions: 0 };
-    if (row.event_type === 'click') byDate[key].clicks++;
-    else byDate[key].impressions++;
-  }
-
-  return Object.entries(byDate).map(([date, v]) => ({ date, ...v }));
 }
 
 export interface DbAdvertisement {
@@ -1883,61 +1939,9 @@ export interface DbAdvertisement {
   target_county?: string | null;
   target_subcounty?: string | null;
   expected_impressions?: number;
+  corporate_tier?: string | null;
+  corporate_account_id?: string | null;
   created_at: string;
-}
-
-export async function getMyAds(userId: string): Promise<DbAdvertisement[]> {
-  const { data, error } = await supabase
-    .from('advertisements')
-    .select('*')
-    .eq('owner_id', userId)
-    .order('created_at', { ascending: false });
-  if (error) { console.error('getMyAds error:', error); return []; }
-  return data || [];
-}
-
-export async function getActiveAdsBySlot(slot: string): Promise<DbAdvertisement[]> {
-  const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from('advertisements')
-    .select('*')
-    .eq('active', true)
-    .eq('slot', slot)
-    .lte('billing_start', now)
-    .gte('billing_end', now)
-    .order('created_at', { ascending: false });
-  if (error) { console.error('[getActiveAdsBySlot]', error); return []; }
-  return data || [];
-}
-
-export async function createAdForUser(userId: string, ad: { title: string; image_url: string; images?: string[]; destination_url?: string | null; description?: string; cta_text?: string; whatsapp_number?: string; is_affiliate?: boolean; slot?: string; target_county?: string | null; target_subcounty?: string | null; expected_impressions?: number }) {
-  const nowIso = new Date().toISOString();
-  const billingEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from('advertisements')
-    .insert({ ...ad, owner_id: userId, active: false, destination_url: ad.destination_url || null, billing_cycle: '7 days', billing_start: nowIso, billing_end: billingEnd, slot: ad.slot || 'job_listings_top', target_county: ad.target_county || null, target_subcounty: ad.target_subcounty || null, expected_impressions: ad.expected_impressions || null })
-    .select('id')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateMyAd(id: string, userId: string, updates: Partial<{ title: string; image_url: string; images: string[]; destination_url: string | null; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; active: boolean; slot: string; target_county: string | null; target_subcounty: string | null; expected_impressions: number }>) {
-  const { error } = await supabase
-    .from('advertisements')
-    .update({ ...updates, destination_url: updates.destination_url ?? null })
-    .eq('id', id)
-    .eq('owner_id', userId);
-  if (error) throw error;
-}
-
-export async function deleteMyAd(id: string, userId: string) {
-  const { error } = await supabase
-    .from('advertisements')
-    .delete()
-    .eq('id', id)
-    .eq('owner_id', userId);
-  if (error) throw error;
 }
 
 export async function boostAd(table: 'advertisements' | 'service_ads' | 'jobs', adId: string) {
@@ -1980,11 +1984,10 @@ export interface BillingItem {
 }
 
 const SERVICE_PLAN_PRICE: Record<string, number> = { '10-day': 300, '20-day': 500, '30-day': 800 };
-const ADVERT_SLOT_PRICE: Record<string, number> = {};
+// Banner cycle gate pricing (10/20/30 days). '7 days' kept only for legacy rows.
+const ADVERT_CYCLE_PRICE: Record<string, number> = { '10 days': 300, '20 days': 500, '30 days': 800, '7 days': 200 };
 const advertAmount = (ad: any): number => {
-  const weekly = ADVERT_SLOT_PRICE[ad?.slot ?? 'job_listings_top'] ?? 500;
-  const mult = ad.billing_cycle === '30 days' ? 4 : ad.billing_cycle === '20 days' ? 2.5 : ad.billing_cycle === '10 days' ? 1.5 : 1;
-  return Math.round(weekly * mult);
+  return ADVERT_CYCLE_PRICE[ad?.billing_cycle ?? '10 days'] ?? 300;
 };
 const DUE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // alert within 7 days of expiry
 
@@ -2163,8 +2166,26 @@ export interface DbCorporateAccount {
   billing_email?: string;
   notes?: string;
   features?: SavedCorporateFeatures | null;
+  monthly_price?: number | null;
+  custom_amount?: number | null;
+  next_billing_date?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface DbCorporateInvoice {
+  id: string;
+  account_id: string;
+  period_start: string;
+  period_end: string;
+  amount: number;
+  status: 'draft' | 'issued' | 'paid' | 'overdue' | 'void';
+  payment_type: string | null;
+  due_date: string | null;
+  issued_at: string | null;
+  created_at: string;
+  updated_at: string;
+  company_name?: string;
 }
 
 export interface DbCorporateMember {
@@ -2210,6 +2231,82 @@ export async function getCorporateAccountAds(accountId: string) {
   return data || [];
 }
 
+// ─── Corporate-linked jobs & services ────────────────────────────────────────
+
+export async function getAccountLinkedJobs(accountId: string): Promise<DbJob[]> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('corporate_account_id', accountId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as DbJob[];
+}
+
+export async function getAccountLinkedServiceAds(accountId: string): Promise<DbServiceAd[]> {
+  const { data, error } = await supabase
+    .from('service_ads')
+    .select('*')
+    .eq('corporate_account_id', accountId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as DbServiceAd[];
+}
+
+export async function getCorporateMemberContent(
+  accountId: string,
+  memberProfileIds: string[]
+): Promise<{ jobs: DbJob[]; services: DbServiceAd[] }> {
+  const jobs: DbJob[] = [];
+  const services: DbServiceAd[] = [];
+  if (memberProfileIds.length === 0) return { jobs, services };
+  await Promise.all([
+    (async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .in('posted_by', memberProfileIds)
+        .order('created_at', { ascending: false });
+      if (!error) jobs.push(...(data || []));
+    })(),
+    (async () => {
+      const { data, error } = await supabase
+        .from('service_ads')
+        .select('*')
+        .in('owner_id', memberProfileIds)
+        .order('created_at', { ascending: false });
+      if (!error) services.push(...(data || []));
+    })(),
+  ]);
+  return { jobs, services };
+}
+
+export async function setCorporateLink(
+  table: 'jobs' | 'service_ads',
+  id: string,
+  accountId: string | null,
+  tier: string | null
+) {
+  const patch: Record<string, string | null> = { corporate_account_id: accountId, corporate_tier: accountId ? tier : null };
+  const { error } = await supabase.from(table).update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+const corporateCompanyNameCache = new Map<string, string | null>();
+
+export async function getCorporateCompanyName(accountId?: string | null): Promise<string | null> {
+  if (!accountId) return null;
+  if (corporateCompanyNameCache.has(accountId)) return corporateCompanyNameCache.get(accountId)!;
+  const { data, error } = await supabase
+    .from('corporate_accounts')
+    .select('company_name')
+    .eq('id', accountId)
+    .single();
+  const name = error || !data ? null : (data.company_name as string) || null;
+  corporateCompanyNameCache.set(accountId, name);
+  return name;
+}
+
 export async function getCorporateAdAnalytics(accountId: string, days = 30): Promise<AdAnalyticsByAd[]> {
   const ads = await getCorporateAccountAds(accountId);
   if (ads.length === 0) return [];
@@ -2244,11 +2341,73 @@ export async function getCorporateAdAnalytics(accountId: string, days = 30): Pro
   });
 }
 
-export async function getCorporateInvoices(accountId: string) {
-  const ads = await getCorporateAccountAds(accountId);
-  if (ads.length === 0) return [];
-  const adIds = ads.map(a => a.id);
-  const { data } = await proxyRequest(`/rest/v1/payments?select=*&order=created_at.desc`, 'GET');
-  const all = Array.isArray(data) ? data : [];
-  return all.filter((p: any) => p.related_ad_id && adIds.includes(String(p.related_ad_id)));
+export async function getCorporateInvoices(accountId: string): Promise<DbCorporateInvoice[]> {
+  const { data, error } = await proxyRequest(
+    `/rest/v1/corporate_invoices?account_id=eq.${accountId}&select=*&order=period_start.desc`,
+    'GET'
+  );
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []) as DbCorporateInvoice[];
+}
+
+export async function getAllCorporateInvoices(): Promise<(DbCorporateInvoice & { company_name?: string })[]> {
+  const { data, error } = await proxyRequest(
+    '/rest/v1/corporate_invoices?select=*,corporate_accounts(company_name)&order=created_at.desc',
+    'GET',
+    undefined,
+    { Prefer: 'return=representation' }
+  );
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map((r: any) => ({
+    ...r,
+    company_name: r.corporate_accounts?.company_name,
+  })) as any[];
+}
+
+export async function getCorporateAccountsWithStatus(): Promise<DbCorporateAccount[]> {
+  const { data, error } = await proxyRequest(
+    '/rest/v1/corporate_accounts?select=*&order=company_name',
+    'GET'
+  );
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []) as DbCorporateAccount[];
+}
+
+interface EdgeCallOptions {
+  action?: string;
+  accountId?: string;
+  periodStart?: string;
+  invoiceId?: string;
+}
+
+async function callCorporateEdge(fn: string, body: EdgeCallOptions) {
+  const token = await ensureValidToken();
+  const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const result = await res.json();
+  if (!res.ok) throw new Error(result.error || `Edge function ${fn} failed`);
+  return result;
+}
+
+/** Admin: preview/send an invoice for a corporate account period. */
+export async function issueCorporateInvoice(opts: { accountId: string; periodStart?: string; send?: boolean }): Promise<any> {
+  return callCorporateEdge('issue-corporate-invoice', {
+    action: opts.send ? 'send' : 'preview',
+    accountId: opts.accountId,
+    periodStart: opts.periodStart,
+  });
+}
+
+/** Admin: manually mark a corporate invoice as paid. */
+export async function markCorporateInvoicePaid(invoiceId: string): Promise<any> {
+  return callCorporateEdge('issue-corporate-invoice', { action: 'mark_paid', invoiceId });
+}
+
+/** Admin: manually run the monthly invoicing cycle (auto-invoice + digest). */
+export async function runMonthlyCorporateBilling(): Promise<any> {
+  return callCorporateEdge('corporate-monthly-billing', {});
 }
