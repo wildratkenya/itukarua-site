@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import nodemailer from 'npm:nodemailer@6.9.16'
 
-export const SITE_URL = Deno.env.get('SITE_URL') || 'https://www.itukarua.co.ke'
+export const SITE_URL = Deno.env.get('SITE_URL') || 'https://itukarua3.vercel.app'
 
 export interface SmtpConfig {
   host: string

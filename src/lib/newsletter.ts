@@ -1,22 +1,46 @@
-export const SITE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://www.itukarua.co.ke';
+const PUBLIC_SITE_URL = 'https://itukarua3.vercel.app'
+export const SITE_URL =
+  typeof window !== 'undefined' && window.location.origin !== 'http://localhost:8080'
+    ? window.location.origin
+    : PUBLIC_SITE_URL;
 
 export function newsletterEscapeHtml(s: any): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// True when a listing/banner actually ships a picture (array, string-encoded
+// array, or single image/image_url field). Photo-less items render as muted
+// text cards instead of broken/logo-fallback thumbnails.
+export function newsletterHasImage(item: any): boolean {
+  let imgs = item?.images;
+  if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch { imgs = null; } }
+  if (Array.isArray(imgs) && imgs.length > 0 && imgs[0]) return true;
+  return !!(item?.image_url || item?.image);
+}
+
 export function newsletterPickImage(item: any): string {
-  if (Array.isArray(item.images) && item.images.length > 0) return item.images[0];
-  return item.image_url || item.image || `${SITE_URL}/images/logo.png`;
+  let imgs = item?.images;
+  if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch { imgs = null; } }
+  if (Array.isArray(imgs) && imgs.length > 0) return imgs[0];
+  return item.image_url || item.image || '';
 }
 
 function buildBannerGrid(banners: any[]): string {
   const cells = banners.map(b => {
-    const img = newsletterEscapeHtml(newsletterPickImage(b));
     const dest = b.destination_url || `${SITE_URL}/services`;
+    if (!newsletterHasImage(b)) {
+      return `
+      <td style="padding:4px;width:50%;vertical-align:top">
+        <div style="width:100%;max-width:280px;height:180px;background:#f3f4f6;border:1px dashed #d1d5db;border-radius:10px;box-sizing:border-box;text-align:center;padding:62px 12px 16px">
+          <a href="${dest}" style="text-decoration:none;color:#4b5563;font-weight:700;font-size:14px;display:block;line-height:1.3">${newsletterEscapeHtml(b.title || 'Itukarua banner')}</a>
+          ${b.cta_text ? `<a href="${dest}" style="display:inline-block;margin-top:8px;color:#059669;font-size:12px;font-weight:600;text-decoration:none">${newsletterEscapeHtml(b.cta_text)} →</a>` : ''}
+        </div>
+      </td>`;
+    }
     return `
       <td style="padding:4px;width:50%;vertical-align:top">
         <a href="${dest}" style="display:block;text-decoration:none">
-          <img src="${img}" alt="${newsletterEscapeHtml(b.title || 'Itukarua banner')}" width="100%" style="width:100%;border-radius:10px;display:block;border:1px solid #e5e7eb" />
+          <img src="${newsletterEscapeHtml(newsletterPickImage(b))}" alt="${newsletterEscapeHtml(b.title || 'Itukarua banner')}" width="280" style="width:100%;max-width:280px;height:auto;border-radius:10px;display:block;border:1px solid #e5e7eb" />
           ${b.cta_text ? `<span style="display:block;text-align:center;color:#059669;font-size:12px;font-weight:600;margin-top:6px">${newsletterEscapeHtml(b.cta_text)} →</span>` : ''}
         </a>
       </td>`;
@@ -40,7 +64,24 @@ export function buildNewsletterHtml(opts: {
 }): string {
   const { jobs, ads, banners, dateStr, subject, intro } = opts;
 
-  const jobCards = jobs.map(j => `
+  const jobCards = jobs.map(j => {
+    const hasImg = newsletterHasImage(j);
+    const titleColor = hasImg ? '#111827' : '#4b5563';
+    const subColor = hasImg ? '#6b7280' : '#9ca3af';
+    const body = `
+            <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none;color:${titleColor};font-weight:600;font-size:15px;display:block;margin-bottom:4px">${newsletterEscapeHtml(j.title)}</a>
+            <span style="color:${subColor};font-size:12px">📍 ${newsletterEscapeHtml(j.location || '')}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}</span>
+            <p style="color:${subColor};font-size:12px;margin:6px 0 0;line-height:1.4">${newsletterEscapeHtml((j.description || '').slice(0, 120))}${(j.description || '').length > 120 ? '...' : ''}</p>
+            <a href="${SITE_URL}/?viewJob=${j.id}" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Job →</a>`;
+    if (!hasImg) {
+      return `
+    <tr>
+      <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top;background:#f3f4f6;border-left:1px dashed #d1d5db;border-right:1px dashed #d1d5db">
+        <table cellpadding="0" cellspacing="0" style="width:100%"><tr><td style="vertical-align:top">${body}</td></tr></table>
+      </td>
+    </tr>`;
+    }
+    return `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">
         <table cellpadding="0" cellspacing="0" style="width:100%">
@@ -50,20 +91,30 @@ export function buildNewsletterHtml(opts: {
                 <img src="${newsletterEscapeHtml(newsletterPickImage(j))}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
               </a>
             </td>
-            <td style="vertical-align:top">
-              <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none;color:#111827;font-weight:600;font-size:15px;display:block;margin-bottom:4px">${newsletterEscapeHtml(j.title)}</a>
-              <span style="color:#6b7280;font-size:12px">📍 ${newsletterEscapeHtml(j.location || '')}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}</span>
-              <p style="color:#6b7280;font-size:12px;margin:6px 0 0;line-height:1.4">${newsletterEscapeHtml((j.description || '').slice(0, 120))}${(j.description || '').length > 120 ? '...' : ''}</p>
-              <a href="${SITE_URL}/?viewJob=${j.id}" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Job →</a>
-            </td>
+            <td style="vertical-align:top">${body}</td>
           </tr>
         </table>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   const adCards = ads.map(a => {
-    const img = newsletterEscapeHtml(newsletterPickImage(a));
+    const hasImg = newsletterHasImage(a);
+    const titleColor = hasImg ? '#111827' : '#4b5563';
+    const subColor = hasImg ? '#6b7280' : '#9ca3af';
+    const body = `
+            <a href="${SITE_URL}/services" style="text-decoration:none;color:${titleColor};font-weight:600;font-size:15px;display:block;margin-bottom:4px">${newsletterEscapeHtml(a.business_name)}</a>
+            <span style="color:${subColor};font-size:12px">${newsletterEscapeHtml(a.category || '')}${a.location ? ` • ${newsletterEscapeHtml(a.location)}` : ''}</span>
+            <p style="color:${subColor};font-size:12px;margin:6px 0 0;line-height:1.4">${newsletterEscapeHtml((a.description || '').slice(0, 120))}${(a.description || '').length > 120 ? '...' : ''}</p>
+            <a href="${SITE_URL}/services" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Service →</a>`;
+    if (!hasImg) {
+      return `
+    <tr>
+      <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top;background:#f3f4f6;border-left:1px dashed #d1d5db;border-right:1px dashed #d1d5db">
+        <table cellpadding="0" cellspacing="0" style="width:100%"><tr><td style="vertical-align:top">${body}</td></tr></table>
+      </td>
+    </tr>`;
+    }
     return `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">
@@ -71,20 +122,15 @@ export function buildNewsletterHtml(opts: {
           <tr>
             <td style="width:80px;padding-right:12px;vertical-align:top">
               <a href="${SITE_URL}/services" style="text-decoration:none">
-                <img src="${img}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
+                <img src="${newsletterEscapeHtml(newsletterPickImage(a))}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
               </a>
             </td>
-            <td style="vertical-align:top">
-              <a href="${SITE_URL}/services" style="text-decoration:none;color:#111827;font-weight:600;font-size:15px;display:block;margin-bottom:4px">${newsletterEscapeHtml(a.business_name)}</a>
-              <span style="color:#6b7280;font-size:12px">${newsletterEscapeHtml(a.category || '')}${a.location ? ` • ${newsletterEscapeHtml(a.location)}` : ''}</span>
-              <p style="color:#6b7280;font-size:12px;margin:6px 0 0;line-height:1.4">${newsletterEscapeHtml((a.description || '').slice(0, 120))}${(a.description || '').length > 120 ? '...' : ''}</p>
-              <a href="${SITE_URL}/services" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Service →</a>
-            </td>
+            <td style="vertical-align:top">${body}</td>
           </tr>
         </table>
       </td>
-    </tr>
-  `}).join('');
+    </tr>`;
+  }).join('');
 
   const hasContent = jobs.length > 0 || ads.length > 0 || banners.length > 0;
 
@@ -93,7 +139,8 @@ export function buildNewsletterHtml(opts: {
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-<table cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;background:#ffffff">
+<center>
+<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:600px;max-width:100%;margin:0 auto;background:#ffffff">
   <tr><td style="background:linear-gradient(135deg,#059669,#047857);padding:24px">
     <table cellpadding="0" cellspacing="0" style="width:100%">
       <tr>
@@ -147,6 +194,7 @@ export function buildNewsletterHtml(opts: {
     <p style="margin:4px 0 0"><a href="${SITE_URL}/api/unsubscribe?email={{email}}" style="color:#9ca3af;font-size:11px">Unsubscribe</a></p>
   </td></tr>
 </table>
+</center>
 </body>
 </html>`;
 }
