@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
-import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, getLocalToken, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, type DbCorporateAccount, type DbCorporateMember } from '@/lib/database';
+import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
 
-import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, type SavedCorporateFeatures } from '@/data/siteData';
+import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
+import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
+import MpesaModal from './MpesaModal';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
 import { compressImage } from '@/lib/imageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +17,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import RowMoreMenu from '@/components/itukarua/admin/RowMoreMenu';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -93,6 +96,10 @@ interface Job {
   bids_count?: number;
   posted_by_name: string;
   created_at: string;
+  featured?: boolean;
+  boost_until?: string | null;
+  corporate_account_id?: string | null;
+  corporate_tier?: string | null;
 }
 
 interface Ad {
@@ -106,10 +113,13 @@ interface Ad {
   contact: string;
   expiry_date: string;
   featured: boolean;
+  boost_until?: string | null;
   payment_confirmed: boolean;
   images: string[];
   image: string;
   owner_id: string;
+  corporate_account_id?: string | null;
+  corporate_tier?: string | null;
 }
 
 interface Payment {
@@ -148,7 +158,12 @@ const AdminPage: React.FC = () => {
   const [addUserDays, setAddUserDays] = useState<Record<string, number>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
+  // Admin-initiated M-Pesa charge for a self-serve advert. The advertiser's own
+  // number is prefilled so the STK prompt goes to the person who will actually
+  // authorise it, and they can still type a different one.
+  const [adPayment, setAdPayment] = useState<{ ad: Ad; amount: number; plan: string; days: number; phone?: string } | null>(null);
   const [addAdDays, setAddAdDays] = useState<Record<string, number>>({});
+  const [addJobDays, setAddJobDays] = useState<Record<string, number>>({});
   const [addAdvertDays, setAddAdvertDays] = useState<Record<string, number>>({});
   const [payments, setPayments] = useState<Payment[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -210,6 +225,7 @@ const AdminPage: React.FC = () => {
   const [selJobs, setSelJobs] = useState<Set<string>>(new Set());
   const [selServices, setSelServices] = useState<Set<string>>(new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [adminSidebarCollapsed, setAdminSidebarCollapsed] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
@@ -225,6 +241,7 @@ const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchUsers, setSearchUsers] = useState('');
   const [searchJobs, setSearchJobs] = useState('');
+  const [jobsView, setJobsView] = useState<'all' | 'live' | 'expired' | 'retired'>('all');
   const [searchAds, setSearchAds] = useState('');
   const [adsView, setAdsView] = useState<'all' | 'active' | 'expired'>('all');
   const [advertsView, setAdvertsView] = useState<'all' | 'active' | 'expired'>('all');
@@ -235,7 +252,7 @@ const AdminPage: React.FC = () => {
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string; corporate_tier?: string; corporate_account_id?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined });
+  const [adForm, setAdForm] = useState<{ id?: string; title: string; image_url: string; images: string[]; destination_url: string; description: string; cta_text: string; whatsapp_number: string; is_affiliate: boolean; featured: boolean; owner_email?: string; slot?: string; billing_cycle?: string; corporate_tier?: string; corporate_account_id?: string }>({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, slot: 'homepage_banner', billing_cycle: '10 days', corporate_tier: undefined, corporate_account_id: undefined });
   const [advUploading, setAdvUploading] = useState(false);
   const [advUploadKey, setAdvUploadKey] = useState(0);
   const [advUrlInput, setAdvUrlInput] = useState('');
@@ -268,7 +285,19 @@ const AdminPage: React.FC = () => {
 
   const loadAdverts = async () => {
     const { data } = await supabase.from('advertisements').select('*').order('sort_order');
-    setAdverts(data || []);
+    // Self-heal: an advert whose billing window has lapsed must not stay "active".
+    const now = Date.now();
+    const rows = data || [];
+    const expiredActive = rows.filter(a => (a.active ?? false) && a.billing_end && new Date(a.billing_end).getTime() <= now);
+    // Only the reserved branded strips are corporate-only, so only those get
+    // force-paused when unlinked. The homepage carousel is an ordinary slot and
+    // must not be auto-paused just for having no corporate account.
+    const orphanActive = rows.filter(a => (a.active ?? false) && isCorporateOnlySlot(a.slot || 'homepage_banner') && !a.corporate_account_id && !a.corporate_tier);
+    const selfHealIds = new Set([...expiredActive, ...orphanActive].map(a => a.id));
+    selfHealIds.forEach(id => {
+      supabase.from('advertisements').update({ active: false }).eq('id', id).then(() => {}).catch(() => {});
+    });
+    setAdverts(rows.map(a => selfHealIds.has(a.id) ? { ...a, active: false } : a));
   };
 
   const [leads, setLeads] = useState<any[]>([]);
@@ -277,11 +306,23 @@ const AdminPage: React.FC = () => {
     setLeads(Array.isArray(data) ? data : []);
   };
 
-  const corporateAds = adverts.filter(a => a.corporate_account_id || a.corporate_tier || a.slot === 'sitewide_strip' || a.slot === 'category_strip');
+  const corporateAds = adverts.filter(a => a.corporate_account_id || a.corporate_tier);
+
+  // Banners sitting in a reserved branded strip with no corporate account: they
+  // can never serve, so they need linking or removing. Deliberately excludes
+  // homepage_banner, which is open to ordinary banners.
+  const ungatedCorporateSlots = adverts.filter(
+    a => isCorporateOnlySlot(a.slot || 'homepage_banner') && !a.corporate_account_id && !a.corporate_tier,
+  );
 
   const toggleCorporateAd = async (ad: any) => {
     try {
-      await proxyTable('advertisements').update({ active: !ad.active }, 'id', ad.id);
+      const turningOn = !ad.active;
+      if (turningOn && ad.billing_end && new Date(ad.billing_end).getTime() <= Date.now()) {
+        toast({ title: 'Cannot activate an expired advert', description: 'Add Days to renew billing first.', variant: 'destructive' });
+        return;
+      }
+      await proxyTable('advertisements').update({ active: turningOn }, 'id', ad.id);
       setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, active: !ad.active } : a));
       toast({ title: ad.active ? 'Paused' : 'Now live', description: `"${ad.title}" is ${ad.active ? 'no longer serving' : 'live on the site'}` });
     } catch (err: any) {
@@ -313,6 +354,23 @@ const AdminPage: React.FC = () => {
   const [addingMember, setAddingMember] = useState(false);
   const [corpFormTier, setCorpFormTier] = useState('bronze');
   const [corpBundle, setCorpBundle] = useState<SavedCorporateFeatures>(defaultBundleForTier('bronze'));
+  const [corpInvoices, setCorpInvoices] = useState<Record<string, DbCorporateInvoice[]>>({});
+  const [corpInvoiceBusy, setCorpInvoiceBusy] = useState<string | null>(null);
+  const [corpInvoiceMsg, setCorpInvoiceMsg] = useState('');
+
+  const loadCorporateInvoices = async () => {
+    try {
+      const invoices = await getAllCorporateInvoices();
+      const map: Record<string, DbCorporateInvoice[]> = {};
+      for (const inv of invoices) {
+        if (!map[inv.account_id]) map[inv.account_id] = [];
+        map[inv.account_id].push(inv);
+      }
+      setCorpInvoices(map);
+    } catch (err: any) {
+      console.error('Failed to load corporate invoices:', err);
+    }
+  };
 
   const loadCorporateAccounts = async () => {
     try {
@@ -325,6 +383,31 @@ const AdminPage: React.FC = () => {
       setCorporateMembersByAccount(membersMap);
     } catch (err: any) {
       console.error('Failed to load corporate accounts:', err);
+    }
+  };
+
+  const handleCorporateInvoiceAction = async (id: string, label: string, inv: DbCorporateInvoice | null, action: 'preview' | 'send' | 'mark_paid' | 'monthly') => {
+    setCorpInvoiceBusy(id);
+    setCorpInvoiceMsg('');
+    try {
+      let result: any;
+      if (action === 'mark_paid' && inv) {
+        result = await markCorporateInvoicePaid(inv.id);
+      } else if (action === 'monthly') {
+        result = await runMonthlyCorporateBilling();
+      } else {
+        result = await issueCorporateInvoice({ accountId: id, send: action === 'send' });
+      }
+      if (result?.preview) {
+        setCorpInvoiceMsg(`${label}: KES ${Number(result.preview.amount).toLocaleString()} for ${result.preview.period_start ?? ''} → ${result.preview.period_end ?? ''}.`);
+      } else {
+        setCorpInvoiceMsg(action === 'monthly' ? 'Monthly invoicing cycle complete.' : (action === 'send' ? `Invoice sent for ${label}.` : `Invoice marked paid for ${label}.`));
+      }
+      await loadCorporateInvoices();
+    } catch (err: any) {
+      setCorpInvoiceMsg(err.message || 'Action failed');
+    } finally {
+      setCorpInvoiceBusy(null);
     }
   };
 
@@ -710,6 +793,7 @@ const AdminPage: React.FC = () => {
         loadAdverts(),
         loadLeads(),
         loadCorporateAccounts(),
+        loadCorporateInvoices(),
         getAdCarouselSettings().then(setCarouselSettings),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
@@ -1016,7 +1100,7 @@ const AdminPage: React.FC = () => {
       }
 
       // Upload certificates if jobseeker
-      let certUrls: string[] = [];
+      const certUrls: string[] = [];
       if (certFiles.length > 0 && role === 'jobseeker') {
         try {
           for (const file of certFiles) {
@@ -1243,30 +1327,87 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const updateAdStatus = async (adId: string, featured: boolean) => {
+  const jobLifecycle = (job: Job): { key: 'retired' | 'expired' | 'unpublished' | 'live' | string; label: string; hint?: string } => {
+    const now = Date.now();
+    if (job.retired_by === 'system') return { key: 'retired', label: 'System retired', hint: job.retired_at ? `Retired ${new Date(job.retired_at).toLocaleDateString()}` : undefined };
+    if (job.retired_at) return { key: 'retired', label: 'Retired', hint: `Retired ${new Date(job.retired_at).toLocaleDateString()}` };
+    if (!job.valid_until) return { key: 'unpublished', label: 'Not published' };
+    const expired = new Date(job.valid_until).getTime() <= now;
+    if (expired) return { key: 'expired', label: 'Expired', hint: `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
+    if (job.status === 'open') return { key: 'live', label: 'Live', hint: `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
+    return { key: job.status, label: job.status, hint: `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
+  };
+
+  const reactivateJob = async (job: Job, days: number) => {
+    const clamped = Math.max(1, Math.min(30, days));
     try {
-      const { error } = await supabase
-        .from('service_ads')
-        .update({ featured })
-        .eq('id', adId);
-
+      const { data, error } = await proxyRpc('admin_reactivate_job', { p_job: job.id, p_days: clamped });
       if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as Partial<Job> | undefined;
+      const validUntil = row?.valid_until ?? new Date(Date.now() + clamped * 24 * 60 * 60 * 1000).toISOString();
+      setJobs(jobs.map(j => j.id === job.id ? { ...j, ...row, status: 'open', retired_at: null, retired_by: null } : j));
+      toast({ title: 'Success', description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${job.title}". Live until ${new Date(validUntil).toLocaleDateString()} — boost it to reach the homepage.` });
+    } catch (error: any) {
+      console.error('Error reactivating job:', error);
+      toast({ title: 'Error', description: error?.message || 'Failed to reactivate job', variant: 'destructive' });
+    }
+  };
 
-      setAds(ads.map(ad =>
-        ad.id === adId ? { ...ad, featured } : ad
-      ));
+  const BOOST_MS = 7 * 24 * 60 * 60 * 1000;
 
-      toast({
-        title: 'Success',
-        description: 'Ad status updated successfully',
-      });
-    } catch (error) {
-      console.error('Error updating ad status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update ad status',
-        variant: 'destructive',
-      });
+  const boostJob = async (job: Job) => {
+    const base = job.boost_until && new Date(job.boost_until).getTime() > Date.now()
+      ? new Date(job.boost_until).getTime()
+      : Date.now();
+    const boostUntil = new Date(base + BOOST_MS).toISOString();
+    try {
+      const { error } = await proxyTable('jobs').update({ featured: true, boost_until: boostUntil }, 'id', job.id);
+      if (error) throw error;
+      setJobs(jobs.map(j => j.id === job.id ? { ...j, featured: true, boost_until: boostUntil } : j));
+      toast({ title: 'Boosted', description: `"${job.title}" is on the homepage for 7 days` });
+    } catch (error: any) {
+      console.error('Error boosting job:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to boost job', variant: 'destructive' });
+    }
+  };
+
+  const endJobBoost = async (job: Job) => {
+    try {
+      const { error } = await proxyTable('jobs').update({ featured: false, boost_until: null }, 'id', job.id);
+      if (error) throw error;
+      setJobs(jobs.map(j => j.id === job.id ? { ...j, featured: false, boost_until: null } : j));
+      toast({ title: 'Success', description: `Boost ended for "${job.title}"` });
+    } catch (error: any) {
+      console.error('Error ending job boost:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to end boost', variant: 'destructive' });
+    }
+  };
+
+  const boostServiceAd = async (ad: Ad) => {
+    const base = ad.boost_until && new Date(ad.boost_until).getTime() > Date.now()
+      ? new Date(ad.boost_until).getTime()
+      : Date.now();
+    const boostUntil = new Date(base + BOOST_MS).toISOString();
+    try {
+      const { error } = await proxyTable('service_ads').update({ featured: true, boost_until: boostUntil }, 'id', ad.id);
+      if (error) throw error;
+      setAds(ads.map(a => a.id === ad.id ? { ...a, featured: true, boost_until: boostUntil } : a));
+      toast({ title: 'Boosted', description: `"${ad.business_name || ad.title}" boosted for 7 days` });
+    } catch (error: any) {
+      console.error('Error boosting ad:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to boost ad', variant: 'destructive' });
+    }
+  };
+
+  const endServiceAdBoost = async (ad: Ad) => {
+    try {
+      const { error } = await proxyTable('service_ads').update({ featured: false, boost_until: null }, 'id', ad.id);
+      if (error) throw error;
+      setAds(ads.map(a => a.id === ad.id ? { ...a, featured: false, boost_until: null } : a));
+      toast({ title: 'Success', description: `Boost ended for "${ad.business_name || ad.title}"` });
+    } catch (error: any) {
+      console.error('Error ending ad boost:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to end boost', variant: 'destructive' });
     }
   };
 
@@ -1402,6 +1543,13 @@ const AdminPage: React.FC = () => {
       expiry_date: formData.get('expiry_date') || editingAd?.expiry_date,
     };
 
+    if ((adData as any).featured && !editingAd?.boost_until) {
+      (adData as any).boost_until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+    if (!(adData as any).featured) {
+      (adData as any).boost_until = null;
+    }
+
     try {
       let currentImages = [...(editingAd?.images || [])];
 
@@ -1497,25 +1645,59 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const AD_PLAN_PRICES: Record<string, number> = { '10-day': 300, '20-day': 500, '30-day': 800 };
+
+  /**
+   * Take payment for an advert from /admin.
+   *
+   * Deliberately goes through the same STK flow as the customer rather than
+   * flipping payment_confirmed: the money has to arrive, and fulfilment has to
+   * run on the server, or the advert ends up live with nothing behind it. The
+   * plan is read off the advert so the amount cannot drift from what was sold,
+   * and the advertiser's own number is prefilled because that is the phone the
+   * STK prompt has to reach for them to authorise it.
+   */
+  const startAdPayment = async (ad: Ad) => {
+    const plan = ad.plan && AD_PLAN_PRICES[ad.plan] ? ad.plan : '10-day';
+    const days = parseInt(plan, 10) || 10;
+    let phone: string | undefined;
+    if (ad.owner_id) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', ad.owner_id)
+        .maybeSingle();
+      phone = (data as any)?.phone || undefined;
+    }
+    setAdPayment({ ad, amount: AD_PLAN_PRICES[plan], plan, days, phone });
+  };
+
   const extendAdDays = async (adId: string, days: number, adName: string) => {
     const clamped = Math.max(1, Math.min(30, days));
     try {
-      const start = new Date();
-      const end = new Date(start);
+      const ad = ads.find(a => a.id === adId);
+      // Extend from the later of now and the current expiry, so adding days to a
+      // live advert does not silently discard what was left on it. Keeping the
+      // existing plan matters too — fulfilment reads billing_cycle to price the
+      // next term, and overwriting it with 'extended' lost that.
+      const now = new Date();
+      const currentEnd = ad?.billing_end ? new Date(ad.billing_end) : null;
+      const base = currentEnd && currentEnd.getTime() > now.getTime() ? currentEnd : now;
+      const end = new Date(base);
       end.setDate(end.getDate() + clamped);
       const expiryDate = end.toISOString().split('T')[0];
-      const { error } = await proxyTable('service_ads').update(
-        {
-          expiry_date: expiryDate,
-          billing_end: new Date(`${expiryDate}T00:00:00`).toISOString(),
-          billing_start: new Date().toISOString(),
-          billing_cycle: 'extended',
-        },
-        'id',
-        adId
-      );
+
+      const patch: Record<string, unknown> = {
+        expiry_date: expiryDate,
+        billing_end: new Date(`${expiryDate}T00:00:00`).toISOString(),
+        billing_start: ad?.billing_start || now.toISOString(),
+        expired_notified_at: null,
+      };
+      if (!ad?.billing_cycle) patch.billing_cycle = `${clamped} days`;
+
+      const { error } = await proxyTable('service_ads').update(patch, 'id', adId);
       if (error) throw error;
-      setAds(ads.map(ad => ad.id === adId ? { ...ad, expiry_date: expiryDate } : ad));
+      setAds(prev => prev.map(a => a.id === adId ? { ...a, ...patch } : a));
       toast({ title: 'Success', description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${adName}". New expiry ${expiryDate}.` });
     } catch (error: any) {
       console.error('Error extending ad:', error);
@@ -1526,23 +1708,42 @@ const AdminPage: React.FC = () => {
   const extendAdvertDays = async (adId: string, days: number, advertTitle: string) => {
     const clamped = Math.max(1, Math.min(30, days));
     try {
-      const start = new Date();
-      const end = new Date(start);
+      const ad = adverts.find(a => a.id === adId);
+      // Reserved strips cannot be activated without a corporate account, so do
+      // not silently try: the days still go on, the admin publishes after linking.
+      const unlinkedReserved = isCorporateOnlySlot(ad?.slot || 'homepage_banner')
+        && !ad?.corporate_account_id && !ad?.corporate_tier;
+      const wasActive = !!ad?.active;
+
+      // Extend from the later of now and the current expiry. Starting from now
+      // used to throw away whatever was left on a live advert, so "Add 30 days"
+      // on an advert with 20 left silently became a fresh 30.
+      const now = new Date();
+      const currentEnd = ad?.billing_end ? new Date(ad.billing_end) : null;
+      const base = currentEnd && currentEnd.getTime() > now.getTime() ? currentEnd : now;
+      const end = new Date(base);
       end.setDate(end.getDate() + clamped);
       const billingEnd = end.toISOString();
-      const { error } = await proxyTable('advertisements').update(
-        {
-          billing_end: billingEnd,
-          billing_start: new Date().toISOString(),
-          billing_cycle: 'extended',
-          active: true,
-        },
-        'id',
-        adId
-      );
+
+      // Keep the original cycle: overwriting it with 'extended' destroyed the
+      // plan, which fulfilment reads to work out the next term.
+      const patch: Record<string, unknown> = {
+        billing_end: billingEnd,
+        billing_start: ad?.billing_start || now.toISOString(),
+        expired_notified_at: null,
+      };
+      if (!ad?.billing_cycle) patch.billing_cycle = `${clamped} days`;
+      if (wasActive && !unlinkedReserved) patch.active = true;
+
+      const { error } = await proxyTable('advertisements').update(patch, 'id', adId);
       if (error) throw error;
-      setAdverts(adverts.map(a => a.id === adId ? { ...a, billing_end: billingEnd, active: true } : a));
-      toast({ title: 'Success', description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${advertTitle}". Now live until ${end.toISOString().split('T')[0]}.` });
+      setAdverts(prev => prev.map(a => a.id === adId ? { ...a, ...patch } : a));
+      toast({
+        title: 'Success',
+        description: unlinkedReserved
+          ? `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${advertTitle}". Link it to a corporate account to publish.`
+          : `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${advertTitle}". Now live until ${end.toISOString().split('T')[0]}.`,
+      });
     } catch (error: any) {
       console.error('Error extending advert:', error);
       toast({ title: 'Error', description: error?.message || 'Failed to extend advert', variant: 'destructive' });
@@ -1657,6 +1858,42 @@ const AdminPage: React.FC = () => {
     }, 60);
   };
 
+  const deleteAdvertRow = async (ad: any) => {
+    if (!window.confirm(`Delete "${ad.title}" from the advertisements table?`)) return;
+    try {
+      const { error } = await proxyTable('advertisements').delete('id', ad.id);
+      if (error) throw error;
+      setAdverts(prev => prev.filter(a => a.id !== ad.id));
+      toast({ title: 'Deleted', description: `"${ad.title}" removed` });
+    } catch (err: any) {
+      toast({ title: 'Delete Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const linkCorporateContent = async (kind: 'job' | 'service', id: string, accountId: string) => {
+    if (accountId) {
+      const acc = corporateAccounts.find(a => a.id === accountId);
+      if (!acc) return;
+      try {
+        await setCorporateLink(kind === 'job' ? 'jobs' : 'service_ads', id, accountId, acc.tier);
+        if (kind === 'job') setJobs(prev => prev.map(j => j.id === id ? { ...j, corporate_account_id: accountId, corporate_tier: acc.tier } : j));
+        else setAds(prev => prev.map(a => a.id === id ? { ...a, corporate_account_id: accountId, corporate_tier: acc.tier } : a));
+        toast({ title: 'Linked', description: `${acc.company_name} now owns this ${kind}.` });
+      } catch (err: any) {
+        toast({ title: 'Link Error', description: err.message, variant: 'destructive' });
+      }
+    } else {
+      try {
+        await setCorporateLink(kind === 'job' ? 'jobs' : 'service_ads', id, null, null);
+        if (kind === 'job') setJobs(prev => prev.map(j => j.id === id ? { ...j, corporate_account_id: null, corporate_tier: null } : j));
+        else setAds(prev => prev.map(a => a.id === id ? { ...a, corporate_account_id: null, corporate_tier: null } : a));
+        toast({ title: 'Unlinked', description: `Corporate ownership removed from this ${kind}.` });
+      } catch (err: any) {
+        toast({ title: 'Unlink Error', description: err.message, variant: 'destructive' });
+      }
+    }
+  };
+
   const renderCarouselSettings = () => (
     <Card className="mb-6">
       <CardHeader>
@@ -1699,7 +1936,7 @@ const AdminPage: React.FC = () => {
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-          <CardTitle>Homepage Banners ({scope.length})</CardTitle>
+          <CardTitle>Banners ({scope.length})</CardTitle>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
               {(['all', 'active', 'expired'] as const).map(v => (
@@ -1708,17 +1945,17 @@ const AdminPage: React.FC = () => {
                 </button>
               ))}
             </div>
-            <Button onClick={() => { openBannerForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '7 days', corporate_tier: undefined, corporate_account_id: undefined }); }}>+ Add Homepage Banner</Button>
+            <Button onClick={() => { openBannerForm({ title: '', image_url: '', images: [], destination_url: '', description: '', cta_text: 'Learn More', whatsapp_number: '', is_affiliate: false, featured: true, owner_email: '', slot: 'homepage_banner', billing_cycle: '10 days', corporate_tier: undefined, corporate_account_id: undefined }); }}>+ Add Banner</Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search homepage banners by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+            <input type="text" value={searchAdverts} onChange={e => setSearchAdverts(e.target.value)} placeholder="Search banners by title..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
           </div>
           {showAdForm && (
             <div id="admin-banner-form" className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Homepage Banner'}</h4>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">{adForm.id ? 'Edit Advert' : 'New Banner'}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Title <span className="text-red-500">*</span></label>
@@ -1753,9 +1990,11 @@ const AdminPage: React.FC = () => {
                 <input type="text" value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Short description (optional)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 <input type="text" value={adForm.cta_text} onChange={e => setAdForm({ ...adForm, cta_text: e.target.value })} placeholder="CTA text (default: Learn More)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 <input type="tel" value={adForm.whatsapp_number} onChange={e => setAdForm({ ...adForm, whatsapp_number: e.target.value })} placeholder="WhatsApp number (e.g. 254712345678)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                <div className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500">Homepage Carousel Banner</div>
-                <select value={adForm.billing_cycle || '7 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="7 days">7 Days (KES 200)</option>
+<div className="px-3 py-2 bg-gray-50">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Slot</label>
+                  <p className="text-sm text-gray-700">{slotLabel(adForm.slot || 'homepage_banner')}</p>
+                </div>
+                <select value={adForm.billing_cycle || '10 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="10 days">10 Days (KES 300)</option>
                   <option value="20 days">20 Days (KES 500)</option>
                   <option value="30 days">30 Days (KES 800)</option>
@@ -1783,10 +2022,10 @@ const AdminPage: React.FC = () => {
                 <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg">
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input type="checkbox" checked={adForm.featured} onChange={e => setAdForm({ ...adForm, featured: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                    Featured <span className="text-xs text-gray-400">(shows on homepage carousel and side rail)</span>
+                    Featured <span className="text-xs text-gray-400">(boost: homepage carousel + top of jobs/services rail)</span>
                   </label>
                 </div>
-                <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '7 days'} cycle — KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : adForm.billing_cycle === '10 days' ? '300' : '200'}/week. Renewal alerts & invoices are sent from the Billing tab.</p>
+                <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '10 days'} cycle at KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : '300'}. Boosted banners run on the homepage carousel and top of the jobs/services rail; others show in the jobs/services side rail. Renewal alerts &amp; invoices are sent from the Billing tab.</p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={async () => {
@@ -1795,9 +2034,13 @@ const AdminPage: React.FC = () => {
                     toast({ title: 'Missing fields', description: 'Title and at least one banner image are required', variant: 'destructive' });
                     return;
                   }
+                  const chosenSlot = adForm.slot || 'homepage_banner';
+                  if (isCorporateOnlySlot(chosenSlot) && !corpForAdForm) {
+                    toast({ title: 'Corporate account required', description: `${slotLabel(chosenSlot)} is a corporate placement slot — select a corporate account so this banner stays in sync with /admin Corporate.`, variant: 'destructive' });
+                    return;
+                  }
                   if (corpForAdForm) {
                     const eff = effectiveFeaturesFor(corpForAdForm);
-                    const chosenSlot = 'homepage_banner';
                     if (!eff.slots.includes(chosenSlot)) {
                       toast({ title: 'Slot not in bundle', description: `${corpForAdForm.company_name}'s bundle does not include ${slotLabel(chosenSlot)}. Choose one of: ${eff.slots.map(s => slotLabel(s)).join(', ') || 'none'}.`, variant: 'destructive' });
                       return;
@@ -1831,17 +2074,15 @@ const AdminPage: React.FC = () => {
                   };
                   try {
                     const nowIso = new Date().toISOString();
-                    const cycleDays = adForm.billing_cycle === '30 days' ? 30 : adForm.billing_cycle === '20 days' ? 20 : adForm.billing_cycle === '10 days' ? 10 : 7;
+                    const cycleDays = adForm.billing_cycle === '30 days' ? 30 : adForm.billing_cycle === '20 days' ? 20 : 10;
                     const cycleEndIso = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
                     if (adForm.id) {
                       const { id, image_url, images: _oldImages, ...updateData } = adForm;
-                      const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: 'homepage_banner' };
+                      const patch: any = { ...updateData, image_url: primaryUrl, images, destination_url: updateData.destination_url || null, slot: adForm.slot || 'homepage_banner' };
                       patch.corporate_account_id = patch.corporate_account_id || null;
-                      if (!adForm.is_affiliate) {
-                        patch.billing_cycle = adForm.billing_cycle || '7 days';
-                        if (!patch.billing_start) patch.billing_start = nowIso;
-                        if (!patch.billing_end) patch.billing_end = cycleEndIso;
-                      }
+                      patch.billing_cycle = adForm.billing_cycle || '10 days';
+                      if (!patch.billing_start) patch.billing_start = nowIso;
+                      if (!patch.billing_end) patch.billing_end = cycleEndIso;
                       const { error } = await proxyTable('advertisements').update(patch, 'id', adForm.id);
                       if (error) throw error;
                     } else {
@@ -1851,13 +2092,11 @@ const AdminPage: React.FC = () => {
                         finishSaved();
                         return;
                       }
-                      const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: 'homepage_banner' };
+                      const insert: any = { ...insertData, image_url: primaryUrl, images, destination_url: insertData.destination_url || null, slot: insertData.slot || 'homepage_banner' };
                       insert.corporate_account_id = insert.corporate_account_id || null;
-                      if (!insertData.is_affiliate) {
-                        insert.billing_cycle = insertData.billing_cycle || '7 days';
-                        insert.billing_start = nowIso;
-                        insert.billing_end = cycleEndIso;
-                      }
+                      insert.billing_cycle = insertData.billing_cycle || '10 days';
+                      insert.billing_start = nowIso;
+                      insert.billing_end = cycleEndIso;
                       const { error } = await proxyTable('advertisements').insert(insert);
                       if (error) throw error;
                     }
@@ -1885,7 +2124,7 @@ const AdminPage: React.FC = () => {
             </div>
           )}
           {scope.length === 0 ? (
-            <p className="text-sm text-gray-400">No homepage banners yet.</p>
+            <p className="text-sm text-gray-400">No banners yet.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -1917,12 +2156,17 @@ const AdminPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <div>{ad.title}</div>
-                      <div className="text-xs text-gray-500">{ad.slot === 'job_listings_top' ? 'Corporate Top Banner' : ad.slot === 'sitewide_strip' ? 'Sitewide Strip' : ad.slot === 'category_strip' ? 'Category Strip' : 'Homepage Carousel'}</div>
+                      <div className="text-xs text-gray-500">Homepage Carousel</div>
+                      {ad.slot === 'homepage_banner' && (
+                        <div className={`text-[10px] font-medium ${!(ad.active ?? false) ? 'text-gray-400' : (ad.featured ?? false) ? 'text-green-600' : 'text-amber-600'}`}>
+                          {!(ad.active ?? false) ? 'Paused — not serving' : (ad.featured ?? false) ? 'Boosted — carousel + rail until boost or billing ends' : 'Rail (/jobs & /services) until billing ends'}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{ad.is_affiliate ? <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge> : <Badge variant="secondary" className="bg-blue-100 text-blue-700">Managed</Badge>}</TableCell>
                     <TableCell>
                       {!ad.billing_end ? (
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-700">Billing not set</Badge>
                       ) : advActive ? (
                         <>
                           <Badge variant="success">Active · {Math.ceil((advEndMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
@@ -1938,27 +2182,51 @@ const AdminPage: React.FC = () => {
                     <TableCell className="text-center">
                       <button onClick={async () => {
                         try {
-                          const { error } = await proxyTable('advertisements').update({ featured: !(ad.featured ?? false) }, 'id', ad.id);
+                          const boosting = !(ad.featured ?? false);
+                          if (boosting && advExpired) {
+                            toast({ title: 'Cannot boost an expired advert', description: 'Add Days to renew billing before boosting.', variant: 'destructive' });
+                            return;
+                          }
+                          const { error } = await proxyTable('advertisements').update(
+                            boosting
+                              ? { featured: true, boost_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }
+                              : { featured: false, boost_until: null },
+                            'id', ad.id
+                          );
                           if (error) throw error;
                           loadAdverts();
                         } catch (err: any) {
                           toast({ title: 'Error', description: err.message, variant: 'destructive' });
                         }
-                      }} title="Featured = homepage carousel AND side rail; not featured = side rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+                      }} title="Boost = homepage carousel + vertical rail until boost ends, then it stays on the rail until billing expiry; no boost = vertical rail only" className={`w-8 h-5 rounded-full transition-colors relative ${ad.featured ? 'bg-green-500' : 'bg-gray-300'}`}>
                         <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.featured ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                       </button>
                     </TableCell>
                     <TableCell className="text-center">
                       <button onClick={async () => {
-                        await proxyTable('advertisements').update({ active: !(ad.active ?? false) }, 'id', ad.id);
-                        loadAdverts();
+                        const turningOn = !(ad.active ?? false);
+                        if (turningOn && advExpired) {
+                          toast({ title: 'Cannot activate an expired advert', description: 'Add Days to renew billing first.', variant: 'destructive' });
+                          return;
+                        }
+                        if (turningOn && isCorporateOnlySlot(ad.slot || 'homepage_banner') && !ad.corporate_account_id && !ad.corporate_tier) {
+                          toast({ title: 'Link to a corporate account first', description: 'Corporate slots only serve corporate placements. Edit this banner and select a corporate account.', variant: 'destructive' });
+                          return;
+                        }
+                        try {
+                          const { error } = await proxyTable('advertisements').update({ active: turningOn }, 'id', ad.id);
+                          if (error) throw error;
+                          loadAdverts();
+                        } catch (err: any) {
+                          toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                        }
                       }} title={ad.active ? 'Published — visible on the site' : 'Unpublished — hidden'} className={`w-8 h-5 rounded-full transition-colors relative ${ad.active ? 'bg-green-500' : 'bg-gray-300'}`}>
                         <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ad.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                       </button>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => { openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '7 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); }}>
+                        <Button variant="outline" size="sm" onClick={() => { openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '10 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); }}>
                           Edit
                         </Button>
                         <DropdownMenu>
@@ -2002,7 +2270,7 @@ const AdminPage: React.FC = () => {
                                 <DropdownMenuSeparator />
                                 {!ad.billing_end ? (
                                   <div className="px-2 py-1.5">
-                                    <p className="text-[11px] font-medium text-gray-500 mb-1">No billing — add days to make it live</p>
+                                    <p className="text-[11px] font-medium text-gray-500 mb-1">Set expiry — add days to start serving</p>
                                     <div className="flex items-center gap-1.5">
                                       <input
                                         type="number"
@@ -2086,8 +2354,11 @@ const AdminPage: React.FC = () => {
 
 
         <div className="flex gap-6 items-start">
-          <div className="w-56 flex-shrink-0 sticky top-6">
+          <div className={`${adminSidebarCollapsed ? 'w-16' : 'w-56'} flex-shrink-0 sticky top-6 transition-all duration-200`}>
             <nav className="bg-white rounded-xl border border-gray-200 p-2 space-y-1">
+              <button onClick={() => setAdminSidebarCollapsed(v => !v)} title={adminSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-gray-50 transition-colors">
+                {adminSidebarCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /><span>Collapse</span></>}
+              </button>
               {[
                 { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
                 { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
@@ -2099,18 +2370,18 @@ const AdminPage: React.FC = () => {
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
-                { id: 'homepage-banners', label: 'Homepage banner', icon: <Images className="w-4 h-4" /> },
+                { id: 'homepage-banners', label: 'Banners', icon: <Images className="w-4 h-4" /> },
                 { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
               ].map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button key={item.id} onClick={() => setActiveTab(item.id)} title={item.label} className={`w-full flex items-center rounded-lg text-sm font-medium transition-colors ${adminSidebarCollapsed ? 'flex-col gap-1 py-2' : 'justify-start gap-2.5 px-3 py-2.5'} ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {item.icon}
-                  {item.label}
+                  {!adminSidebarCollapsed && item.label}
                 </button>
               ))}
             </nav>
           </div>
           <div className="flex-1 min-w-0 space-y-6">
-            {activeTab === 'dashboard' && <AdminDashboard onNavigatePayments={() => setActiveTab('payments')} />}
+            {activeTab === 'dashboard' && <AdminDashboard onNavigatePayments={() => setActiveTab('payments')} onNavigateCorporate={() => setActiveTab('corporate')} />}
 
             {activeTab === 'users' && (
             <Card>
@@ -2157,7 +2428,7 @@ const AdminPage: React.FC = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead className="w-24">More</TableHead>
+                      <TableHead className="w-32 text-right">Details</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2180,15 +2451,78 @@ const AdminPage: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-sm text-gray-600">{user.phone || '—'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{user.email || '—'}</TableCell>
-                        <TableCell className="w-24">
-                          <button onClick={() => setExpandedUsers(prev => {
-                            const next = new Set(prev);
-                            if (next.has(user.id)) next.delete(user.id); else next.add(user.id);
-                            return next;
-                          })} className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${userExpanded ? 'bg-gray-100 border-gray-300 text-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title={userExpanded ? 'Collapse' : 'More options'}>
-                            {userExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            {userExpanded ? 'Less' : 'More'}
-                          </button>
+                        <TableCell className="w-32 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button onClick={() => setExpandedUsers(prev => {
+                              const next = new Set(prev);
+                              if (next.has(user.id)) next.delete(user.id); else next.add(user.id);
+                              return next;
+                            })} className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${userExpanded ? 'bg-gray-100 border-gray-300 text-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title={userExpanded ? 'Collapse' : 'Show subscription & role details'}>
+                              {userExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              Details
+                            </button>
+                            <RowMoreMenu width="w-64">
+                              {showTrash ? (
+                                <>
+                                  <DropdownMenuItem onClick={() => restoreUser(user.id)}>Restore user</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => { setDeletingUser(user); setIsDeleteDialogOpen(true); }}>
+                                    Delete permanently
+                                  </DropdownMenuItem>
+                                </>
+                              ) : (
+                                <>
+                                  <DropdownMenuItem onClick={() => toggleUserVerification(user.id, user.verified)}>
+                                    {user.verified ? 'Unverify user' : 'Verify user'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => toggleUserFeatured(user.id, !!user.is_featured)}>
+                                    {user.is_featured ? '★ Featured — remove' : 'Feature user'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem disabled={!user.email} onClick={() => triggerPasswordReset(user.email)}>
+                                    Send password reset email
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => { setResetPwUser(user); setResetPwPassword(''); setIsResetPwDialogOpen(true); }}>
+                                    Set password
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => { setEditingUser(user); setRatingsEnabled(!!user.ratings_enabled); setEditCerts(user.certificates || []); setEditCertFiles([]); setEditCertPickError(null); setIsEditUserModalOpen(true); }}>
+                                    Edit user
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => trashUser(user.id)}>
+                                    Trash user
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel className="text-[11px] font-medium text-gray-500">Subscription</DropdownMenuLabel>
+                                  {!subActive && currentRole === 'super_admin' ? (
+                                    <>
+                                      <div className="px-2 py-1.5">
+                                        <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                        <div className="flex items-center gap-1.5">
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            max={30}
+                                            value={addUserDays[user.id] ?? 30}
+                                            onChange={e => {
+                                              const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                              setAddUserDays(prev => ({ ...prev, [user.id]: v }));
+                                            }}
+                                            className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center"
+                                          />
+                                          <Button size="sm" variant="default" className="bg-green-600 hover:bg-green-700" onClick={() => extendUserSubscription(user.id, addUserDays[user.id] ?? 30, user.full_name || user.email)}>
+                                            Add days
+                                          </Button>
+                                          <Button size="sm" variant="outline" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
+                                            +1 day
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
+                                  )}
+                                </>
+                              )}
+                            </RowMoreMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                       {userExpanded && (
@@ -2257,75 +2591,6 @@ const AdminPage: React.FC = () => {
                               )}
                             </div>
                           )}
-                          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-200">
-                            {showTrash ? (
-                              <>
-                                <Button variant="outline" size="sm" onClick={() => restoreUser(user.id)}>Restore</Button>
-                                <Button variant="destructive" size="sm" onClick={() => {
-                                  setDeletingUser(user);
-                                  setIsDeleteDialogOpen(true);
-                                }}>Delete Permanently</Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button variant="outline" size="sm" onClick={() => toggleUserVerification(user.id, user.verified)}>
-                                  {user.verified ? 'Unverify' : 'Verify'}
-                                </Button>
-                                <Button variant={user.is_featured ? 'default' : 'outline'} size="sm" onClick={() => toggleUserFeatured(user.id, !!user.is_featured)} className={user.is_featured ? 'bg-amber-500 hover:bg-amber-600' : ''}>
-                                  {user.is_featured ? '★ Featured' : 'Feature'}
-                                </Button>
-                                <div className="flex gap-1">
-                                  <Button variant="secondary" size="sm" onClick={() => triggerPasswordReset(user.email)} disabled={!user.email} title="Send reset email">
-                                    Send Email
-                                  </Button>
-                                  <Button variant="secondary" size="sm" onClick={() => { setResetPwUser(user); setResetPwPassword(''); setIsResetPwDialogOpen(true); }}>
-                                    Set PW
-                                  </Button>
-                                </div>
-                                {currentRole === 'super_admin' && (
-                                <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-1.5 py-1 bg-white">
-                                  {subActive ? (
-                                    <span className="text-[10px] text-gray-400 font-medium px-1">Active — no extension needed</span>
-                                  ) : (
-                                    <>
-                                      <span className="text-[10px] text-gray-400 font-medium">Revive·add days</span>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        max={30}
-                                        value={addUserDays[user.id] ?? 30}
-                                        onChange={e => {
-                                          const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
-                                          setAddUserDays(prev => ({ ...prev, [user.id]: v }));
-                                        }}
-                                        className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
-                                      />
-                                      <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendUserSubscription(user.id, addUserDays[user.id] ?? 30, user.full_name || user.email)}>
-                                        Add Days
-                                      </Button>
-                                      <Button variant="outline" size="sm" onClick={() => extendUserSubscription(user.id, 1, user.full_name || user.email)}>
-                                        +1 Day
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                                )}
-                                <Button variant="outline" size="sm" onClick={() => {
-                                  setEditingUser(user);
-                                  setRatingsEnabled(!!user.ratings_enabled);
-                                  setEditCerts(user.certificates || []);
-                                  setEditCertFiles([]);
-                                  setEditCertPickError(null);
-                                  setIsEditUserModalOpen(true);
-                                }}>
-                                  Edit
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={() => trashUser(user.id)}>
-                                  Trash
-                                </Button>
-                              </>
-                            )}
-                          </div>
                         </TableCell>
                       </TableRow>
                       )}
@@ -2339,9 +2604,18 @@ const AdminPage: React.FC = () => {
 
           {activeTab === 'jobs' && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                 <CardTitle>Job Management</CardTitle>
-                <Button onClick={() => { setEditingJob(null); setIsJobModalOpen(true); }}>Add Job</Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    {(['all', 'live', 'expired', 'retired'] as const).map(v => (
+                      <button key={v} onClick={() => setJobsView(v)} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors capitalize ${jobsView === v ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+                        {v === 'all' ? `All (${jobs.length})` : v === 'live' ? `Live (${jobs.filter(j => jobLifecycle(j).key === 'live').length})` : v === 'expired' ? `Expired (${jobs.filter(j => jobLifecycle(j).key === 'expired').length})` : `Retired (${jobs.filter(j => jobLifecycle(j).key === 'retired').length})`}
+                      </button>
+                    ))}
+                  </div>
+                  <Button onClick={() => { setEditingJob(null); setIsJobModalOpen(true); }}>Add Job</Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="relative mb-3">
@@ -2354,62 +2628,143 @@ const AdminPage: React.FC = () => {
                       <TableHead>Title</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Budget</TableHead>
-                      <TableHead>Posted By</TableHead>
-                      <TableHead>Views</TableHead>
-                      <TableHead>Bids</TableHead>
+                      <TableHead className="hidden lg:table-cell">Budget</TableHead>
+                      <TableHead className="hidden lg:table-cell">Posted By</TableHead>
+                      <TableHead className="hidden xl:table-cell">Corporate</TableHead>
+                      <TableHead className="hidden md:table-cell">Views</TableHead>
+                      <TableHead className="hidden md:table-cell">Bids</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {jobs.filter(j => !searchJobs || j.title?.toLowerCase().includes(searchJobs.toLowerCase()) || j.posted_by_name?.toLowerCase().includes(searchJobs.toLowerCase()) || j.category?.toLowerCase().includes(searchJobs.toLowerCase())).map((job) => (
+                    {jobs.filter(j => {
+                      const state = jobLifecycle(j);
+                      if (jobsView === 'live' && state.key !== 'live') return false;
+                      if (jobsView === 'expired' && state.key !== 'expired') return false;
+                      if (jobsView === 'retired' && state.key !== 'retired') return false;
+                      return !searchJobs || j.title?.toLowerCase().includes(searchJobs.toLowerCase()) || j.posted_by_name?.toLowerCase().includes(searchJobs.toLowerCase()) || j.category?.toLowerCase().includes(searchJobs.toLowerCase());
+                    }).map((job) => {
+                      const jobState = jobLifecycle(job);
+                      return (
                       <TableRow key={job.id}>
-                        <TableCell>{job.title}</TableCell>
+                        <TableCell className="max-w-[240px] truncate">{job.title}</TableCell>
                         <TableCell>{job.category}</TableCell>
                         <TableCell>
-                          <Badge variant={
-                            job.status === 'open' ? 'default' :
-                            job.status === 'completed' ? 'secondary' : 'destructive'
-                          }>
-                            {job.status}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant={
+                              jobState.key === 'live' ? 'default' :
+                              jobState.key === 'expired' ? 'destructive' :
+                              jobState.key === 'retired' ? 'destructive' :
+                              jobState.key === 'unpublished' ? 'secondary' :
+                              job.status === 'completed' ? 'secondary' : 'destructive'
+                            }>
+                              {jobState.label}
+                            </Badge>
+                            {jobState.hint && <span className="text-[10px] text-gray-400">{jobState.hint}</span>}
+                            {!!job.featured && !!job.boost_until && new Date(job.boost_until).getTime() > Date.now() && (
+                              <Badge variant="default" className="bg-amber-100 text-amber-700">
+                                Boosted · {Math.ceil((new Date(job.boost_until).getTime() - Date.now()) / 86400000)}d
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell>KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</TableCell>
-                        <TableCell>{job.posted_by_name}</TableCell>
-                        <TableCell>{job.views ?? 0}</TableCell>
-                        <TableCell>{job.bids_count ?? 0}</TableCell>
-                        <TableCell className="flex gap-2 items-center">
-                          <Select
-                            value={job.status}
-                            onValueChange={(value) => updateJobStatus(job.id, value)}
-                          >
-                            <SelectTrigger className="w-32 h-9">
-                               <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="open">Open</SelectItem>
-                              <SelectItem value="in-progress">In Progress</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                              <SelectItem value="cancelled">Cancelled</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => { setEditingJob(job); setIsJobModalOpen(true); }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteJob(job.id)}
-                          >
-                            Delete
-                          </Button>
+                        <TableCell className="hidden lg:table-cell">KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{job.posted_by_name}</TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          {job.corporate_account_id
+                            ? <Badge variant="outline" className="max-w-[140px] truncate">{corporateAccounts.find(a => a.id === job.corporate_account_id)?.company_name || 'Corporate'}</Badge>
+                            : <span className="text-gray-400">—</span>}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">{job.views ?? 0}</TableCell>
+                        <TableCell className="hidden md:table-cell">{job.bids_count ?? 0}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(jobState.key === 'expired' || jobState.key === 'retired' || jobState.key === 'unpublished') && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-green-300 text-green-700 hover:bg-green-50"
+                                onClick={() => reactivateJob(job, 30)}
+                              >
+                                Revive · +30d
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { setEditingJob(job); setIsJobModalOpen(true); }}
+                            >
+                              Edit
+                            </Button>
+                            <RowMoreMenu width="w-64">
+                              {currentRole === 'super_admin' && (
+                                !!job.featured && !!job.boost_until && new Date(job.boost_until).getTime() > Date.now() ? (
+                                  <DropdownMenuItem onClick={() => endJobBoost(job)}>
+                                    <Zap className="w-4 h-4 text-amber-500" /> End boost
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem onClick={() => boostJob(job)} disabled={jobState.key !== 'live'}>
+                                    <Zap className="w-4 h-4 text-amber-500" /> Boost to homepage · 7 days
+                                  </DropdownMenuItem>
+                                )
+                              )}
+                              <DropdownMenuLabel className="text-[11px] font-medium text-gray-500">Set status</DropdownMenuLabel>
+                              <p className="px-2 pb-1 text-[10px] text-gray-400">Open & In Progress appear on /jobs · Completed/Cancelled hide the job.</p>
+                              <DropdownMenuRadioGroup value={job.status} onValueChange={(value) => updateJobStatus(job.id, value)}>
+                                <DropdownMenuRadioItem value="open">Open</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="in-progress">In Progress</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="cancelled">Cancelled</DropdownMenuRadioItem>
+                              </DropdownMenuRadioGroup>
+                              <DropdownMenuSeparator />
+                              {jobState.key === 'live' ? (
+                                <DropdownMenuItem disabled>Live — no extension needed</DropdownMenuItem>
+                              ) : (
+                                <div className="px-2 py-1.5">
+                                  <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={30}
+                                      value={addJobDays[job.id] ?? 30}
+                                      onChange={e => {
+                                        const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                        setAddJobDays(prev => ({ ...prev, [job.id]: v }));
+                                      }}
+                                      className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                    />
+                                    <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => reactivateJob(job, addJobDays[job.id] ?? 30)}>
+                                      Add Days
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => reactivateJob(job, 1)}>
+                                      +1 Day
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                              {currentRole === 'super_admin' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel className="text-[11px] font-medium text-gray-500">Link to corporate account</DropdownMenuLabel>
+                                  <DropdownMenuRadioGroup value={job.corporate_account_id || ''} onValueChange={(id) => linkCorporateContent('job', job.id, id)}>
+                                    <DropdownMenuRadioItem value="">No corporate account</DropdownMenuRadioItem>
+                                    {corporateAccounts.map(acc => (
+                                      <DropdownMenuRadioItem key={acc.id} value={acc.id}>{acc.company_name}</DropdownMenuRadioItem>
+                                    ))}
+                                  </DropdownMenuRadioGroup>
+                                </>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteJob(job.id)}>
+                                Delete job
+                              </DropdownMenuItem>
+                            </RowMoreMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -2442,10 +2797,11 @@ const AdminPage: React.FC = () => {
                       <TableHead>Image</TableHead>
                       <TableHead>Business</TableHead>
                       <TableHead>Category</TableHead>
-                      <TableHead>Contact Person</TableHead>
+                      <TableHead className="hidden lg:table-cell">Contact Person</TableHead>
                       <TableHead>Phone</TableHead>
+                      <TableHead className="hidden xl:table-cell">Corporate</TableHead>
                       <TableHead>Expiry</TableHead>
-                      <TableHead>Featured</TableHead>
+                      <TableHead className="hidden md:table-cell">Featured</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2458,21 +2814,33 @@ const AdminPage: React.FC = () => {
                     }).map((ad) => {
                       const expMs = ad.expiry_date ? new Date(`${ad.expiry_date}T23:59:59`).getTime() : 0;
                       const adActive = expMs > Date.now();
+                      const adIsBoosted = !!ad.featured && !!ad.boost_until && new Date(ad.boost_until).getTime() > Date.now();
+                      const adBoostDaysLeft = adIsBoosted ? Math.ceil((new Date(ad.boost_until as string).getTime() - Date.now()) / 86400000) : 0;
+                      const adFeaturedPermanent = !!ad.featured && !adIsBoosted;
                       return (
                       <TableRow key={ad.id}>
                         <TableCell>
-                          <img src={optimizeImageUrl(ad.image || ad.images?.[0] || '/images/services.png', 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
+                          {(ad.image || ad.images?.[0]) ? (
+                            <img src={optimizeImageUrl(ad.image || ad.images?.[0], 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200" />
+                          )}
                         </TableCell>
                         <TableCell>
                           <div>{ad.business_name}</div>
                           <div className="text-xs text-gray-500">{ad.title}</div>
                         </TableCell>
                         <TableCell>{ad.category}</TableCell>
-                        <TableCell>{ad.contact_person || '-'}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{ad.contact_person || '-'}</TableCell>
                         <TableCell>{ad.contact || '-'}</TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          {ad.corporate_account_id
+                            ? <Badge variant="outline" className="max-w-[140px] truncate">{corporateAccounts.find(a => a.id === ad.corporate_account_id)?.company_name || 'Corporate'}</Badge>
+                            : <span className="text-gray-400">—</span>}
+                        </TableCell>
                         <TableCell>
                           {!ad.expiry_date ? (
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-700">Billing not set</Badge>
                           ) : adActive ? (
                             <>
                               <Badge variant="success">Active · {Math.ceil((expMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
@@ -2485,20 +2853,17 @@ const AdminPage: React.FC = () => {
                             </>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Badge variant={ad.featured ? 'default' : 'secondary'}>
-                            {ad.featured ? 'Featured' : 'Regular'}
-                          </Badge>
+                        <TableCell className="hidden md:table-cell">
+                          {adIsBoosted ? (
+                            <Badge variant="default" className="bg-amber-100 text-amber-700">Boosted · {adBoostDaysLeft}d left</Badge>
+                          ) : adFeaturedPermanent ? (
+                            <Badge variant="default">Featured</Badge>
+                          ) : (
+                            <Badge variant="secondary">Regular</Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => updateAdStatus(ad.id, !ad.featured)}
-                            >
-                              {ad.featured ? 'Unfeature' : 'Feature'}
-                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -2506,53 +2871,80 @@ const AdminPage: React.FC = () => {
                             >
                               Edit
                             </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" aria-label="More actions" className="h-8 w-8 p-0">
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => updateAdPaymentStatus(ad.id, !ad.payment_confirmed)}>
-                                  {ad.payment_confirmed ? 'Unconfirm payment' : 'Confirm payment'}
+                            <RowMoreMenu width="w-64">
+                              {currentRole === 'super_admin' && (
+                                <DropdownMenuItem
+                                  disabled={!adActive && !adIsBoosted}
+                                  onClick={() => adIsBoosted || adFeaturedPermanent ? endServiceAdBoost(ad) : boostServiceAd(ad)}
+                                >
+                                  {adIsBoosted || adFeaturedPermanent ? 'End boost' : 'Boost +7 days'}
                                 </DropdownMenuItem>
-                                {currentRole === 'super_admin' && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    {adActive ? (
-                                      <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
-                                    ) : (
-                                      <div className="px-2 py-1.5">
-                                        <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
-                                        <div className="flex items-center gap-1.5">
-                                          <input
-                                            type="number"
-                                            min={1}
-                                            max={30}
-                                            value={addAdDays[ad.id] ?? 30}
-                                            onChange={e => {
-                                              const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
-                                              setAddAdDays(prev => ({ ...prev, [ad.id]: v }));
-                                            }}
-                                            className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
-                                          />
-                                          <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdDays(ad.id, addAdDays[ad.id] ?? 30, ad.business_name || ad.title || 'Ad')}>
-                                            Add Days
-                                          </Button>
-                                          <Button variant="outline" size="sm" onClick={() => extendAdDays(ad.id, 1, ad.business_name || ad.title || 'Ad')}>
-                                            +1 Day
-                                          </Button>
-                                        </div>
+                              )}
+                              <div className="px-2 py-1.5 flex items-center gap-2">
+                                <span className="text-[11px] font-medium text-gray-500">Status</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${AD_STATUS_TONE[localAdStatus(ad, 'service')]}`}>
+                                  {AD_STATUS_LABEL[localAdStatus(ad, 'service')]}
+                                </span>
+                                <span className="text-[10px] text-gray-400 truncate">{statusLine(ad, localAdStatus(ad, 'service'), 'service')}</span>
+                              </div>
+                              <DropdownMenuSeparator />
+                              {!ad.payment_confirmed ? (
+                                <DropdownMenuItem onClick={() => startAdPayment(ad)}>
+                                  Take payment (M-Pesa)
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => updateAdPaymentStatus(ad.id, false)}>
+                                  Unconfirm payment
+                                </DropdownMenuItem>
+                              )}
+                              {currentRole === 'super_admin' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  {adActive ? (
+                                    <DropdownMenuItem disabled>Active — no extension needed</DropdownMenuItem>
+                                  ) : (
+                                    <div className="px-2 py-1.5">
+                                      <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={30}
+                                          value={addAdDays[ad.id] ?? 30}
+                                          onChange={e => {
+                                            const v = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 30));
+                                            setAddAdDays(prev => ({ ...prev, [ad.id]: v }));
+                                          }}
+                                          className="w-14 border border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none"
+                                        />
+                                        <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => extendAdDays(ad.id, addAdDays[ad.id] ?? 30, ad.business_name || ad.title || 'Ad')}>
+                                          Add Days
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => extendAdDays(ad.id, 1, ad.business_name || ad.title || 'Ad')}>
+                                          +1 Day
+                                        </Button>
                                       </div>
-                                    )}
-                                  </>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteAd(ad.id)}>
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {currentRole === 'super_admin' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel className="text-[11px] font-medium text-gray-500">Link to corporate account</DropdownMenuLabel>
+                                  <DropdownMenuRadioGroup value={ad.corporate_account_id || ''} onValueChange={(id) => linkCorporateContent('service', ad.id, id)}>
+                                    <DropdownMenuRadioItem value="">No corporate account</DropdownMenuRadioItem>
+                                    {corporateAccounts.map(acc => (
+                                      <DropdownMenuRadioItem key={acc.id} value={acc.id}>{acc.company_name}</DropdownMenuRadioItem>
+                                    ))}
+                                  </DropdownMenuRadioGroup>
+                                </>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteAd(ad.id)}>
+                                Delete ad
+                              </DropdownMenuItem>
+                            </RowMoreMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -2699,25 +3091,24 @@ const AdminPage: React.FC = () => {
                                 </TableCell>
                                 <TableCell>{item.last_invoice_at ? new Date(item.last_invoice_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never'}</TableCell>
                                 <TableCell>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openBillingPreview(item)}
-                                  >
-                                    <Eye className="w-4 h-4 mr-1" />
-                                    Preview
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => sendBillingInvoice(item)}
-                                    disabled={billingSendingId === `${item.item_type}:${item.id}`}
-                                  >
-                                    {billingSendingId === `${item.item_type}:${item.id}` ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
-                                    Send Alert & Invoice
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => sendBillingInvoice(item)}
+                                      disabled={billingSendingId === `${item.item_type}:${item.id}`}
+                                    >
+                                      {billingSendingId === `${item.item_type}:${item.id}` ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+                                      Send Invoice
+                                    </Button>
+                                    <RowMoreMenu>
+                                      <DropdownMenuItem onClick={() => openBillingPreview(item)}>
+                                        <Eye className="w-4 h-4 mr-2" /> Preview invoice
+                                      </DropdownMenuItem>
+                                    </RowMoreMenu>
+                                  </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                           {billingItems.filter(it => billingFilter === 'all' || it.status === billingFilter).length === 0 && (
                             <TableRow><TableCell colSpan={9} className="text-center text-gray-400 py-8">No {billingFilter === 'all' ? 'billing items' : billingFilter === 'due' ? 'due-soon adverts' : 'expired adverts'} right now.</TableCell></TableRow>
                           )}
@@ -3287,9 +3678,15 @@ const AdminPage: React.FC = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                   <CardTitle>Corporate Accounts ({corporateAccounts.length})</CardTitle>
-                  <Button onClick={() => { setCorporateMsg(''); setIsCorporateModalOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Corporate</Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" disabled={corpInvoiceBusy === 'monthly'} onClick={() => handleCorporateInvoiceAction('monthly', 'System', null, 'monthly')}>
+                      {corpInvoiceBusy === 'monthly' ? 'Running...' : 'Run Monthly Invoicing'}
+                    </Button>
+                    <Button onClick={() => { setCorporateMsg(''); setIsCorporateModalOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Corporate</Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
+                  {corpInvoiceMsg && <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2 mb-4">{corpInvoiceMsg}</p>}
                   <p className="text-sm text-gray-500 mb-4">Corporate clients each get their own panel (login via the site header). Tiers gate how many placements they can create and where they appear. Suspending an account freezes its panel and stops its placements being managed by the client.</p>
                   {corporateAccounts.length === 0 ? (
                     <div className="py-8 text-center">
@@ -3319,11 +3716,17 @@ const AdminPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <Button size="sm" variant="outline" onClick={() => setSelectedCorporate(acct)}>Manage</Button>
-                              <Button size="sm" variant={acct.is_active ? 'outline' : 'default'} disabled={corporateSuspendingId === acct.id} onClick={() => toggleCorporateActive(acct)}>
-                                {corporateSuspendingId === acct.id ? '...' : acct.is_active ? 'Pause' : 'Activate'}
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => sendOwnerReset(acct)} title="Email reset link to the account owner"><Mail className="w-4 h-4" /></Button>
-                              <Button size="sm" variant="ghost" onClick={() => deleteCorporateAccount(acct)} title="Delete corporate account"><X className="w-4 h-4 text-red-500" /></Button>
+                              <RowMoreMenu label="Actions">
+                                <DropdownMenuItem disabled={corporateSuspendingId === acct.id} onClick={() => toggleCorporateActive(acct)}>
+                                  {acct.is_active ? 'Pause account' : 'Activate account'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => sendOwnerReset(acct)}>
+                                  <Mail className="w-4 h-4 mr-2" /> Email reset link
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteCorporateAccount(acct)}>
+                                  <X className="w-4 h-4 mr-2" /> Delete account
+                                </DropdownMenuItem>
+                              </RowMoreMenu>
                             </div>
                           </div>
                         );
@@ -3335,7 +3738,7 @@ const AdminPage: React.FC = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Corporate Placements ({corporateAds.length})</CardTitle>
+                  <CardTitle>Corporate Placements — corporate accounts ({corporateAds.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-500 mb-4">Tiered placements (Bronze/Silver/Gold/Custom). Bronze shows on the homepage strip; Silver shows across Jobs & Services. Toggling an advert live/paused starts or stops it serving.</p>
@@ -3363,6 +3766,84 @@ const AdminPage: React.FC = () => {
                           </Button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {activeTab === 'corporate' && ungatedCorporateSlots.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ungated adverts in corporate slots ({ungatedCorporateSlots.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-500 mb-4">These adverts sit in reserved branded strips but are not linked to any corporate account, so they will not serve. Link each to a corporate account (its tier bundle gates the slot and placement count) or delete it.</p>
+                    <div className="space-y-3">
+                      {ungatedCorporateSlots.map(ad => (
+                        <div key={ad.id} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl bg-gray-50/60">
+                          <img src={proxyImageUrl(ad.image_url)} alt="" className="w-20 h-11 object-cover rounded-lg bg-gray-100 flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">{ad.title}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline">{slotLabel(ad.slot || 'homepage_banner')}</Badge>
+                              <Badge variant={ad.active ? 'default' : 'secondary'}>{ad.active ? 'LIVE' : 'PAUSED'}</Badge>
+                              {ad.is_affiliate && <Badge variant="secondary" className="bg-amber-100 text-amber-700">Affiliate</Badge>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Button size="sm" variant="outline" onClick={() => openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '10 days', corporate_tier: undefined, corporate_account_id: undefined })}>
+                              Link to account
+                            </Button>
+                            <RowMoreMenu label="Actions">
+                              <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteAdvertRow(ad)}>
+                                <X className="w-4 h-4 mr-2" /> Delete advert
+                              </DropdownMenuItem>
+                            </RowMoreMenu>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+                  <CardTitle>Corporate Invoices ({Object.values(corpInvoices).reduce((n, list) => n + list.length, 0)})</CardTitle>
+                  <p className="text-xs text-gray-400">Generate a cycle for an account from its card below; mark-off manual payments here.</p>
+                </CardHeader>
+                <CardContent>
+                  {Object.keys(corpInvoices).length === 0 ? (
+                    <p className="text-sm text-gray-400 py-4">No invoices generated yet. Use Preview → Send on any account to start a billing cycle.</p>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {corporateAccounts.map(acct => {
+                        const list = (corpInvoices[acct.id] || []).sort((a, b) => (b.period_start || '').localeCompare(a.period_start || ''));
+                        if (list.length === 0) return null;
+                        return (
+                          <div key={acct.id} className="py-3">
+                            <p className="text-sm font-semibold text-gray-900 mb-2">{acct.company_name} <span className="text-xs font-normal text-gray-400">({acct.tier} · {acct.is_active ? 'LIVE' : 'PAUSED'})</span></p>
+                            <div className="space-y-1">
+                              {list.map(inv => (
+                                <div key={inv.id} className="flex items-center gap-2 text-xs">
+                                  <span className="w-36 text-gray-600">{inv.period_start} → {inv.period_end}</span>
+                                  <span className="w-24 font-semibold text-gray-900">KES {Number(inv.amount).toLocaleString()}</span>
+                                  <Badge variant={inv.status === 'paid' ? 'default' : inv.status === 'overdue' ? 'destructive' : 'outline'} className="capitalize">{inv.status}</Badge>
+                                  {inv.status === 'paid' ? <span className="text-gray-300">—</span> : (
+                                    <>
+                                      <RowMoreMenu label="Actions" width="w-52">
+                                        <DropdownMenuItem disabled={corpInvoiceBusy === acct.id} onClick={() => handleCorporateInvoiceAction(acct.id, acct.company_name, inv, 'preview')}>Preview invoice</DropdownMenuItem>
+                                        <DropdownMenuItem disabled={corpInvoiceBusy === acct.id} onClick={() => handleCorporateInvoiceAction(acct.id, acct.company_name, inv, 'send')}>Send invoice</DropdownMenuItem>
+                                      </RowMoreMenu>
+                                      <Button size="sm" variant="outline" disabled={corpInvoiceBusy === acct.id} onClick={() => handleCorporateInvoiceAction(acct.id, acct.company_name, inv, 'mark_paid')}>Mark Paid</Button>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
@@ -3491,8 +3972,12 @@ const AdminPage: React.FC = () => {
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
-                <input type="hidden" id="job_status_hidden" name="status" defaultValue={editingJob?.status || 'open'} />
-              </div>
+<input type="hidden" id="job_status_hidden" name="status" defaultValue={editingJob?.status || 'open'} />
+            </div>
+            </div>
+            <div className="mt-3 p-3 rounded-lg border border-amber-200 bg-amber-50">
+              <p className="text-xs font-semibold text-amber-800">Valid until: {editingJob?.valid_until ? new Date(editingJob.valid_until).toLocaleDateString() : 'Not published'}</p>
+              <p className="text-xs text-amber-700 mt-1">Editing this post won't re-activate it — use <b>Revive · +1/30d</b> on the jobs list; Boost puts it on the homepage.</p>
             </div>
             <div>
               <Label>Posted By (User)</Label>
@@ -4451,6 +4936,30 @@ const AdminPage: React.FC = () => {
                 )}
               </div>
 
+              <div className="border-t border-gray-100 pt-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Billing</h4>
+                <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                  <div className="bg-gray-50 rounded-lg p-3"><span className="text-gray-500 block mb-0.5">Monthly amount</span><span className="font-bold text-gray-900">KES {corporateMonthlyAmount(selectedCorporate).toLocaleString()}</span></div>
+                  <div className="bg-gray-50 rounded-lg p-3"><span className="text-gray-500 block mb-0.5">Next billing</span><span className="font-bold text-gray-900">{selectedCorporate.next_billing_date ? new Date(selectedCorporate.next_billing_date + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span></div>
+                </div>
+                <div className="space-y-2 mb-3">
+                  {(() => { const list = (corpInvoices[selectedCorporate.id] || []).sort((a, b) => (b.period_start || '').localeCompare(a.period_start || '')); return list.length === 0 ? <p className="text-sm text-gray-400 py-2">No invoices for this account yet. Click Preview to open a billing cycle.</p> : list.map(inv => (
+                    <div key={inv.id} className="flex items-center gap-2 text-xs">
+                      <span className="w-40 text-gray-600">{inv.period_start} → {inv.period_end}</span>
+                      <span className="flex-1 font-semibold text-gray-900">KES {Number(inv.amount).toLocaleString()}</span>
+                      <Badge variant={inv.status === 'paid' ? 'default' : inv.status === 'overdue' ? 'destructive' : 'outline'} className="capitalize">{inv.status}</Badge>
+                      {inv.status === 'paid' ? <Button size="sm" variant="ghost" disabled onClick={() => {}}>Paid</Button> : (
+                        <Button size="sm" variant="outline" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, inv, 'mark_paid')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Mark Paid'}</Button>
+                      )}
+                    </div>
+                  )); })()}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, null, 'preview')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Preview Invoice'}</Button>
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, null, 'send')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Send Invoice'}</Button>
+                </div>
+              </div>
+
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 mb-2">Team Members ({(corporateMembersByAccount[selectedCorporate.id] || []).length})</h4>
                 <div className="space-y-2">
@@ -4480,6 +4989,24 @@ const AdminPage: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {adPayment && (
+        <MpesaModal
+          isOpen={!!adPayment}
+          onClose={() => setAdPayment(null)}
+          amount={adPayment.amount}
+          description={`${adPayment.plan} advert — ${adPayment.ad.business_name}`}
+          accountRef={`ADV-${adPayment.ad.id.slice(0, 8).toUpperCase()}`}
+          paymentType="advert"
+          relatedAdId={adPayment.ad.id}
+          metadata={{ kind: 'advert', plan: adPayment.plan, days: adPayment.days }}
+          defaultPhone={adPayment.phone}
+          payingOnBehalfOf={adPayment.ad.business_name}
+          onPaymentComplete={() => { setAdPayment(null); loadAds(); }}
+        />
+      )}
+
+      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </div>
   );
 };
@@ -4523,7 +5050,6 @@ const NewsletterSection: React.FC<NewsletterSectionProps> = ({ title, icon, item
           </label>
         ))}
       </div>
-      <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
     </div>
   );
 };

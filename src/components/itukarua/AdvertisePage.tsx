@@ -10,10 +10,10 @@ interface AdvertisePageProps {
 }
 
 const PACKAGE_RATES: Record<string, string> = {
-  bronze: 'From KES 3,000/month',
-  silver: 'From KES 6,000/month',
-  gold: 'From KES 10,000/month',
-  custom: 'From KES 12,000/month (custom scope)',
+  bronze: 'KES 3,000/month',
+  silver: 'KES 6,000/month',
+  gold: 'KES 10,000/month',
+  custom: 'Estimated from your selection',
 };
 
 const TIERS: Array<{ id: string; label: string }> = [
@@ -72,7 +72,7 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
     if (formData.package === 'custom') {
       const est = estimateCustomBundle(customBundle.ids, customBundle.placements, customBundle.team_seats);
       const names = customBundle.ids.map(id => FEATURE_CATALOG.find(f => f.id === id)?.label || id).join(', ');
-      effectiveMessage = `${formData.message}\n\nCustom bundle request:\n- Features: ${names}\n- Placements: ${customBundle.placements}\n- Team seats: ${customBundle.team_seats}\n- Estimated: ${fmtKES(est.estimatedMonthly)}/month (${est.equivalence})`;
+      effectiveMessage = `${formData.message}\n\nCustom bundle request:\n- Features: ${names}\n- Placements: ${customBundle.placements}\n- Team seats: ${customBundle.team_seats}\n- Estimated: ${fmtKES(est.monthly)}/month (${est.equivalence})`;
     }
     try {
       await supabase.from('advert_leads').insert({
@@ -215,6 +215,9 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
               <p className="text-sm font-semibold text-gray-900 mb-3">Build your bundle</p>
               <CorporateFeaturesBuilder tier="custom" features={customBundle} onChange={setCustomBundle} showPricing={false} />
               <p className="text-xs text-gray-500 mt-3">Your selection feeds straight into the quote request below.</p>
+              <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                Estimate: {fmtKES(estimateCustomBundle(customBundle.ids, customBundle.placements, customBundle.team_seats).monthly)}/month
+              </p>
             </div>
           )}
         </div>

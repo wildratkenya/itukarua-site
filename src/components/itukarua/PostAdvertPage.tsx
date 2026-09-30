@@ -3,7 +3,8 @@ import { ArrowLeft, CheckCircle, Upload, Loader2, X, Shield } from 'lucide-react
 import { supabase } from '@/lib/supabase';
 import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { createServiceAd, createPayment, getCustomCategories, hasEntitlement } from '@/lib/database';
+import { createServiceAd, getCustomCategories, hasEntitlement } from '@/lib/database';
+import { serviceAdImageCap } from '@/lib/adLifecycle';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 
@@ -14,14 +15,18 @@ interface PostAdvertPageProps {
   onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
 }
 
-const MAX_IMAGES = 3;
+const PLAN_IMAGE_CAP: Record<string, number> = { '10-Day Advert': 3, '20-Day Advert': 5, '30-Day Advert': 8 };
+const imageCapForPlan = (planName: string): number => {
+  const key = planName.includes('10') ? '10-day' : planName.includes('20') ? '20-day' : planName.includes('30') ? '30-day' : '';
+  return serviceAdImageCap(key, false);
+};
 
 const ADVERT_PLANS = PRICING_PLANS.advertPlans.map(p => ({ ...p, kind: 'service' as const }));
 
 const ALL_PLANS = ADVERT_PLANS;
 
 const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
-  const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', plan: '' });
+  const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', website: '', plan: '' });
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -30,8 +35,18 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [dbCats, setDbCats] = useState<string[]>([]);
+  const [socialLinks, setSocialLinks] = useState<Record<string, string>>({ facebook: '', instagram: '', x: '', linkedin: '' });
+  const [imgNote, setImgNote] = useState('');
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem('advert_selected_plan');
+    if (saved && PLAN_IMAGE_CAP[saved]) {
+      sessionStorage.removeItem('advert_selected_plan');
+      setFormData(prev => ({ ...prev, plan: saved }));
+    }
+  }, []);
 
   const [advLocked, setAdvLocked] = useState(false);
   const [gateChecked, setGateChecked] = useState(false);
@@ -58,14 +73,24 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     if (!formData.description.trim()) errs.description = 'Description is required';
     if (!formData.location) errs.location = 'Select a location';
     if (!formData.contact.trim()) errs.contact = 'Contact is required';
+    if (formData.website.trim()) {
+      const u = /^(https?:\/\/)?([\w-]+\.)+[a-zA-Z]{2,}(\/\S*)?$/.test(formData.website.trim());
+      if (!u) errs.website = 'Enter a valid website (e.g. itukarua.co.ke)';
+    }
     if (!formData.plan) errs.plan = 'Select a plan';
+    if (formData.plan === '30-Day Advert') {
+      Object.entries(socialLinks).forEach(([key, val]) => {
+        const v = val.trim();
+        if (v && !/^https?:\/\/\S+$/.test(v)) errs.social = `Enter a valid ${key} URL starting with https://`;
+      });
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const remaining = MAX_IMAGES - imageFiles.length;
+    const remaining = Math.max(0, imageCapForPlan(formData.plan) - imageFiles.length);
     const toAdd = files.slice(0, remaining);
 
     setImageFiles(prev => [...prev, ...toAdd]);
@@ -111,6 +136,11 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       }
 
       const planKey = formData.plan.includes('10') ? '10-day' : formData.plan.includes('20') ? '20-day' : '30-day';
+      const socialPayload = planKey === '30-day'
+        ? Object.fromEntries(Object.entries(socialLinks).map(([k, v]) => [k, v.trim()]).filter(([, v]) => !!v))
+        : null;
+      const websiteRaw = formData.website.trim();
+      const website = websiteRaw ? (/^https?:\/\//i.test(websiteRaw) ? websiteRaw : `https://${websiteRaw}`) : undefined;
       const ad = await createServiceAd({
         business_name: formData.businessName,
         description: formData.description,
@@ -121,18 +151,27 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
         county: formData.county || undefined,
         subcounty: formData.subcounty || undefined,
         contact: formData.contact,
+        destination_url: website,
         plan: planKey as '10-day' | '20-day' | '30-day',
         owner_id: user.id,
+        social_links: socialPayload && Object.keys(socialPayload).length > 0 ? socialPayload : undefined,
       });
       if (selectedPlan) {
-        await createPayment({
-          user_id: user.id,
-          payment_type: 'advert',
-          amount: selectedPlan.price,
-          description: `${selectedPlan.name} - ${formData.businessName}`,
-          related_ad_id: ad.id,
-        });
-        onOpenMpesa(selectedPlan.price, `${selectedPlan.name} - ${formData.businessName}`, `ADV-${ad.id.slice(0, 8)}`, 'advert', ad.id);
+        // The advert row is already created as unpaid (payment_confirmed = false,
+        // no billing window), so it is hidden from the site until the payment
+        // lands. The edge function creates the payment row itself, so there is no
+        // separate createPayment() here to leave a dangling pending record.
+        const planDays = planKey === '10-day' ? 10 : planKey === '20-day' ? 20 : 30;
+        onOpenMpesa(
+          selectedPlan.price,
+          `${selectedPlan.name} - ${formData.businessName}`,
+          `ADV-${ad.id.slice(0, 8)}`,
+          'advert',
+          ad.id,
+          undefined, undefined, undefined,
+          false, false, null, 'advertiser', undefined, undefined,
+          { metadata: { kind: 'advert', plan: planKey, days: planDays } },
+        );
       }
       setSubmitted(true);
     } catch (err: any) {
@@ -150,7 +189,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
           <p className="text-gray-500 mb-6">Your business advert will be live once payment is confirmed.</p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => onNavigate('services')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">View Services</button>
-            <button onClick={() => { setSubmitted(false); setFormData({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', plan: '' }); }} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
+            <button onClick={() => { setSubmitted(false); setFormData({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', website: '', plan: '' }); setSocialLinks({ facebook: '', instagram: '', x: '', linkedin: '' }); setImgNote(''); }} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Post Another</button>
           </div>
         </div>
       </div>
@@ -238,7 +277,13 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               {errors.contact && <p className="text-red-500 text-xs mt-1">{errors.contact}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Images (max {MAX_IMAGES})</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Website (optional) <span className="text-gray-400">— shows a "Visit website" button on your advert</span></label>
+              <input type="text" inputMode="url" value={formData.website} onChange={e => setFormData({ ...formData, website: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.website ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} placeholder="e.g. itukarua.co.ke or https://mybusiness.com" />
+              {errors.website && <p className="text-red-500 text-xs mt-1">{errors.website}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Business Images (max {imageCapForPlan(formData.plan)} for {formData.plan || '10-Day Advert'})</label>
+              {imgNote && <p className="text-xs text-amber-600 mb-2">{imgNote}</p>}
               <div className="grid grid-cols-3 gap-3">
                 {imagePreviews.map((preview, i) => (
                   <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
@@ -248,7 +293,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
                     </button>
                   </div>
                 ))}
-                {imagePreviews.length < MAX_IMAGES && (
+                {imagePreviews.length < imageCapForPlan(formData.plan) && (
                   <div className="relative border-2 border-dashed border-gray-300 rounded-lg aspect-square hover:border-green-400 transition-colors cursor-pointer overflow-hidden">
                     <input type="file" accept="image/png, image/jpeg" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                     <div className="flex flex-col items-center justify-center h-full p-2">
@@ -267,13 +312,46 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               {errors.plan && <p className="text-red-500 text-xs mb-2">{errors.plan}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {ALL_PLANS.map((plan, i) => (
-                  <button key={i} type="button" onClick={() => setFormData({ ...formData, plan: plan.name })} className={`p-4 rounded-xl border-2 text-left transition-all ${formData.plan === plan.name ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <button key={i} type="button" onClick={() => {
+                    const cap = imageCapForPlan(plan.name);
+                    if (imageFiles.length > cap) {
+                      const kept = imageFiles.slice(0, cap);
+                      const keptPreviews = imagePreviews.slice(0, cap);
+                      imagePreviews.slice(cap).forEach(p => URL.revokeObjectURL(p));
+                      setImageFiles(kept);
+                      setImagePreviews(keptPreviews);
+                      setImgNote(`${plan.name} allows up to ${cap} images. Extra photos were removed.`);
+                    } else {
+                      setImgNote('');
+                    }
+                    setFormData({ ...formData, plan: plan.name });
+                  }} className={`p-4 rounded-xl border-2 text-left transition-all ${formData.plan === plan.name ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
                     <p className="font-semibold text-gray-900">{plan.name}</p>
                     <p className="text-xs text-gray-500">{plan.duration}</p>
                     <p className="text-lg font-bold text-green-700 mt-2">KES {plan.price}</p>
                   </button>
                 ))}
               </div>
+              {selectedPlan?.name === '30-Day Advert' && (
+                <div className="mt-5 p-4 rounded-xl bg-purple-50 border border-purple-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Social Media Links <span className="text-gray-400 font-normal">(30-Day plan)</span></label>
+                  <p className="text-xs text-gray-400 mb-3">Add your social profiles so customers can follow your business. Shown on your listing while it's active.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/yourpage' },
+                      { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourhandle' },
+                      { key: 'x', label: 'X (Twitter)', placeholder: 'https://x.com/yourhandle' },
+                      { key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourpage' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+                        <input type="url" value={socialLinks[f.key]} onChange={e => setSocialLinks({ ...socialLinks, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" />
+                      </div>
+                    ))}
+                  </div>
+                  {errors.social && <p className="text-red-500 text-xs mt-2">{errors.social}</p>}
+                </div>
+              )}
             </div>
             <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
               <div>{selectedPlan && <p className="text-sm text-gray-500">Total: <span className="font-bold text-green-700 text-lg">KES {selectedPlan.price}</span></p>}</div>

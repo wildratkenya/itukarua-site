@@ -24,7 +24,7 @@ const PRODUCTS: ProductItem[] = [
   { id: 'jobseekers', label: 'Find Your Dream Job', blurb: 'Free & Premium plans for jobseekers hunting full-time, part-time or freelance work.', gradient: 'from-green-500 to-emerald-600', icon: Briefcase },
   { id: 'employers', label: 'Hire the Best Talent', blurb: 'Post single jobs or subscribe for unlimited access to vetted jobseekers.', gradient: 'from-sky-500 to-blue-600', icon: Building2 },
   { id: 'advert-plans', label: 'Promote Your Business', blurb: 'Pay-as-you-go advert listings with standout visibility across categories.', gradient: 'from-purple-500 to-indigo-600', icon: Megaphone },
-  { id: 'featured-boost', label: 'Featured Boost', blurb: 'Top of search, prime carousel and up to 5 images for 7 days.', gradient: 'from-amber-400 to-orange-500', icon: Zap },
+  { id: 'featured-boost', label: 'Featured Boost', blurb: 'Top of search + homepage spotlight for 7 days.', gradient: 'from-amber-400 to-orange-500', icon: Zap },
   { id: 'corporate-placements', label: 'Corporate & Community Placements', blurb: 'Steady monthly presence for co-ops, churches, SACCOs & institutions.', gradient: 'from-gray-700 to-gray-900', icon: Crown },
 ];
 

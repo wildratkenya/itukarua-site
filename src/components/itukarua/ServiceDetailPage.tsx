@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import SEO from '@/lib/seo';
-import { ArrowLeft, MapPin, Star, Phone, MessageCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getServiceAdById, createServiceRating, checkServiceRating } from '@/lib/database';
+import { ArrowLeft, MapPin, Star, Phone, MessageCircle, Loader2, ChevronLeft, ChevronRight, Facebook, Instagram, Twitter, Linkedin, ExternalLink } from 'lucide-react';
+import { getServiceAdById, createServiceRating, checkServiceRating, incrementServiceAdViews, incrementServiceAdClicks } from '@/lib/database';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
 import JobListingsTopBanner from './JobListingsTopBanner';
+import CorporateBadge from './CorporateBadge';
 
 interface ServiceDetailPageProps {
   serviceId: string;
@@ -37,13 +38,23 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({ serviceId, onNavi
       }
     };
     load();
-  }, [serviceId]);
+}, [serviceId]);
 
   useEffect(() => {
     if (service && user) {
       checkServiceRating(service.id, user.id).then(r => setUserRating(r || 0));
     }
   }, [service, user]);
+
+  useEffect(() => {
+    if (service?.id) {
+      const key = `svc_viewed_${service.id}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        incrementServiceAdViews(service.id);
+      }
+    }
+  }, [service]);
 
   const handleRate = async (star: number) => {
     if (!user) { onOpenAuth('login'); return; }
@@ -101,9 +112,10 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({ serviceId, onNavi
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl lg:text-3xl font-bold text-white">{service.business_name}</h1>
               <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">{service.category}</span>
-              {service.featured && (
+{service.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white">Featured</span>
               )}
+              <CorporateBadge accountId={service.corporate_account_id} />
             </div>
           </div>
         </div>
@@ -178,16 +190,35 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({ serviceId, onNavi
                       <p className="text-sm text-gray-900">{Number(service.rating) || 0}/5 ({service.reviews_count || service.reviews || 0} reviews)</p>
                     </div>
                   </div>
-                </div>
+</div>
+                {service.social_links && Object.keys(service.social_links).length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <ExternalLink className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium">Follow Us</p>
+                      <div className="flex gap-3 mt-1.5">
+                        {service.social_links.facebook && <a href={service.social_links.facebook} target="_blank" rel="noopener noreferrer" onClick={() => incrementServiceAdClicks(service.id)} className="text-blue-600 hover:text-blue-700"><Facebook className="w-5 h-5" /></a>}
+                        {service.social_links.instagram && <a href={service.social_links.instagram} target="_blank" rel="noopener noreferrer" onClick={() => incrementServiceAdClicks(service.id)} className="text-pink-600 hover:text-pink-700"><Instagram className="w-5 h-5" /></a>}
+                        {service.social_links.x && <a href={service.social_links.x} target="_blank" rel="noopener noreferrer" onClick={() => incrementServiceAdClicks(service.id)} className="text-blue-400 hover:text-blue-500"><Twitter className="w-5 h-5" /></a>}
+                        {service.social_links.linkedin && <a href={service.social_links.linkedin} target="_blank" rel="noopener noreferrer" onClick={() => incrementServiceAdClicks(service.id)} className="text-blue-700 hover:text-blue-800"><Linkedin className="w-5 h-5" /></a>}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-6 space-y-3">
                   {service.contact && (
-                    <a href={`tel:${service.contact}`} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <a href={`tel:${service.contact}`} onClick={() => incrementServiceAdClicks(service.id)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                       <Phone className="w-4 h-4" /> Call Now
                     </a>
                   )}
                   {service.contact && (
-                    <a href={`https://wa.me/${service.contact.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <a href={`https://wa.me/${service.contact.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" onClick={() => incrementServiceAdClicks(service.id)} className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                       <MessageCircle className="w-4 h-4" /> Chat on WhatsApp
+                    </a>
+                  )}
+                  {service.destination_url && (
+                    <a href={`${service.destination_url}?ref=ad_${service.id}`} target="_blank" rel="noopener noreferrer" onClick={() => incrementServiceAdClicks(service.id)} className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                      <ExternalLink className="w-4 h-4" /> Visit Website
                     </a>
                   )}
                 </div>

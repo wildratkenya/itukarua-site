@@ -25,14 +25,15 @@ const JobListingsTopBanner: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    ads.forEach((ad: any) => {
-      if (!displayedAds.current.has(ad.id)) {
-        displayedAds.current.add(ad.id);
-        logImpression(ad.id);
-        incrementAdDisplay(ad.id).catch(() => {});
-      }
-    });
-  }, [ads]);
+    if (ads.length === 0) return;
+    const ad = ads[currentIdx];
+    if (!ad) return;
+    if (!displayedAds.current.has(ad.id)) {
+      displayedAds.current.add(ad.id);
+      logImpression(ad.id);
+      incrementAdDisplay(ad.id).catch(() => {});
+    }
+  }, [ads, currentIdx]);
 
   useEffect(() => {
     if (ads.length <= 1) return;

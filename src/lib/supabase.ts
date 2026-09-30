@@ -84,6 +84,17 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 const SESSION_KEY = 'itukarua_session';
 
+// A stored access_token that has passed its exp must never be injected as the
+// Authorization header: PostgREST rejects the whole request with
+// "401 JWT expired" (PGRST303) even for otherwise-public anon reads. Treat a
+// lapsed token as no session so the call falls back to the anon key. If
+// expires_at is missing we keep the token (can't prove it lapsed), matching the
+// previous behaviour.
+function isSessionTokenStale(saved: any): boolean {
+  const exp = saved?.expires_at;
+  return typeof exp === 'number' && exp <= Date.now() / 1000;
+}
+
 // The Supabase client's internal fetchWithAuth wrapper calls getAccessToken()
 // which can hang indefinitely when autoRefreshToken triggers a stalled network
 // request.  Bypass it with a lightweight wrapper that reads the access token
@@ -95,7 +106,9 @@ function fetchWithLocalAuth(input: RequestInfo | URL, init?: RequestInit): Promi
     const raw = localStorage.getItem(SESSION_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      if (saved?.access_token) accessToken = saved.access_token;
+      // Drop a lapsed token so public reads fall back to the anon key instead
+      // of 401-ing with "JWT expired".
+      if (saved?.access_token && !isSessionTokenStale(saved)) accessToken = saved.access_token;
     }
   } catch { /* ignore */ }
 
@@ -124,7 +137,10 @@ if (restClient) {
 export function getLocalToken(): string {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s?.access_token) return s.access_token; }
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s?.access_token && !isSessionTokenStale(s)) return s.access_token;
+    }
   } catch {}
   return supabaseKey;
 }
@@ -150,6 +166,13 @@ export async function ensureValidToken(): Promise<string> {
         if (!refresh.error && refresh.data?.session?.access_token) {
           saveSession(refresh.data.session);
           return refresh.data.session.access_token;
+        }
+        // Refresh failed and the stored token has already lapsed — sending it
+        // would 401 every call, so drop to the anon key and let the caller
+        // re-authenticate.
+        if (isSessionTokenStale(saved)) {
+          try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+          return supabaseKey;
         }
         return saved.access_token;
       }

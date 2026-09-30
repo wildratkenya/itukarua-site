@@ -180,7 +180,6 @@ export const PRICING_PLANS = {
         'Up to 5 images',
         'Contact details visible',
         'Category listing',
-        'Priority placement',
         'Detailed analytics',
       ],
     },
@@ -196,7 +195,7 @@ export const PRICING_PLANS = {
         'Featured on homepage',
         'Top category placement',
         'Full analytics dashboard',
-        'Social media promotion',
+        'Social media links on your listing',
       ],
     },
   ],
@@ -332,6 +331,36 @@ const SLOT_LABELS_LOOKUP: Record<string, string> = {
 
 export const SLOT_FEATURE_IDS = ['slot_sitewide_strip', 'slot_category_strip', 'slot_homepage_banner', 'slot_job_listings_top'] as const;
 
+/** Every slot a corporate account can hold. Used for pricing and bundles. */
+export const CORPORATE_SLOTS = ['sitewide_strip', 'category_strip', 'homepage_banner', 'job_listings_top'] as const;
+
+/**
+ * The slots that are reserved for corporate accounts and cannot be taken by a
+ * plain admin banner.
+ *
+ * Distinct from CORPORATE_SLOTS on purpose: the homepage carousel is sellable to
+ * corporate accounts AND open to ordinary banners, because it is a normal
+ * advertising placement. The three branded strips are the corporate product —
+ * they are sold as part of a bundle, span every page, and are not something a
+ * one-off banner purchase should be able to occupy.
+ */
+export const CORPORATE_ONLY_SLOTS = ['sitewide_strip', 'category_strip', 'job_listings_top'] as const;
+
+export function isCorporateSlot(slot: string | null | undefined): boolean {
+  return !!slot && (CORPORATE_SLOTS as readonly string[]).includes(slot);
+}
+
+/** True only for the slots a plain banner is not allowed to occupy. */
+export function isCorporateOnlySlot(slot: string | null | undefined): boolean {
+  return !!slot && (CORPORATE_ONLY_SLOTS as readonly string[]).includes(slot);
+}
+
+/** A corporate banner is one linked to a corporate account, regardless of slot. */
+export function isCorporateBanner(banner: { slot?: string | null; corporate_account_id?: string | null } | null | undefined): boolean {
+  if (!banner) return false;
+  return !!banner.corporate_account_id || isCorporateOnlySlot(banner.slot);
+}
+
 export function featureIdForSlot(slot: string): string {
   return `slot_${slot}`;
 }
@@ -446,5 +475,24 @@ export function estimateCustomBundle(ids: string[], placements: number = 1, team
     }
   }
   return { monthly, equivalence };
+}
+
+/** Effective monthly amount for an account: custom_amount > monthly_price > tier anchor > custom estimate. */
+export function corporateMonthlyAmount(account: {
+  tier?: string;
+  monthly_price?: number | null;
+  custom_amount?: number | null;
+  features?: SavedCorporateFeatures | null;
+}): number {
+  if (account?.custom_amount && Number(account.custom_amount) > 0) return Number(account.custom_amount);
+  if (account?.monthly_price && Number(account.monthly_price) > 0) return Number(account.monthly_price);
+  if (account?.tier && account.tier !== 'custom' && CORPORATE_TIER_ANCHOR_KES[account.tier]) {
+    return CORPORATE_TIER_ANCHOR_KES[account.tier];
+  }
+  const saved = account?.features;
+  if (saved && Array.isArray(saved.ids) && saved.ids.length > 0) {
+    return estimateCustomBundle(saved.ids, saved.placements || 1, saved.team_seats || 1).monthly;
+  }
+  return CORPORATE_TIER_ANCHOR_KES.bronze;
 }
 
