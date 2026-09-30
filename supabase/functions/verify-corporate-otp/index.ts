@@ -1,5 +1,6 @@
 import { createServiceClient } from '../_shared/smtp.ts'
 import { sendCorporateWelcomeEmail } from '../_shared/corporateWelcome.ts'
+import { CORPORATE_TIER_ANCHOR_KES } from '../_shared/corporateBilling.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -72,7 +73,9 @@ Deno.serve(async (req) => {
     })
     if (rpcError) { console.error('Profile RPC error:', rpcError); throw new Error('Profile creation failed: ' + rpcError.message) }
 
-    // 3. Create corporate account
+    // 3. Create corporate account (self-serve tiers bill at their anchor price)
+    const firstDue = new Date()
+    firstDue.setDate(firstDue.getDate() + 30)
     const { data: account, error: accountErr } = await supabase
       .from('corporate_accounts')
       .insert({
@@ -83,6 +86,8 @@ Deno.serve(async (req) => {
         contact_phone: data.contact_phone || null,
         contact_email: data.contact_email || data.email,
         billing_email: data.billing_email || null,
+        monthly_price: CORPORATE_TIER_ANCHOR_KES[tier] || null,
+        next_billing_date: firstDue.toISOString().slice(0, 10),
       })
       .select('id')
       .single()

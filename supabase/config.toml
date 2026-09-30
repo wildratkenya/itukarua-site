@@ -28,3 +28,12 @@ verify_jwt = false
 
 [functions.delete-user]
 verify_jwt = false
+
+[functions.boost-expire]
+verify_jwt = false
+
+[functions.payments-reconcile]
+verify_jwt = false
+
+[functions.corporate-monthly-billing]
+verify_jwt = false

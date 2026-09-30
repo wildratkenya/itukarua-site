@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { sendCorporateWelcomeEmail } from '../_shared/corporateWelcome.ts'
+import { estimateCustomBundle, CORPORATE_TIER_ANCHOR_KES } from '../_shared/corporateBilling.ts'
 
 const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
@@ -78,6 +79,22 @@ Deno.serve(async (req) => {
       ? { ids: [...cleanFeatures], placements, team_seats: teamSeats }
       : null
 
+    // Effective monthly price: explicit override > tier anchor > custom estimate.
+    const monthlyPriceInput = typeof reqBody.monthly_price === 'number' && reqBody.monthly_price > 0 ? Math.round(reqBody.monthly_price) : Number.NaN
+    const customAmountInput = typeof reqBody.custom_amount === 'number' && reqBody.custom_amount > 0 ? Math.round(reqBody.custom_amount) : Number.NaN
+    let effectiveMonthly: number
+    if (!Number.isNaN(monthlyPriceInput)) {
+      effectiveMonthly = monthlyPriceInput
+    } else if (tier !== 'custom' && CORPORATE_TIER_ANCHOR_KES[tier]) {
+      effectiveMonthly = CORPORATE_TIER_ANCHOR_KES[tier]
+    } else if (savedFeatures && savedFeatures.ids.length > 0) {
+      effectiveMonthly = estimateCustomBundle(savedFeatures.ids, placements, teamSeats).monthly
+    } else {
+      effectiveMonthly = CORPORATE_TIER_ANCHOR_KES.bronze
+    }
+    const firstDue = new Date()
+    firstDue.setDate(firstDue.getDate() + 30)
+
     // 1. Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({ email, password, email_confirm: true })
     if (authError) {
@@ -96,7 +113,7 @@ Deno.serve(async (req) => {
     // 3. Create corporate account
     const { data: account, error: accountErr } = await supabase
       .from('corporate_accounts')
-      .insert({ company_name, tier, is_active: true, features: savedFeatures, contact_person: contact_person || null, contact_phone: contact_phone || null, contact_email: contact_email || email, billing_email: billing_email || null, notes: notes || null })
+      .insert({ company_name, tier, is_active: true, features: savedFeatures, contact_person: contact_person || null, contact_phone: contact_phone || null, contact_email: contact_email || email, billing_email: billing_email || null, notes: notes || null, monthly_price: effectiveMonthly, custom_amount: !Number.isNaN(customAmountInput) ? customAmountInput : null, next_billing_date: firstDue.toISOString().slice(0, 10) })
       .select('id')
       .single()
     if (accountErr) throw new Error('Account creation failed: ' + accountErr.message)

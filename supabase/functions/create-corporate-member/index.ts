@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
+import { effectivenessFor } from '../_shared/corporateBilling.ts'
 
 const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 
@@ -44,8 +45,19 @@ Deno.serve(async (req) => {
     }
 
     // Verify the account exists
-    const { data: account } = await supabase.from('corporate_accounts').select('id,company_name').eq('id', account_id).single()
+    const { data: account } = await supabase.from('corporate_accounts').select('id,company_name,tier,features').eq('id', account_id).single()
     if (!account) return new Response(JSON.stringify({ error: 'Account not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
+    // Enforce the tier's team-seat cap (belt-and-braces behind the DB trigger)
+    const eff = effectivenessFor(account)
+    const { count, error: countErr } = await supabase
+      .from('corporate_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('account_id', account_id)
+    if (countErr) throw countErr
+    if ((count || 0) >= eff.teamSeats) {
+      return new Response(JSON.stringify({ error: `The team seat limit for ${account.company_name} has been reached (${eff.teamSeats} seats).` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({ email, password, email_confirm: true })
