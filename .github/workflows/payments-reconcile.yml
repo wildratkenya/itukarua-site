@@ -1,0 +1,15 @@
+name: Payment Fulfilment Reconcile
+on:
+  schedule:
+    - cron: '45 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger payments-reconcile edge function
+        run: |
+          curl -s -X POST https://xahaxtbudiubelemewna.supabase.co/functions/v1/payments-reconcile \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"

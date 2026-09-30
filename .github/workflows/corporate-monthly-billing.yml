@@ -1,0 +1,15 @@
+name: Corporate Monthly Billing & Digest
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  bill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger corporate-monthly-billing edge function
+        run: |
+          curl -s -X POST https://xahaxtbudiubelemewna.supabase.co/functions/v1/corporate-monthly-billing \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"
