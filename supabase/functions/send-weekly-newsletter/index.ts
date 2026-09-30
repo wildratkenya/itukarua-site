@@ -18,14 +18,31 @@ function pickImage(item: any): string {
   return ''
 }
 
+function hasImage(item: any): boolean {
+  let images = item?.images
+  if (typeof images === 'string') {
+    try { images = JSON.parse(images) } catch { images = null }
+  }
+  if (Array.isArray(images) && images.length > 0 && images[0]) return true
+  return !!(item?.image_url || item?.image)
+}
+
 function buildBannerGrid(banners: any[]): string {
-  const cells = banners.filter(b => pickImage(b)).map(b => {
-    const img = pickImage(b)
+  const cells = banners.map(b => {
     const dest = b.destination_url || `${SITE_URL}/services`
+    if (!hasImage(b)) {
+      return `
+      <td style="padding:6px;width:50%;vertical-align:top">
+        <div style="width:100%;max-width:280px;height:180px;background:#f3f4f6;border:1px dashed #d1d5db;border-radius:10px;box-sizing:border-box;text-align:center;padding:62px 12px 16px">
+          <a href="${dest}" style="text-decoration:none;color:#4b5563;font-weight:700;font-size:14px;display:block;line-height:1.3">${escapeHtml(b.title || 'Itukarua banner')}</a>
+          ${b.cta_text ? `<a href="${dest}" style="display:inline-block;margin-top:8px;color:#059669;font-size:12px;font-weight:600;text-decoration:none">${escapeHtml(b.cta_text)} →</a>` : ''}
+        </div>
+      </td>`
+    }
     return `
       <td style="padding:6px;width:50%;vertical-align:top">
         <a href="${dest}" style="display:block;text-decoration:none">
-          <img src="${escapeHtml(img)}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="240" style="width:240px;max-width:100%;height:auto;border-radius:10px;display:block;border:0" />
+          <img src="${escapeHtml(pickImage(b))}" alt="${escapeHtml(b.title || 'Itukarua banner')}" width="280" style="width:100%;max-width:280px;height:auto;border-radius:10px;display:block;border:0" />
         </a>
         ${b.cta_text ? `<p style="text-align:center;margin:6px 0 0"><a href="${dest}" style="color:#059669;font-size:12px;font-weight:600;text-decoration:none">${escapeHtml(b.cta_text)} →</a></p>` : ''}
       </td>`
@@ -40,7 +57,24 @@ function buildBannerGrid(banners: any[]): string {
 }
 
 function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: string, subject: string, intro: string): string {
-  const jobCards = jobs.map(j => `
+  const jobCards = jobs.map(j => {
+    const img = hasImage(j)
+    const titleColor = img ? '#111827' : '#4b5563'
+    const subColor = img ? '#6b7280' : '#9ca3af'
+    const body = `
+            <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none;color:${titleColor};font-weight:600;font-size:15px;display:block;margin-bottom:4px">${escapeHtml(j.title)}</a>
+            <span style="color:${subColor};font-size:12px">📍 ${escapeHtml(j.location || '')}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}</span>
+            <p style="color:${subColor};font-size:12px;margin:6px 0 0;line-height:1.4">${escapeHtml((j.description || '').slice(0, 120))}${(j.description || '').length > 120 ? '...' : ''}</p>
+            <a href="${SITE_URL}/?viewJob=${j.id}" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Job →</a>`
+    if (!img) {
+      return `
+    <tr>
+      <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top;background:#f3f4f6;border-left:1px dashed #d1d5db;border-right:1px dashed #d1d5db">
+        <table cellpadding="0" cellspacing="0" style="width:100%"><tr><td style="vertical-align:top">${body}</td></tr></table>
+      </td>
+    </tr>`
+    }
+    return `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">
         <table cellpadding="0" cellspacing="0" style="width:100%">
@@ -50,20 +84,30 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
                 <img src="${escapeHtml(pickImage(j))}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
               </a>
             </td>
-            <td style="vertical-align:top">
-              <a href="${SITE_URL}/?viewJob=${j.id}" style="text-decoration:none;color:#111827;font-weight:600;font-size:15px;display:block;margin-bottom:4px">${escapeHtml(j.title)}</a>
-              <span style="color:#6b7280;font-size:12px">📍 ${escapeHtml(j.location || '')}${j.budget_min ? ` • KES ${j.budget_min.toLocaleString()}${j.budget_max ? ` - ${j.budget_max.toLocaleString()}` : ''}` : ''}</span>
-              <p style="color:#6b7280;font-size:12px;margin:6px 0 0;line-height:1.4">${escapeHtml((j.description || '').slice(0, 120))}${(j.description || '').length > 120 ? '...' : ''}</p>
-              <a href="${SITE_URL}/?viewJob=${j.id}" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Job →</a>
-            </td>
+            <td style="vertical-align:top">${body}</td>
           </tr>
         </table>
       </td>
-    </tr>
-  `).join('')
+    </tr>`
+  }).join('')
 
   const adCards = ads.map(a => {
-    const img = escapeHtml(pickImage(a))
+    const img = hasImage(a)
+    const titleColor = img ? '#111827' : '#4b5563'
+    const subColor = img ? '#6b7280' : '#9ca3af'
+    const body = `
+            <a href="${SITE_URL}/services" style="text-decoration:none;color:${titleColor};font-weight:600;font-size:15px;display:block;margin-bottom:4px">${escapeHtml(a.business_name)}</a>
+            <span style="color:${subColor};font-size:12px">${escapeHtml(a.category || '')}${a.location ? ` • ${escapeHtml(a.location)}` : ''}</span>
+            <p style="color:${subColor};font-size:12px;margin:6px 0 0;line-height:1.4">${escapeHtml((a.description || '').slice(0, 120))}${(a.description || '').length > 120 ? '...' : ''}</p>
+            <a href="${SITE_URL}/services" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Service →</a>`
+    if (!img) {
+      return `
+    <tr>
+      <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top;background:#f3f4f6;border-left:1px dashed #d1d5db;border-right:1px dashed #d1d5db">
+        <table cellpadding="0" cellspacing="0" style="width:100%"><tr><td style="vertical-align:top">${body}</td></tr></table>
+      </td>
+    </tr>`
+    }
     return `
     <tr>
       <td style="padding:12px;border-bottom:1px solid #e5e7eb;vertical-align:top">
@@ -71,20 +115,15 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
           <tr>
             <td style="width:80px;padding-right:12px;vertical-align:top">
               <a href="${SITE_URL}/services" style="text-decoration:none">
-                <img src="${img}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
+                <img src="${escapeHtml(pickImage(a))}" alt="" width="80" height="80" style="border-radius:8px;object-fit:cover;width:80px;height:80px;background:#f3f4f6" />
               </a>
             </td>
-            <td style="vertical-align:top">
-              <a href="${SITE_URL}/services" style="text-decoration:none;color:#111827;font-weight:600;font-size:15px;display:block;margin-bottom:4px">${escapeHtml(a.business_name)}</a>
-              <span style="color:#6b7280;font-size:12px">${escapeHtml(a.category || '')}${a.location ? ` • ${escapeHtml(a.location)}` : ''}</span>
-              <p style="color:#6b7280;font-size:12px;margin:6px 0 0;line-height:1.4">${escapeHtml((a.description || '').slice(0, 120))}${(a.description || '').length > 120 ? '...' : ''}</p>
-              <a href="${SITE_URL}/services" style="display:inline-block;margin-top:8px;padding:6px 16px;background:#059669;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Service →</a>
-            </td>
+            <td style="vertical-align:top">${body}</td>
           </tr>
         </table>
       </td>
-    </tr>
-  `}).join('')
+    </tr>`
+  }).join('')
 
   const hasContent = jobs.length > 0 || ads.length > 0 || banners.length > 0
 
@@ -93,7 +132,8 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-<table cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;background:#ffffff">
+<center>
+<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:600px;max-width:100%;margin:0 auto;background:#ffffff">
   <tr><td style="background:linear-gradient(135deg,#059669,#047857);padding:24px">
     <table cellpadding="0" cellspacing="0" style="width:100%">
       <tr>
@@ -147,6 +187,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
     <p style="margin:4px 0 0"><a href="${SITE_URL}/api/unsubscribe?email={{email}}" style="color:#9ca3af;font-size:11px">Unsubscribe</a></p>
   </td></tr>
 </table>
+</center>
 </body>
 </html>`
 }
@@ -212,7 +253,7 @@ Deno.serve(async (req) => {
         .limit(6)
 
       subject = `Itukarua Monthly Digest — ${dateStr}`
-      const validBanners = (banners || []).filter(b => pickImage(b))
+      const validBanners = banners || []
       html = buildNewsletterHtml(jobs || [], ads || [], validBanners, dateStr, subject, 'This month\u2019s updated Banners, Jobs and Businesses around you')
       textPlain = `Itukarua Monthly Digest - ${dateStr}\n\n${validBanners.length} banners, ${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
     }

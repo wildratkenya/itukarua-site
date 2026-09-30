@@ -1,7 +1,7 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
 
-const SITE_URL = 'https://www.itukarua.co.ke';
+const SITE_URL = 'https://itukarua3.vercel.app';
 const SITE_NAME = 'Itukarua';
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og.jpg`;
 const TWITTER_HANDLE = '@itukarua';
