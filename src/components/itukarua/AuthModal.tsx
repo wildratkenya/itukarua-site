@@ -41,6 +41,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  // Jobseeker consent to have their contact details shown to paid employers.
+  // On by default (unchecked still means no), revoked at any time in settings.
+  const [allowContactDisplay, setAllowContactDisplay] = useState(true);
   const [termsScrolledToBottom, setTermsScrolledToBottom] = useState(false);
   const [privacyScrolledToBottom, setPrivacyScrolledToBottom] = useState(false);
   const termsScrollRef = useRef<HTMLDivElement>(null);
@@ -113,6 +116,7 @@ data: {
   subcounty: formData.subcounty,
   skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
   selected_categories: (role === 'jobseeker' || role === 'employer') ? selectedCategories : [],
+  allow_contact_display: role === 'jobseeker' ? allowContactDisplay : false,
 },
           },
         });
@@ -137,6 +141,12 @@ data: {
               subcounty: formData.subcounty || null,
               skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
               resume: formData.resume || null,
+              terms_accepted: true,
+              accepted_terms_at: new Date().toISOString(),
+              data_sharing_consent: true,
+              // Only jobseekers are offered for contact reveal, so only they
+              // can consent to it at signup.
+              allow_contact_display: role === 'jobseeker' ? allowContactDisplay : false,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             }, { onConflict: 'id' });
@@ -734,6 +744,21 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
                 </label>
               </div>
               {errors.privacy && <p className="text-red-500 text-xs mb-1 ml-6">{errors.privacy}</p>}
+
+              {tab === 'signup' && role === 'jobseeker' && (
+                <div className="flex items-start gap-2 mb-2 ml-6">
+                  <input
+                    type="checkbox"
+                    id="allowContactDisplay"
+                    checked={allowContactDisplay}
+                    onChange={e => setAllowContactDisplay(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <label htmlFor="allowContactDisplay" className="text-xs text-gray-600">
+                    Allow verified employers who pay a one-day access fee to view my phone, email and WhatsApp. You can switch this off at any time in your settings, and employers lose access immediately.
+                  </label>
+                </div>
+              )}
 
               {!termsScrolledToBottom && !termsAccepted && (
                 <p className="text-[10px] text-amber-600 mt-1 ml-6 flex items-center gap-1">

@@ -1,8 +1,9 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, extendSubscription, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, renewServiceAd, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
@@ -26,6 +27,7 @@ interface DashboardPageProps {
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [publishingJobId, setPublishingJobId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>(user.role);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<DbJob[]>([]);
@@ -52,6 +54,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [certPickError, setCertPickError] = useState<string | null>(null);
   const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
+  const [allowContactDisplay, setAllowContactDisplay] = useState(user.profile?.allow_contact_display ?? false);
   const [notifications, setNotifications] = useState<DbNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -259,6 +262,7 @@ const notifRef = useRef<HTMLDivElement>(null);
         ratings_enabled: ratingsEnabled,
         certificates: [...existingCerts, ...certUrls],
         whatsapp_number: profileForm.whatsapp_number || null,
+        allow_contact_display: user?.role === 'jobseeker' ? allowContactDisplay : user.profile?.allow_contact_display,
       }), 25000, 'Profile save');
       // Persist selected categories to user metadata (best-effort, must never block the confirmation)
       console.log('[ProfileSave] updating auth metadata...');
@@ -313,11 +317,13 @@ const notifRef = useRef<HTMLDivElement>(null);
   };
   const openRolePayment = (r: string) => {
     if (r === 'employer') {
+      // Plan chosen inside the modal (1-day token or weekly), which is where the
+      // day/role metadata is attached.
       onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, true, false, null, 'employer');
     } else if (r === 'advertiser') {
-      onOpenMpesa(100, 'Advertiser Subscription', 'ADV-SUB', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'advertiser');
+      openAdvertiserSubscription('Advertiser Subscription');
     } else {
-      onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker');
+      openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription');
     }
   };
   const addRole = async (r: string) => {
@@ -338,6 +344,80 @@ const notifRef = useRef<HTMLDivElement>(null);
     }
     return false;
   })();
+
+  // End of Employer Access coverage (entitlement first, then subscription) and
+  // how many days of job-live time it still grants. Mirrors employer_reactivate_job.
+  const employerAccessEnd = (() => {
+    const e = entitlementFor('employer');
+    if (e && e.paid && e.expires_at && !isEntitlementExpired('employer')) return new Date(e.expires_at);
+    if (user.role === 'employer' && user.profile?.registration_paid && user.profile.subscription_expires_at) {
+      const end = new Date(user.profile.subscription_expires_at);
+      if (end.getTime() > Date.now()) return end;
+    }
+    return null;
+  })();
+  const employerAccessDays = employerAccessEnd ? Math.min(30, Math.max(0, Math.ceil((employerAccessEnd.getTime() - Date.now()) / 86400000))) : 0;
+
+  // ─── Job ad lifecycle (publish / retire / delete) ──────────────────────────
+  const reloadJobs = async () => {
+    if (!user?.id) return;
+    const list = isAdmin ? await getJobs({}) : await getJobs({ postedBy: user.id });
+    setJobs((list || []) as DbJob[]);
+  };
+
+  const jobPlanAmount = (days: number) =>
+    days === 1 ? 100 : days === 7 ? 200 : (JOB_LISTING_PLANS.find(p => p.days === days)?.amount ?? 300);
+
+  const payToPublishJob = (job: DbJob, days: number) => {
+    const amount = jobPlanAmount(days);
+    const label = days === 1 ? '1-Day Job Token' : days === 7 ? 'Employer Weekly Access' : `${days}-Day Job Listing`;
+    onOpenMpesa(
+      amount,
+      `${label} — ${job.title}`,
+      days === 7 ? 'EMP-WK' : `JOB-${job.id.slice(0, 8)}-${days}D`,
+      days === 7 ? 'registration' : 'job_listing',
+      undefined,
+      job.id,
+      undefined,
+      // Refresh only — the edge function publishes the job (status, published_at,
+      // valid_until) so the listing goes live even if this tab is closed.
+      async () => { setPublishingJobId(null); await reloadJobs(); },
+      false, false, null, 'employer', undefined, undefined,
+      { metadata: { kind: 'job_listing', days } }
+    );
+  };
+
+  // Covered by an active Employer Access subscription — enable at no extra charge.
+  const enableJobForFree = async (job: DbJob) => {
+    try {
+      const res = await employerReactivateJob(job.id);
+      setPublishingJobId(null);
+      reloadJobs();
+      alert(`"${job.title}" reactivated for ${res.granted_days} day${res.granted_days !== 1 ? 's' : ''} - live until ${new Date(res.valid_until).toLocaleDateString()}.`);
+    } catch (err) {
+      setPublishingJobId(null);
+      alert(err instanceof Error ? err.message : 'Could not enable this job.');
+    }
+  };
+
+  const handleRetireJob = async (job: DbJob) => {
+    if (!confirm(`Retire "${job.title}"? It will be hidden but can be re-enabled later.`)) return;
+    try { await retireJob(job.id, 'employer'); reloadJobs(); } catch (err) { alert(err instanceof Error ? err.message : 'Could not retire this job.'); }
+  };
+
+  const handleDeleteJobPost = async (job: DbJob) => {
+    if (!confirm(`Delete "${job.title}" permanently? This cannot be undone.`)) return;
+    try { await deleteJob(job.id); reloadJobs(); } catch (err) { alert(err instanceof Error ? err.message : 'Could not delete this job.'); }
+  };
+
+  const jobStateBadge = (job: DbJob): { key: string; label: string; cls: string } => {
+    const today = new Date().toISOString().split('T')[0];
+    if (job.retired_by === 'system') return { key: 'system_retired', label: 'System retired', cls: 'bg-red-100 text-red-700' };
+    if (job.retired_by === 'employer') return { key: 'retired', label: 'Retired', cls: 'bg-gray-200 text-gray-700' };
+    if (!job.valid_until || new Date(job.valid_until).getTime() < Date.now()) return { key: 'disabled', label: 'Disabled', cls: 'bg-gray-100 text-gray-600' };
+    if (job.deadline && job.deadline < today) return { key: 'closed', label: 'Application closed', cls: 'bg-amber-100 text-amber-700' };
+    return { key: 'serving', label: 'Serving', cls: 'bg-green-100 text-green-700' };
+  };
 
   // Boosted products that are about to lapse — surfaces the portal renewal notice
   const expiringBoosts = useMemo(() => {
@@ -435,6 +515,48 @@ const notifRef = useRef<HTMLDivElement>(null);
     setMyServiceAds(list);
   };
 
+  // Re-read entitlement state after a payment. Mirrors the server's own
+  // cap rule (a purchase never shortens a longer entitlement) so the header
+  // count can't disagree with what profile_roles now says.
+  const refreshSubscriptionState = async () => {
+    const [active, days] = await Promise.all([
+      checkSubscriptionActive(user.id),
+      getSubscriptionDaysRemaining(user.id),
+    ]);
+    setSubscriptionActive(active);
+    setSubscriptionDays(days);
+  };
+
+  // Jobseeker subscription purchase/renewal. The days are recorded in the
+  // payment metadata so the edge function extends profile_roles server-side;
+  // this callback only refreshes the local view.
+  const openJobseekerSubscription = (price: number, days: number, label: string) => {
+    onOpenMpesa(
+      price,
+      label,
+      'PREM-NEW',
+      'registration',
+      undefined, undefined, undefined,
+      () => { refreshSubscriptionState(); },
+      false, false, null, 'jobseeker', undefined, undefined,
+      { metadata: { kind: 'subscription', role: 'jobseeker', days } },
+    );
+  };
+
+  // Advertiser subscription: a one-time paid flag with no expiry, so days = 0.
+  const openAdvertiserSubscription = (label: string) => {
+    onOpenMpesa(
+      100,
+      label,
+      'ADV-SUB',
+      'registration',
+      undefined, undefined, undefined,
+      () => { refreshSubscriptionState(); },
+      false, false, null, 'advertiser', undefined, undefined,
+      { metadata: { kind: 'subscription', role: 'advertiser', days: 0 } },
+    );
+  };
+
   const handleRenewServiceAd = (ad: DbServiceAd, plan: '10-day' | '20-day' | '30-day') => {
     const price = plan === '10-day' ? 300 : plan === '20-day' ? 500 : 800;
     const label = plan === '10-day' ? '10-Day' : plan === '20-day' ? '20-Day' : '30-Day';
@@ -448,16 +570,11 @@ const notifRef = useRef<HTMLDivElement>(null);
       ad.id,
       undefined,
       undefined,
-      async () => {
-        try {
-          await renewServiceAd(ad.id, plan);
-          alert(`${ad.business_name} renewed for ${days} days. Expires ${new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString()}.`);
-          await loadMyServiceAds();
-        } catch (err: any) {
-          console.error('Error renewing service ad:', err);
-          alert(err.message || 'Failed to renew ad');
-        }
-      }
+      // Refresh only: the renewal (including extending from the current expiry)
+      // is applied by the edge function from the payment row.
+      async () => { await loadMyServiceAds(); },
+      false, false, null, 'advertiser', undefined, undefined,
+      { metadata: { kind: 'advert', plan, days } }
     );
   };
 
@@ -670,13 +787,13 @@ const notifRef = useRef<HTMLDivElement>(null);
                                 <button onClick={() => onNavigate('search-jobs')} disabled={weeklyBidCount >= FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
                                   <Briefcase className="w-4 h-4" /> Bid on Jobs
                                 </button>
-                                <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} disabled={weeklyBidCount < FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${weeklyBidCount < FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+                                <button onClick={() => openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription')} disabled={weeklyBidCount < FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${weeklyBidCount < FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
                                   Upgrade — KES 100/mo
                                 </button>
                               </>
                             )}
                             {subscriptionActive && subscriptionDays <= 7 && PRICING_PLANS.subscriptionPackages.map(pkg => (
-                              <button key={pkg.id} onClick={() => onOpenMpesa(pkg.price, `Subscription renewal — ${pkg.name} (${pkg.days} days)`, user.id, 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, pkg.days))} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${pkg.popular ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white border border-green-200 text-green-700 hover:bg-green-50'}`}>
+                              <button key={pkg.id} onClick={() => openJobseekerSubscription(pkg.price, pkg.days, `Subscription renewal — ${pkg.name} (${pkg.days} days)`)} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${pkg.popular ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-white border border-green-200 text-green-700 hover:bg-green-50'}`}>
                                 {pkg.name} — KES {pkg.price}
                               </button>
                             ))}
@@ -793,7 +910,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             : `${FREE_BID_LIMIT - weeklyBidCount} free bid${FREE_BID_LIMIT - weeklyBidCount === 1 ? '' : 's'} remaining this week.`}
                         </p>
                         {weeklyBidCount >= FREE_BID_LIMIT && (
-                          <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                          <button onClick={() => openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription')} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
                             Upgrade to Premium — KES 100/mo
                           </button>
                         )}
@@ -878,7 +995,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                     </div>
                   </div>
                   {(!subscriptionActive || subscriptionDays <= 7) && (
-                    <button onClick={() => onOpenMpesa(100, 'Advertiser subscription renewal', user.id, 'advert')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
+                              <button onClick={() => openAdvertiserSubscription('Advertiser subscription renewal')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
                       {subscriptionActive ? 'Renew KES 100' : 'Subscribe KES 100'}
                     </button>
                   )}
@@ -907,21 +1024,79 @@ const notifRef = useRef<HTMLDivElement>(null);
               <h3 className="font-semibold text-gray-900">{isAdmin ? 'All Jobs' : 'My Posted Jobs'}</h3>
               <button onClick={() => onNavigate('post-job')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">Post New Job</button>
             </div>
-            {jobs.length > 0 ? jobs.map(job => (
-              <div key={job.id} onClick={() => onViewJob(job.id)} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-green-200 cursor-pointer transition-all flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-900">{job.title}</h4>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {job.bids_count} bids</span>
+            {jobs.length > 0 ? jobs.map(job => {
+              const st = jobStateBadge(job);
+              const canEnable = st.key === 'disabled' || st.key === 'retired';
+              return (
+              <div key={job.id} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-green-200 transition-all">
+                <div onClick={() => onViewJob(job.id)} className="cursor-pointer flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">{job.title}</h4>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {job.bids_count} bids</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-green-700 text-sm">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-green-700 text-sm">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${job.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{job.status}</span>
+
+                {st.key === 'system_retired' && (
+                  <p className="mt-3 text-xs text-gray-500">This ad was retired by the system after its deadline lapsed. Re-post it to list again.</p>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {canEnable && publishingJobId !== job.id && (
+                    <button onClick={(e) => { e.stopPropagation(); setPublishingJobId(job.id); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Publish / Reactivate</button>
+                  )}
+                  {st.key === 'closed' && (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); handleRetireJob(job); }} className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors">Retire</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                    </>
+                  )}
+                  {st.key === 'system_retired' && (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); onNavigate('post-job'); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Re-post</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                    </>
+                  )}
+                  {(st.key === 'serving' || st.key === 'disabled' || st.key === 'retired') && (
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                  )}
                 </div>
+
+                {publishingJobId === job.id && (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-2">Choose how to reactivate this ad:</p>
+                    {!employerAccessActive && (
+                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-xs text-amber-800 font-medium mb-2">No active Employer Access — reactivate with a paid listing plan below, or renew Employer Access (KES 200/week) and your reactivations ride on your plan for free (up to 30 days).</p>
+                        <button onClick={(e) => { e.stopPropagation(); openRolePayment('employer'); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">Renew Employer Access</button>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {employerAccessActive && employerAccessDays > 0 && (
+                        <button onClick={(e) => { e.stopPropagation(); enableJobForFree(job); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                          Reactivate for {employerAccessDays} day{employerAccessDays !== 1 ? 's' : ''} (until {employerAccessEnd!.toLocaleDateString()})
+                        </button>
+                      )}
+                      {JOB_LISTING_PLANS.map(p => (
+                        <button key={p.id} onClick={(e) => { e.stopPropagation(); payToPublishJob(job, p.days); }} className="px-3 py-1.5 border border-green-300 text-green-700 text-xs font-semibold rounded-lg hover:bg-green-50 transition-colors">
+                          {p.days} days · KES {p.amount}
+                        </button>
+                      ))}
+                      <button onClick={(e) => { e.stopPropagation(); payToPublishJob(job, 1); }} className="px-3 py-1.5 border border-blue-300 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-50 transition-colors">1 day · KES 100</button>
+                      <button onClick={(e) => { e.stopPropagation(); payToPublishJob(job, 7); }} className="px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors">7 days · KES 200</button>
+                      <button onClick={(e) => { e.stopPropagation(); setPublishingJobId(null); }} className="px-3 py-1.5 text-gray-500 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors">Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )) : <p className="text-gray-500 text-sm py-8 text-center">No jobs yet. Post your first job!</p>}
+              );
+            }) : <p className="text-gray-500 text-sm py-8 text-center">No jobs yet. Post your first job!</p>}
           </div>
         )}
 
@@ -1202,13 +1377,17 @@ const notifRef = useRef<HTMLDivElement>(null);
                 </button>
               </div>
               {myServiceAds.length > 0 ? myServiceAds.map(sa => {
-                const expMs = sa.expiry_date ? new Date(`${sa.expiry_date}T23:59:59`).getTime() : 0;
-                const active = expMs > Date.now();
+                // The rule lives in SQL (derive_ad_status); this is the same
+                // evaluation locally, so a list does not need a round trip per row.
+                const status = localAdStatus(sa, 'service');
+                const live = status === 'active' || status === 'scheduled';
                 return (
                   <div key={sa.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4 mb-3">
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                      <img src={optimizeImageUrl(sa.image || sa.images?.[0] || '/images/services.png', 128, 128)} alt={sa.business_name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </div>
+                    {(sa.image || sa.images?.[0]) && (
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        <img src={optimizeImageUrl(sa.image || sa.images?.[0], 128, 128)} alt={sa.business_name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium text-gray-900 truncate">{sa.business_name}</h4>
@@ -1219,53 +1398,66 @@ const notifRef = useRef<HTMLDivElement>(null);
                         <span>{sa.location}</span>
                         <span>{sa.plan}</span>
                       </div>
-                      <div className="mt-1">
-                        {!sa.expiry_date ? (
-                          <Badge variant="secondary" className="bg-gray-100 text-gray-600">No expiry</Badge>
-                        ) : active ? (
-                          <Badge variant="success">Active · {Math.ceil((expMs - Date.now()) / (1000 * 60 * 60 * 24))}d left</Badge>
-                        ) : (
-                          <Badge variant="destructive">Expired · {Math.max(0, Math.ceil((Date.now() - expMs) / (1000 * 60 * 60 * 24)))}d ago</Badge>
-                        )}
-                        {sa.expiry_date && <span className="text-[10px] text-gray-400 ml-2">Expires {sa.expiry_date}</span>}
+                      <div className="mt-1 flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${AD_STATUS_TONE[status]}`}>
+                          {AD_STATUS_LABEL[status]}
+                        </span>
+                        <span className="text-[11px] text-gray-500">{statusLine(sa, status, 'service')}</span>
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {!active && (
-                        <button onClick={() => setRenewAd(sa)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                          Renew
-                        </button>
-                      )}
-                      {active && (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => onOpenMpesa(500, `Featured Boost — ${sa.business_name}`, `BOOST-${sa.id.slice(0, 8).toUpperCase()}`, 'featured_boost', sa.id)} className="text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-md shadow-amber-200 hover:shadow-lg transition-all flex items-center gap-1 whitespace-nowrap">
-                            <Zap className="w-3 h-3" /> {sa.featured ? 'Extend +7d' : 'Boost'} · KES 500
-                          </button>
-                          <span className="text-xs text-gray-400">Live on site</span>
+                      {live && (
+                        <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
+                          <span>👁 {sa.views_count || 0} views</span>
+                          {sa.plan !== '10-day' && <span>🔗 {sa.clicks_count || 0} clicks</span>}
+                          {sa.plan === '30-day' && <span>★ {Number(sa.rating) || 0} ({sa.reviews_count || 0})</span>}
                         </div>
                       )}
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {(status === 'unpaid' || status === 'expired') ? (
+                        <button onClick={() => setRenewAd(sa)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                          {status === 'unpaid' ? 'Pay now' : 'Renew'}
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => setRenewAd(sa)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                            Extend
+                          </button>
+                          {status === 'active' && (
+                            <button onClick={() => onOpenMpesa(500, `Featured Boost — ${sa.business_name}`, `BOOST-${sa.id.slice(0, 8).toUpperCase()}`, 'featured_boost', sa.id, undefined, undefined, () => { loadMyServiceAds(); }, false, false, null, 'advertiser', undefined, undefined, { metadata: { kind: 'featured_boost', days: 7 } })} className="text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-md shadow-amber-200 hover:shadow-lg transition-all flex items-center gap-1 whitespace-nowrap">
+                              <Zap className="w-3 h-3" /> {sa.featured ? 'Extend +7d' : 'Boost'} · KES 500
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {live && <span className="text-xs text-gray-400">{status === 'scheduled' ? 'Not serving yet' : 'Live on site'}</span>}
                     </div>
                   </div>
                 );
               }) : <p className="text-gray-500 text-sm py-4 text-center">No service ads yet. Post one to reach the local community!</p>}
             </div>
 
-            {/* Renewal plan picker */}
-            {renewAd && (
+            {/* Plan picker — pays an unpaid advert for the first time, or renews/extends a live one */}
+            {renewAd && (() => {
+              const renewingAs = localAdStatus(renewAd, 'service') === 'unpaid';
+              return (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setRenewAd(null)}>
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-green-600 to-green-700 rounded-t-2xl">
                     <div>
-                      <h2 className="text-lg font-bold text-white">Renew "{renewAd.business_name}"</h2>
-                      <p className="text-green-100 text-sm">Choose a plan to re-publish your listing</p>
+                      <h2 className="text-lg font-bold text-white">{renewingAs ? 'Publish' : 'Renew'} "{renewAd.business_name}"</h2>
+                      <p className="text-green-100 text-sm">
+                        {renewingAs
+                          ? 'Complete payment to put this advert live'
+                          : 'Days are added to your current expiry, so nothing you have paid for is lost'}
+                      </p>
                     </div>
                     <button onClick={() => setRenewAd(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-white" /></button>
                   </div>
                   <div className="p-5 space-y-3">
                     {([
-                      { plan: '10-day' as const, name: '10-Day Advert', days: 10, desc: 'Up to 3 images · basic analytics', price: 300 },
-                      { plan: '20-day' as const, name: '20-Day Advert', days: 20, desc: 'Up to 5 images · priority placement', price: 500 },
-                      { plan: '30-day' as const, name: '30-Day Advert', days: 30, desc: 'Best value · featured boost options', price: 800 },
+                      { plan: '10-day' as const, name: '10-Day Advert', days: 10, desc: 'Up to 3 images · views analytics', price: 300 },
+                      { plan: '20-day' as const, name: '20-Day Advert', days: 20, desc: 'Up to 5 images · views & clicks analytics', price: 500 },
+                      { plan: '30-day' as const, name: '30-Day Advert', days: 30, desc: 'Up to 8 images · full analytics · social links · featured', price: 800 },
                     ]).map(opt => (
                       <button
                         key={opt.plan}
@@ -1282,12 +1474,13 @@ const notifRef = useRef<HTMLDivElement>(null);
                         </div>
                       </button>
                     ))}
-                    <p className="text-[11px] text-gray-400 text-center pt-1">Your listing goes live immediately after payment is confirmed.</p>
+                    <p className="text-[11px] text-gray-400 text-center pt-1">Your listing goes live as soon as M-Pesa confirms — even if you close this page.</p>
                     <button onClick={() => setRenewAd(null)} className="w-full py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -1302,10 +1495,12 @@ const notifRef = useRef<HTMLDivElement>(null);
               const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
               return (
               <div key={ad.id} className={`bg-white rounded-xl p-4 border flex items-center gap-4 transition-all ${isBoosted ? 'border-amber-300 shadow-md shadow-amber-100' : 'border-gray-100'}`}>
-                <div className="relative">
-                  <img src={optimizeImageUrl(ad.image || IMAGES.services[0], 100, 100)} alt={ad.business_name} className="w-16 h-16 rounded-lg object-cover" />
-                  {isBoosted && <span className="absolute -top-1 -left-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[7px] font-bold px-1 py-0.5 rounded-md flex items-center gap-0.5"><Zap className="w-2 h-2" /> HOT</span>}
-                </div>
+                {ad.image && (
+                  <div className="relative">
+                    <img src={optimizeImageUrl(ad.image, 100, 100)} alt={ad.business_name} className="w-16 h-16 rounded-lg object-cover" />
+                    {isBoosted && <span className="absolute -top-1 -left-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[7px] font-bold px-1 py-0.5 rounded-md flex items-center gap-0.5"><Zap className="w-2 h-2" /> HOT</span>}
+                  </div>
+                )}
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-gray-900">{ad.business_name}</h4>
@@ -1404,7 +1599,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                         ))}
                       </ul>
                       {!subscriptionActive ? (
-                        <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, () => extendSubscription(user.id, 30))} className="w-full py-2.5 bg-white hover:bg-green-50 text-green-700 font-bold rounded-lg text-sm transition-colors">
+                        <button onClick={() => openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription')} className="w-full py-2.5 bg-white hover:bg-green-50 text-green-700 font-bold rounded-lg text-sm transition-colors">
                           Upgrade Now
                         </button>
                       ) : (
@@ -1571,6 +1766,15 @@ const notifRef = useRef<HTMLDivElement>(null);
                         {!subscriptionActive && <span className="ml-1 text-xs text-amber-600 font-normal">— Premium only</span>}
                       </label>
                     </div>
+                    {user?.role === 'jobseeker' && (
+                      <div className="flex items-start gap-3">
+                        <input type="checkbox" id="allow_contact_display" checked={allowContactDisplay} onChange={e => setAllowContactDisplay(e.target.checked)} className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                        <label htmlFor="allow_contact_display" className="text-sm text-gray-700">
+                          Let paying employers view my contact details
+                          <span className="block text-xs text-gray-500">Employers pay a one-day access fee to see your phone, email and WhatsApp. Switching this off hides your details from everyone immediately, including employers who already paid.</span>
+                        </label>
+                      </div>
+                    )}
                     <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                     </button>
@@ -1589,14 +1793,15 @@ const notifRef = useRef<HTMLDivElement>(null);
               <h3 className="font-semibold text-gray-900 mb-4">Platform Fees</h3>
               <div className="space-y-4">
                 {[
-                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Monthly subscription fee', val: 100 },
-                  { key: 'contact_access_fee', label: 'Contact Access Fee', desc: 'Per contact unlock', val: 100 },
+                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Monthly subscription fee', val: 100, suffix: 'KES' },
+                  { key: 'contact_access_fee', label: 'Contact Access Fee', desc: 'One-day access to a single contact', val: 100, suffix: 'KES' },
+                  { key: 'contact_access_window_hours', label: 'Contact Access Window', desc: 'How long a paid contact unlock lasts', val: 24, suffix: 'hours' },
                 ].map((fee) => (
                   <div key={fee.key} className="flex items-center justify-between">
                     <div><p className="font-medium text-gray-900">{fee.label}</p><p className="text-xs text-gray-500">{fee.desc}</p></div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">KES</span>
-                      <input type="number" value={feeInputs[fee.key] ?? fee.val} onChange={e => setFeeInputs({ ...feeInputs, [fee.key]: Number(e.target.value) })} className="w-24 px-3 py-2 rounded-lg border border-gray-300 text-right focus:ring-2 focus:ring-green-500 outline-none" />
+                      <span className="text-sm text-gray-500">{fee.suffix}</span>
+                      <input type="number" min={1} value={feeInputs[fee.key] ?? fee.val} onChange={e => setFeeInputs({ ...feeInputs, [fee.key]: Number(e.target.value) })} className="w-24 px-3 py-2 rounded-lg border border-gray-300 text-right focus:ring-2 focus:ring-green-500 outline-none" />
                     </div>
                   </div>
                 ))}

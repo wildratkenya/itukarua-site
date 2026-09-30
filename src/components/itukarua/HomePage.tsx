@@ -9,9 +9,9 @@ import WorkerSearchModal from './WorkerSearchModal';
 import TopRatedWorkersModal from './TopRatedWorkersModal';
 import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { IMAGES } from '@/data/siteData';
+
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
-import { getPlatformStats, createProfileReview, getProfileReviews, checkContactAccess, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, hasEntitlement, type PlatformStats } from '@/lib/database';
+import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 
@@ -36,6 +36,13 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [showSticker, setShowSticker] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<any | null>(null);
   const [hasContactAccess, setHasContactAccess] = useState(false);
+  const [workerContact, setWorkerContact] = useState<ProfileContactResult['contact']>(null);
+  const [workerContactCerts, setWorkerContactCerts] = useState<string[]>([]);
+  const [workerContactResumes, setWorkerContactResumes] = useState('');
+  const [workerAccessExpiresAt, setWorkerAccessExpiresAt] = useState<string | null>(null);
+  const [contactOptedOut, setContactOptedOut] = useState(false);
+  const [contactFee, setContactFee] = useState(CONTACT_ACCESS_FEE_DEFAULT);
+  const [contactWindowHours, setContactWindowHours] = useState(CONTACT_ACCESS_WINDOW_HOURS_DEFAULT);
   const [workerReviews, setWorkerReviews] = useState<any[]>([]);
   const [showWorkerSearch, setShowWorkerSearch] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
@@ -118,38 +125,52 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
     }
   };
 
+  // Contact details come only from the server-side gate, which enforces the
+  // payment window and the worker's consent flag together.
+  const loadWorkerContact = async (profileId: string) => {
+    const result = await getProfileContact(profileId);
+    if (!result) return;
+    if (!result.allowed) {
+      setWorkerContact(null);
+      setContactOptedOut(result.reason === 'opted_out');
+      setHasContactAccess(false);
+      return;
+    }
+    setContactOptedOut(false);
+    setWorkerContact(result.contact || null);
+    setWorkerContactCerts(result.certificates || []);
+    setWorkerContactResumes(result.resume || '');
+    setWorkerAccessExpiresAt(result.expiresAt || null);
+    setHasContactAccess(true);
+  };
+
   useEffect(() => {
     if (selectedWorker) {
       setHasContactAccess(false);
+      setWorkerContact(null);
+      setWorkerContactCerts([]);
+      setWorkerContactResumes('');
+      setWorkerAccessExpiresAt(null);
+      setContactOptedOut(false);
       setWorkerReviews([]);
       setReviewRating(0);
       setReviewComment('');
       setReviewMsg('');
-      if (user?.role === 'super_admin' || user?.role === 'admin') {
-        setHasContactAccess(true);
-      } else if (user) {
-        const run = async () => {
-          const paidReg = !!user.registration_paid;
-          const subActive = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() > Date.now() : false;
-          const employerEnt = await hasEntitlement(user.id, 'employer');
-          if (user?.role === 'employer') {
-            setHasContactAccess(employerEnt || (paidReg && subActive));
-          } else {
-            if (employerEnt) setHasContactAccess(true);
-            else checkContactAccess(user.id, selectedWorker.id).then(setHasContactAccess);
-          }
-        };
-        run();
-      }
+      if (user) loadWorkerContact(selectedWorker.id);
       getProfileReviews(selectedWorker.id).then(setWorkerReviews);
       if (user) { setMyVote(null); getMyProfileVote(user.id, selectedWorker.id).then(v => setMyVote(v || null)).catch(() => {}); }
     }
   }, [selectedWorker, user]);
 
+  useEffect(() => {
+    if (!selectedWorker) return;
+    getContactAccessConfig().then(cfg => { setContactFee(cfg.fee); setContactWindowHours(cfg.windowHours); }).catch(() => {});
+  }, [selectedWorker]);
+
   // Load homepage data with retry logic
-  const { data: jobsData = [], isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useJobs({ limit: 6 });
-  const { data: servicesData = [], isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useServiceAds({ featured: true, limit: 4 });
-  const { data: workersData = [], isLoading: workersLoading, error: workersError, refetch: refetchWorkers } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
+  const { data: jobsData = [], isLoading: jobsLoading } = useJobs({ featured: true, activeOnly: true, limit: 3 });
+  const { data: servicesData = [], isLoading: servicesLoading } = useServiceAds({ featured: true, limit: 3 });
+  const { data: workersData = [], isLoading: workersLoading } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
 
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
@@ -170,7 +191,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   }, []);
 
   const loading = (jobsLoading || servicesLoading || workersLoading) && !timedOut;
-  const hasError = jobsError || servicesError || workersError;
 
   // Simple mapping for jobs
   const jobs = jobsData.map((j: any) => ({
@@ -190,6 +210,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
     urgent: j.urgent,
     status: j.status,
     images: j.images,
+    corporate_account_id: j.corporate_account_id,
   }));
 
   // Simple mapping for services
@@ -199,14 +220,14 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         ? s.images 
         : s.image 
           ? [s.image] 
-          : [IMAGES.services[0]];
+          : [];
       
       return {
         id: s.id,
         businessName: s.business_name,
         description: s.description,
         category: s.category,
-        image: s.image || (Array.isArray(s.images) && s.images[0]) || IMAGES.services[0],
+        image: s.image || (Array.isArray(s.images) && s.images[0]) || '',
         images: serviceImages,
         location: s.location,
         county: s.county,
@@ -216,6 +237,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         featured: s.featured,
         rating: Number(s.rating) || 0,
         reviews: s.reviews_count,
+        corporate_account_id: s.corporate_account_id,
       };
     } catch (err) {
       console.error('Mapping error for service:', s.id, err);
@@ -322,21 +344,29 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 </button>
               </div>
 
-              {/* Contact & Certifications Section */}
-              {hasContactAccess ? (
+              {/* Contact & Certifications Section — revealed only by the server gate */}
+              {hasContactAccess && workerContact ? (
                 <div className="space-y-3 mb-4 p-4 bg-green-50 rounded-xl border border-green-100">
                   <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5"><Mail className="w-4 h-4" /> Contact Information</h4>
                   <div className="space-y-2 text-sm">
-                    {selectedWorker.phone && <p className="flex items-center gap-2 text-gray-700"><Phone className="w-4 h-4 text-green-600" /> {selectedWorker.phone}</p>}
-                    {selectedWorker.email && <p className="flex items-center gap-2 text-gray-700"><Mail className="w-4 h-4 text-green-600" /> {selectedWorker.email}</p>}
-                    {selectedWorker.whatsapp_number && <a href={`https://wa.me/${selectedWorker.whatsapp_number.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"><span className="w-4 h-4 flex items-center justify-center">💬</span> Chat on WhatsApp</a>}
-                    {selectedWorker.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {selectedWorker.county ? `${selectedWorker.county}${selectedWorker.subcounty ? `, ${selectedWorker.subcounty}` : ''} - ${selectedWorker.location}` : selectedWorker.location}</p>}
+                    {workerContact.phone && <p className="flex items-center gap-2 text-gray-700"><Phone className="w-4 h-4 text-green-600" /> {workerContact.phone}</p>}
+                    {workerContact.email && <p className="flex items-center gap-2 text-gray-700"><Mail className="w-4 h-4 text-green-600" /> {workerContact.email}</p>}
+                    {workerContact.whatsapp && <a href={`https://wa.me/${workerContact.whatsapp.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"><span className="w-4 h-4 flex items-center justify-center">💬</span> Chat on WhatsApp</a>}
+                    {workerContact.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {workerContact.county ? `${workerContact.county}${workerContact.subcounty ? `, ${workerContact.subcounty}` : ''} - ${workerContact.location}` : workerContact.location}</p>}
                   </div>
-                  {selectedWorker.certificates && selectedWorker.certificates.length > 0 && (
+                  {workerContactResumes !== undefined && workerContactResumes ? (
+                    <>
+                      <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><FileText className="w-4 h-4" /> Professional CV</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{workerContactResumes}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic">No CV uploaded by this worker.</p>
+                  )}
+                  {workerContactCerts && workerContactCerts.length > 0 && (
                     <>
                       <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><Award className="w-4 h-4" /> Certifications</h4>
                       <div className="flex gap-2 flex-wrap">
-                        {selectedWorker.certificates.map((cert: string, i: number) => (
+                        {workerContactCerts.map((cert: string, i: number) => (
                           <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">
                             📄 Certificate {i + 1}
                           </button>
@@ -344,32 +374,57 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                       </div>
                     </>
                   )}
-                  {selectedWorker.resume && (
-                    <>
-                      <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><FileText className="w-4 h-4" /> Professional CV</h4>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedWorker.resume}</p>
-                    </>
+                  {workerAccessExpiresAt && (
+                    <p className="text-[11px] text-green-700 pt-2 border-t border-green-200">
+                      Access until {new Date(workerAccessExpiresAt).toLocaleString('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   )}
+                </div>
+              ) : contactOptedOut ? (
+                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                  <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-700 mb-1">Contact details not shared</p>
+                  <p className="text-xs text-gray-500">This worker has chosen not to share their phone, email or WhatsApp.</p>
                 </div>
               ) : (
                 <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
                   <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-gray-700 mb-1">Contact & Certifications Locked</p>
-                  <p className="text-xs text-gray-500 mb-3">Subscribe to access all jobseeker contacts in your category</p>
-                  <button
-                    onClick={() => {
-                      if (!user) { onOpenAuth('login'); return; }
-                      setSelectedWorker(null);
-                      if (onOpenEmployerPayment) {
-                        onOpenEmployerPayment();
-                      } else {
-                        onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'employer');
-                      }
-                    }}
-                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    {user ? 'Subscribe to View Contacts' : 'Sign In to View Profile'}
-                  </button>
+                  <p className="text-xs text-gray-500 mb-3">Unlock this worker for KES {contactFee} for {contactWindowHours} hours, or subscribe for all contacts</p>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    {!user ? (
+                      <button
+                        onClick={() => onOpenAuth('login')}
+                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        Sign In to View Profile
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (!onOpenMpesa) return;
+                            onOpenMpesa(contactFee, `One-Day Access — ${selectedWorker.full_name}`, 'ITK-CONTACT', 'contact_access', undefined, undefined, selectedWorker.id, () => { loadWorkerContact(selectedWorker.id); });
+                          }}
+                          className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          Unlock for KES {contactFee} ({contactWindowHours}h)
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (onOpenEmployerPayment) {
+                              onOpenEmployerPayment();
+                            } else {
+                              onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'employer');
+                            }
+                          }}
+                          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          Subscribe to All
+                        </button>
+                      </>
+                    )}
+                  </div>
                   {reviewMsg === 'Please sign in first' && <p className="text-xs text-red-500 mt-2">{reviewMsg}</p>}
                 </div>
               )}
@@ -469,69 +524,50 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
 
 
-      {/* Featured Jobs */}
-      <section className="py-8 lg:py-10 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Latest Jobs</h2>
-              <p className="text-gray-500 text-sm mt-1">Find local work opportunities near you</p>
+      {/* Latest Jobs — shows boosted jobs only; hidden when none are boosted */}
+      {jobs.length > 0 && (
+        <section className="py-8 lg:py-10 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Latest Jobs</h2>
+                <p className="text-gray-500 text-sm mt-1">Boosted jobs from local employers</p>
+              </div>
+              <button onClick={() => onNavigate('jobs')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                View All Jobs <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
-            <button onClick={() => onNavigate('jobs')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-              View All Jobs <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {[1,2,3,4].map(i => (
-                <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
-                  <div className="aspect-square bg-gray-200 rounded-lg mb-3" />
-                  <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
-                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {jobs.slice(0, 4).map(job => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {jobs.slice(0, 3).map(job => (
                 <JobCard key={job.id} job={job} onViewJob={onViewJob} />
               ))}
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* Featured Services */}
-      <section className="py-8 lg:py-10 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Featured Services</h2>
-              <p className="text-gray-500 text-sm mt-1">Local businesses and service providers</p>
-            </div>
-            <button onClick={() => onNavigate('services')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 border border-gray-300 hover:border-green-600 hover:text-green-700 text-sm font-semibold rounded-lg transition-colors">
-              View All Services <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {[1,2,3,4].map(i => (
-                <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
-                  <div className="aspect-square bg-gray-200" />
-                  <div className="p-4"><div className="h-4 bg-gray-200 rounded w-1/3 mb-2" /><div className="h-5 bg-gray-200 rounded w-3/4 mb-2" /></div>
-                </div>
-              ))}
+        </section>
+      )}
+
+      {/* Featured Services — shows boosted services only; hidden when none
+          are boosted */}
+      {services.length > 0 && (
+        <section className="py-8 lg:py-10 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Featured Services</h2>
+                <p className="text-gray-500 text-sm mt-1">Boosted local businesses and service providers</p>
+              </div>
+              <button onClick={() => onNavigate('services')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 border border-gray-300 hover:border-green-600 hover:text-green-700 text-sm font-semibold rounded-lg transition-colors">
+                View All Services <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {services.slice(0, 4).map(service => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {services.slice(0, 3).map(service => (
                 <ServiceCard key={service.id} service={service} onClick={() => onViewService(service.id)} />
               ))}
             </div>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
       {/* Top Workers */}
       <section className="py-8 lg:py-10 bg-gray-50">

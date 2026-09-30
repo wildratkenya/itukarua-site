@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -9,6 +9,7 @@ import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
 import JobListingsTopBanner from './JobListingsTopBanner';
 import CertificateViewer from './CertificateViewer';
+import CorporateBadge from './CorporateBadge';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -16,7 +17,7 @@ interface JobDetailPageProps {
   onBack: () => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string) => void;
+  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
   onOpenEmployerPayment: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
 }
 
@@ -32,6 +33,12 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [sortBids, setSortBids] = useState<'all' | 'rating' | 'price-low' | 'price-high'>('all');
   const [selectedBid, setSelectedBid] = useState<string | null>(null);
   const [contactUnlocked, setContactUnlocked] = useState(false);
+  const [winnerContact, setWinnerContact] = useState<any | null>(null);
+  const [winnerCerts, setWinnerCerts] = useState<string[]>([]);
+  const [winnerResume, setWinnerResume] = useState('');
+  const [winnerAccessExpiresAt, setWinnerAccessExpiresAt] = useState<string | null>(null);
+  const [contactFee, setContactFee] = useState(CONTACT_ACCESS_FEE_DEFAULT);
+  const [contactWindowHours, setContactWindowHours] = useState(CONTACT_ACCESS_WINDOW_HOURS_DEFAULT);
   const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
@@ -122,6 +129,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   }
 
   const daysLeft = Math.max(0, Math.ceil((new Date(job.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const applicationsClosed = !!job.deadline && job.deadline < new Date().toISOString().split('T')[0];
 
   const sortedBids = [...bids].sort((a, b) => {
     if (sortBids === 'rating') return (b.bidder_rating || 0) - (a.bidder_rating || 0);
@@ -133,6 +141,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const handleSubmitBid = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { onOpenAuth('login'); return; }
+    if (job.status !== 'open') { alert('This job is no longer accepting bids.'); return; }
     if (!bidPrice || !bidProposal.trim()) return;
     if (!subscriptionActive && weeklyBidCount >= FREE_BID_LIMIT) return;
     setBidSubmitting(true);
@@ -239,23 +248,66 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   };
 
   const handleUnlockContact = async () => {
-    if (!user) return;
+    if (!user || !job) return;
     const winningBid = bids.find(b => b.id === winnerId);
-    onOpenMpesa(50, `Contact access for ${winningBid?.bidder_name || 'bidder'} on job ${job.title}`, `JOB-${job.id.slice(0, 8)}`, 'contact_access', undefined, job.id, winningBid?.bidder_id, () => setContactUnlocked(true));
+    if (!winningBid?.bidder_id) return;
+    onOpenMpesa(
+      contactFee,
+      `One-Day Access — ${winningBid.bidder_name || 'bidder'}`,
+      'ITK-CONTACT',
+      'contact_access',
+      undefined,
+      job.id,
+      winningBid.bidder_id,
+      () => { loadWinnerContact(winningBid.bidder_id); },
+    );
   };
+
+  // Re-read the gate after payment so the reveal survives a refresh, and stays
+  // locked once the window lapses.
+  const loadWinnerContact = async (bidderId: string) => {
+    const result = await getProfileContact(bidderId);
+    if (!result?.allowed) { setContactUnlocked(false); setWinnerContact(null); return; }
+    setWinnerContact(result.contact || null);
+    setWinnerCerts(result.certificates || []);
+    setWinnerResume(result.resume || '');
+    setWinnerAccessExpiresAt(result.expiresAt || null);
+    setContactUnlocked(true);
+  };
+
+  useEffect(() => {
+    if (!viewingBidder || !job || !user) return;
+    if (user.role === 'admin' || user.role === 'super_admin') {
+      loadWinnerContact(viewingBidder.id);
+    }
+  }, [viewingBidder, job, user]);
 
   const handleViewBidderProfile = async (bidderId: string) => {
     setLoadingProfile(true);
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', bidderId).single();
-      if (data) setViewingBidder(data);
+      if (data) {
+        setViewingBidder(data);
+        // Re-read the gate on every open so an expired window re-locks, and a
+        // still-live one survives a refresh.
+        setContactUnlocked(false);
+        setWinnerContact(null);
+        await loadWinnerContact(bidderId);
+      }
     } catch (err) { console.error('Failed to load profile:', err); }
     setLoadingProfile(false);
   };
 
+  useEffect(() => {
+    getContactAccessConfig().then(cfg => { setContactFee(cfg.fee); setContactWindowHours(cfg.windowHours); }).catch(() => {});
+  }, [jobId]);
+
   const viewingBid = viewingBidder ? bids.find(b => b.bidder_id === viewingBidder.id) : null;
   const viewingWinner = viewingBid ? viewingBid.id === winnerId : false;
-  const canViewContact = hasJobAccess || (contactUnlocked && viewingWinner);
+  // Either a live employer subscription, or a per-contact purchase on the
+  // winning bidder whose window is still open.
+  const canViewContact = contactUnlocked && (hasJobAccess || viewingWinner);
+  const contactLockedReason = viewingBidder?.allow_contact_display === false ? 'opted_out' : canViewContact ? '' : 'locked';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -295,12 +347,18 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           <div className="flex flex-wrap items-start gap-3 mb-3">
             <span className="px-3 py-1 bg-white/20 text-white text-xs font-medium rounded-full">{job.category}</span>
             {job.urgent && <span className="px-3 py-1 bg-red-500/80 text-white text-xs font-medium rounded-full flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Urgent</span>}
-            <span className="px-3 py-1 bg-green-500/30 text-green-200 text-xs font-medium rounded-full capitalize">{job.status}</span>
+            <span className={`px-3 py-1 text-white text-xs font-medium rounded-full capitalize ${
+              job.status === 'open' ? 'bg-green-500/30 text-green-200' :
+              job.status === 'in-progress' ? 'bg-amber-500/30 text-amber-200' :
+              job.status === 'completed' ? 'bg-sky-500/30 text-sky-200' :
+              'bg-red-500/30 text-red-200'
+            }`}>{job.status.replace('-', ' ')}</span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">{job.title}</h1>
           <div className="flex flex-wrap gap-4 text-sm text-green-100">
             <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
             <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {bids.length} bids</span>
+            <CorporateBadge accountId={job.corporate_account_id} />
           </div>
         </div>
       </div>
@@ -337,7 +395,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
               <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100">
                 <div><p className="text-xs text-gray-400">Budget Range</p><p className="font-bold text-green-700">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p></div>
-                <div><p className="text-xs text-gray-400">Deadline</p><p className="font-semibold text-gray-900">{new Date(job.deadline).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+                <div><p className="text-xs text-gray-400">Deadline</p><p className="font-semibold text-gray-900">{new Date(job.deadline).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}{applicationsClosed && <span className="ml-2 text-xs font-medium text-amber-600">(Application closed)</span>}</p></div>
                 <div><p className="text-xs text-gray-400">Posted By</p><p className="font-semibold text-gray-400">{job.posted_by_name}</p></div>
                 <div><p className="text-xs text-gray-400">Posted Date</p><p className="font-semibold text-gray-900">{new Date(job.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
               </div>
@@ -502,6 +560,32 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     </div>
                   )}
                 </>
+              ) : job.status !== 'open' ? (
+                <div className="text-center py-6">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                    job.status === 'in-progress' ? 'bg-amber-100' :
+                    job.status === 'completed' ? 'bg-sky-100' :
+                    'bg-red-100'
+                  }`}><Briefcase className={`w-6 h-6 ${
+                    job.status === 'in-progress' ? 'text-amber-600' :
+                    job.status === 'completed' ? 'text-sky-600' :
+                    'text-red-600'
+                  }`} /></div>
+                  <p className="font-semibold text-gray-900 capitalize">{job.status.replace('-', ' ')}</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {job.status === 'in-progress'
+                      ? 'This job has been assigned to a worker. New bids are no longer accepted.'
+                      : job.status === 'completed'
+                        ? 'This job has been completed.'
+                        : 'This job was cancelled and is no longer accepting bids.'}
+                  </p>
+                </div>
+              ) : applicationsClosed ? (
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3"><Clock className="w-6 h-6 text-amber-600" /></div>
+                  <p className="font-semibold text-gray-900">Application closed</p>
+                  <p className="text-sm text-gray-500 mt-1">The deadline for this job has passed. Bids are no longer being accepted.</p>
+                </div>
               ) : (
                 <>
                   <h3 className="font-semibold text-gray-900 mb-4">Place Your Bid</h3>
@@ -665,31 +749,45 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   </div>
                 </div>
 
-                {/* Contact (gated by employer access) */}
-                {canViewContact ? (
+                {/* Contact (revealed only by the server gate) */}
+                {canViewContact && winnerContact ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
-                    {viewingBidder.phone && (
+                    {winnerContact.phone && (
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Phone className="w-4 h-4 text-green-600" />
-                        <a href={`tel:${viewingBidder.phone}`} className="hover:text-green-700">{viewingBidder.phone}</a>
+                        <a href={`tel:${winnerContact.phone}`} className="hover:text-green-700">{winnerContact.phone}</a>
                       </div>
                     )}
-                    {viewingBidder.email && (
+                    {winnerContact.email && (
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Mail className="w-4 h-4 text-green-600" />
-                        <a href={`mailto:${viewingBidder.email}`} className="hover:text-green-700 truncate">{viewingBidder.email}</a>
+                        <a href={`mailto:${winnerContact.email}`} className="hover:text-green-700 truncate">{winnerContact.email}</a>
                       </div>
                     )}
+                    {winnerAccessExpiresAt && (
+                      <p className="text-[11px] text-gray-500 sm:col-span-2">
+                        One-day access until {new Date(winnerAccessExpiresAt).toLocaleString('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                ) : contactLockedReason === 'opted_out' ? (
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700">Contact not shared</p>
+                    <p className="text-xs text-gray-500">This worker has chosen not to share their contact details.</p>
                   </div>
                 ) : (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-amber-900">Contact locked</p>
-                      <p className="text-xs text-amber-700">Subscribe to Employer Access to view this worker's phone and email.</p>
+                      <p className="text-xs text-amber-700">
+                        {viewingWinner
+                          ? `Unlock this worker for KES ${contactFee} for ${contactWindowHours} hours, or subscribe for all contacts.`
+                          : 'Subscribe to Employer Access to view this worker’s phone and email.'}
+                      </p>
                     </div>
                     {viewingWinner ? (
                       <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
-                        <Phone className="w-4 h-4" /> Unlock Contact (KES 50)
+                        <Phone className="w-4 h-4" /> Unlock (KES {contactFee})
                       </button>
                     ) : (
                       <button onClick={() => onOpenEmployerPayment(job?.id, job?.title)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2 } from 'lucide-react';
+import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2, Info } from 'lucide-react';
 import { supabaseUrl } from '@/lib/supabase';
 
 interface MpesaModalProps {
@@ -10,14 +10,26 @@ interface MpesaModalProps {
   accountRef: string;
   user?: { id: string; name: string; email: string; role: string } | null;
   onPaymentComplete?: () => void;
-  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access';
+  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'advert_upgrade' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing';
   relatedJobId?: string;
   relatedAdId?: string;
   relatedProfileId?: string;
+  relatedAccountId?: string;
+  relatedInvoiceId?: string;
   employerPlans?: boolean;
   relatedJobTitle?: string;
   employerExpired?: boolean;
   employerExpiredAt?: string | null;
+  /**
+   * Structured purchase intent, persisted on the payment row and read by the
+   * edge function to decide what to fulfil. The description string stays for
+   * humans and receipts; this is what the server trusts.
+   */
+  metadata?: Record<string, unknown>;
+  /** Prefills the phone, e.g. the advertiser's own number when /admin charges them. */
+  defaultPhone?: string;
+  /** Shown above the phone field so an admin knows whose payment this is. */
+  payingOnBehalfOf?: string;
 }
 
 const EMPLOYER_WEEKLY = {
@@ -38,7 +50,9 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   isOpen, onClose, amount, description, accountRef,
   user, onPaymentComplete, paymentType = 'registration',
   relatedJobId, relatedAdId, relatedProfileId,
+  relatedAccountId, relatedInvoiceId,
   employerPlans = false, relatedJobTitle, employerExpired = false, employerExpiredAt,
+  metadata, defaultPhone, payingOnBehalfOf,
 }) => {
   const [step, setStep] = useState<'plans' | 'instructions' | 'processing' | 'success' | 'error'>('instructions');
   const [selectedPlan, setSelectedPlan] = useState<'weekly' | 'day' | null>(null);
@@ -50,13 +64,9 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState('');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const generateToken = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let token = 'ITK-';
-    for (let i = 0; i < 8; i++) token += chars[Math.floor(Math.random() * chars.length)];
-    return token;
-  };
+  // The redemption token is minted server-side and only for contact access
+  // purchases, so the browser never invents one.
+  const isContactAccess = paymentType === 'contact_access';
 
   const planFor = (p: 'weekly' | 'day') => {
     if (p === 'day') {
@@ -95,7 +105,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     if (isOpen) {
       setStep(employerPlans ? 'plans' : 'instructions');
       setSelectedPlan(null);
-      setPhone('');
+      setPhone(defaultPhone || '');
       setPhoneError('');
       setErrorMessage('');
       setTransactionId('');
@@ -110,7 +120,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [isOpen, employerPlans]);
+  }, [isOpen, employerPlans, defaultPhone]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -126,7 +136,12 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
       attempts++;
       if (attempts > maxAttempts) {
         if (pollingRef.current) clearInterval(pollingRef.current);
-        setErrorMessage('Payment confirmation timed out. Check your M-Pesa messages for the transaction.');
+        // Not a failure: the edge function now settles the payment from
+        // Safaricom directly, so the money and the entitlement are applied even
+        // though this tab stopped watching. Say so instead of crying wolf.
+        setErrorMessage(
+          'We stopped waiting for confirmation, but your payment is still being processed. It will apply automatically — check your dashboard in a minute, and contact us if it has not.',
+        );
         setStep('error');
         return;
       }
@@ -141,6 +156,8 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           if (pollingRef.current) clearInterval(pollingRef.current);
           setTransactionId(data.payment?.mpesa_ref || `MPE${Date.now().toString().slice(-8)}`);
           setStep('success');
+          // Refresh only. The advert/subscription was already extended by the
+          // edge function, so nothing here decides whether the customer paid.
           onPaymentComplete?.();
         } else if (data.status === 'failed') {
           if (pollingRef.current) clearInterval(pollingRef.current);
@@ -161,9 +178,19 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     setPhoneError('');
     setStep('processing');
     setErrorMessage('');
-    const token = generateToken();
-    setAccessToken(token);
+    setAccessToken('');
     const { amount: payAmount, description: payDesc, accountRef: payRef, paymentType: payType, relatedJobId: payJobId } = effective;
+    const isCorporate = payType === 'corporate';
+
+    // The employer plan picker knows which product and how many days were bought;
+    // record that structurally so the server does not have to parse the
+    // description string to work out what to grant.
+    const planMeta =
+      selectedPlan === 'weekly'
+        ? { kind: 'subscription', role: 'employer', days: 7 }
+        : selectedPlan === 'day'
+          ? { kind: 'subscription', role: 'employer', days: 1 }
+          : {}
 
     try {
       const res = await fetch(`${supabaseUrl}/functions/v1/mpesa-stk-push`, {
@@ -172,14 +199,16 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
         body: JSON.stringify({
           phone,
           amount: payAmount,
-          accountRef: payRef || 'ITUKARUA',
+          accountRef: payRef || (isCorporate ? 'ITK-CORP' : 'ITUKARUA'),
           description: payDesc,
           user_id: user?.id || null,
           payment_type: payType,
           related_job_id: payJobId || null,
           related_ad_id: relatedAdId || null,
           related_profile_id: relatedProfileId || null,
-          token,
+          related_account_id: relatedAccountId || null,
+          related_invoice_id: isCorporate ? relatedInvoiceId || null : null,
+          metadata: { ...planMeta, ...(metadata || {}) },
         }),
       });
 
@@ -188,6 +217,8 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
       if (!res.ok) {
         throw new Error(data.error || 'STK push failed');
       }
+
+      if (data.token) setAccessToken(data.token);
 
       if (data.success && data.CheckoutRequestID) {
         setCheckoutId(data.CheckoutRequestID);
@@ -206,6 +237,8 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     setStep(employerPlans ? 'plans' : 'instructions');
     setSelectedPlan(null);
     setPhone('');
+    // Never let a previous purchase's token linger into the next one.
+    setAccessToken('');
     onClose();
   };
 
@@ -231,6 +264,16 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
             <X className="w-5 h-5 text-white" />
           </button>
         </div>
+
+        {payingOnBehalfOf && (
+          <div className="bg-blue-50 px-6 py-3 border-b border-blue-200 flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700 font-medium">
+              Charging <strong>{payingOnBehalfOf}</strong>. The M-Pesa prompt is sent to the number below, and
+              the advert goes live automatically once it is paid.
+            </p>
+          </div>
+        )}
 
         {employerExpired && (
           <div className="bg-red-50 px-6 py-3 border-b border-red-200 flex items-start gap-2">
@@ -380,7 +423,12 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
                   <p className="text-sm text-gray-500 mb-1">KES {effective.amount.toLocaleString()} has been received.</p>
                   <p className="text-xs text-gray-400 mb-4">Transaction ID: {transactionId}</p>
-                  {accessToken && (
+                  {isContactAccess && (
+                    <p className="text-sm text-gray-600 mb-6 max-w-xs mx-auto">
+                      This contact is now unlocked for you for 24 hours. You can view the details on this device, on refresh, or on another browser.
+                    </p>
+                  )}
+                  {isContactAccess && accessToken && (
                     <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 mx-auto max-w-xs">
                       <div className="flex items-center justify-center gap-2 mb-2">
                         <Key className="w-4 h-4 text-green-600" />
@@ -392,7 +440,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                           {copied === 'token' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-green-600" />}
                         </button>
                       </div>
-                      <p className="text-[11px] text-green-600 mt-2">Save this token — it records your payment if you return later.</p>
+                      <p className="text-[11px] text-green-600 mt-2">Save this token to re-open the contact for 24 hours, on any device, even if you sign out.</p>
                     </div>
                   )}
                   <button
