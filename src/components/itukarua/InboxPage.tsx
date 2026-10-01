@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Send, Loader2, User, Lock } from 'lucide-react';
 import { getConversations, getConversationMessages, sendMessage, markConversationRead, checkSubscriptionActive, type DbConversationWithParticipant, type DbDirectMessage } from '@/lib/database';
 import { supabase, optimizeImageUrl } from '@/lib/supabase';
+import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 
 interface InboxPageProps {
   userId: string;
@@ -106,14 +107,14 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
       <Helmet>
         <title>Messages - Itukarua</title>
         <meta name="description" content="View and manage your messages on Itukarua." />
-        <link rel="canonical" href="https://www.itukarua.co.ke/messages" />
+        <meta name="robots" content="noindex, nofollow" />
         <meta property="og:title" content="Messages - Itukarua" />
         <meta property="og:description" content="View and manage your messages on Itukarua." />
         <meta property="og:site_name" content="Itukarua" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Messages - Itukarua" />
         <meta name="twitter:description" content="View and manage your messages on Itukarua." />
-        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
       </Helmet>
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-4 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-3">

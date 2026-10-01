@@ -1,6 +1,7 @@
 import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 import { composeCorporateMonthlyInvoice } from '../_shared/corporateBilling.ts'
 import { authenticateCron } from '../_shared/cronAuth.ts'
+import { corsHeadersFor as baseCorsHeadersFor } from '../_shared/cors.ts'
 
 // ─── Cron runner: monthly corporate invoicing + admin digest ───────────────
 //  - Triggered by the GitHub Actions cron workflow sending the service-role
@@ -10,13 +11,11 @@ import { authenticateCron } from '../_shared/cronAuth.ts'
 //  - Invoices every ACTIVE corporate account whose next_billing_date is due;
 //    reports overdue (>7d)/suspended/due-soon accounts to admins by email.
 
-const ALLOWED_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
-
+// This function also accepts an x-cron-secret header, so the allowed-header
+// list is wider than the shared default.
 function corsHeadersFor(req: Request) {
-  const origin = req.headers.get('Origin') || ''
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
   return {
-    'Access-Control-Allow-Origin': allowed,
+    ...baseCorsHeadersFor(req),
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
   }
 }

@@ -1,19 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 import { composeCorporateMonthlyInvoice, renewCorporate } from '../_shared/corporateBilling.ts'
+import { corsHeadersFor } from '../_shared/cors.ts'
 
-const ALLOWED_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY')!
-
-function corsHeadersFor(req: Request) {
-  const origin = req.headers.get('Origin') || ''
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  }
-}
 
 function json(data: any, status = 200, cors: Record<string, string>) {
   return new Response(JSON.stringify(data), { status, headers: { ...cors, 'Content-Type': 'application/json' } })

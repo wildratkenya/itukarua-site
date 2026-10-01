@@ -1,4 +1,6 @@
-const PUBLIC_SITE_URL = 'https://itukarua3.vercel.app'
+import { SITE_URL as CANONICAL_SITE_URL } from './siteConfig'
+
+const PUBLIC_SITE_URL = CANONICAL_SITE_URL
 export const SITE_URL =
   typeof window !== 'undefined' && window.location.origin !== 'http://localhost:8080'
     ? window.location.origin

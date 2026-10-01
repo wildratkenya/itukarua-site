@@ -1,10 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-
-const SITE_URL = 'https://itukarua3.vercel.app';
-const SITE_NAME = 'Itukarua';
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og.jpg`;
-const TWITTER_HANDLE = '@itukarua';
+import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE, TWITTER_HANDLE } from './siteConfig';
 
 export interface SEOProps {
   title?: string;

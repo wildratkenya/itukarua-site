@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
@@ -597,14 +598,14 @@ const notifRef = useRef<HTMLDivElement>(null);
       <Helmet>
         <title>Dashboard - Itukarua</title>
         <meta name="description" content="Manage your account, job listings, and service listings on Itukarua." />
-        <link rel="canonical" href="https://www.itukarua.co.ke/dashboard" />
+        <meta name="robots" content="noindex, nofollow" />
         <meta property="og:title" content="Dashboard - Itukarua" />
         <meta property="og:description" content="Manage your account, job listings, and service listings on Itukarua." />
         <meta property="og:site_name" content="Itukarua" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Dashboard - Itukarua" />
         <meta name="twitter:description" content="Manage your account, job listings, and service listings on Itukarua." />
-        <meta name="twitter:image" content="https://www.itukarua.co.ke/og.jpg" />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
       </Helmet>
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
