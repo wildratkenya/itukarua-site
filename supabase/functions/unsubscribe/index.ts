@@ -1,11 +1,5 @@
 ﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const ALLOW_ORIGIN = 'https://itukarua3.vercel.app'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 const SITE_URL = Deno.env.get('SITE_URL') || 'https://itukarua3.vercel.app'
 
@@ -14,6 +8,9 @@ function escapeHtml(s: string): string {
 }
 
 Deno.serve(async (req) => {
+  // Reached by clicking a link in an email, so there is no Origin header to
+  // check here; the CORS headers are still sent for direct browser visits.
+  const corsHeaders = corsHeadersFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
     const url = new URL(req.url)

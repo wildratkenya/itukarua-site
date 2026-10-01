@@ -1,13 +1,16 @@
 import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
-
-const ALLOW_ORIGIN = 'https://www.itukarua.co.ke'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOW_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeadersFor, isOriginAllowed } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req)
+
+  if (!isOriginAllowed(req)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {

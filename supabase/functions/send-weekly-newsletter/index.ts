@@ -1,11 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
-
-const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
-
-const corsHeaders = {
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeadersFor as sharedCorsHeadersFor } from '../_shared/cors.ts'
 
 function pickImage(item: any): string {
   let images = item.images
@@ -193,9 +188,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
 }
 
 function corsHeadersFor(req: Request) {
-  const origin = req.headers.get('origin') || ''
-  const allowed = ALLOW_ORIGINS.includes(origin) ? origin : ALLOW_ORIGINS[0]
-  return { ...corsHeaders, 'Access-Control-Allow-Origin': allowed }
+  return sharedCorsHeadersFor(req)
 }
 
 Deno.serve(async (req) => {

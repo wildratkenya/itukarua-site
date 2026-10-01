@@ -1,8 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { sendCorporateWelcomeEmail } from '../_shared/corporateWelcome.ts'
 import { estimateCustomBundle, CORPORATE_TIER_ANCHOR_KES } from '../_shared/corporateBilling.ts'
-
-const ALLOW_ORIGINS = ['https://www.itukarua.co.ke', 'https://itukarua3.vercel.app', 'http://localhost:8080']
+import { corsHeadersFor, isOriginAllowed } from '../_shared/cors.ts'
 
 const ALLOWED_FEATURES = [
   'slot_sitewide_strip', 'slot_category_strip', 'slot_homepage_banner', 'slot_job_listings_top',
@@ -27,10 +26,12 @@ async function sendWelcomeEmail(supabase: any, email: string, company: string, t
 }
 
 Deno.serve(async (req) => {
-  const origin = req.headers.get('origin')
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': ALLOW_ORIGINS.includes(origin || '') ? origin : ALLOW_ORIGINS[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  const corsHeaders = corsHeadersFor(req)
+  if (!isOriginAllowed(req)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {

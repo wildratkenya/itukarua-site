@@ -4,6 +4,7 @@ import { CheckCircle, CalendarX2, X, Lock } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
 import { getProfile, type DbProfile, getRoleEntitlements, ensureJobseekerEntitlement, type ProfileRoleEntitlement, type EntitlementRole } from '@/lib/database';
 import { getPendingScrollTarget, clearPendingScrollTarget } from '@/lib/pricingScroll';
+import { SITE_URL } from '@/lib/siteConfig';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
 import HomePage from './itukarua/HomePage';
@@ -620,25 +621,25 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             "@graph": [
               {
                 "@type": "Organization",
-                "@id": "https://www.itukarua.co.ke/#organization",
+                "@id": `${SITE_URL}/#organization`,
                 "name": "Itukarua",
-                "url": "https://www.itukarua.co.ke/",
+                "url": `${SITE_URL}/`,
                 "logo": {
                   "@type": "ImageObject",
-                  "url": "https://www.itukarua.co.ke/og.jpg"
+                  "url": `${SITE_URL}/og.jpg`
                 }
               },
               {
                 "@type": "WebSite",
-                "@id": "https://www.itukarua.co.ke/#website",
-                "url": "https://www.itukarua.co.ke/",
+                "@id": `${SITE_URL}/#website`,
+                "url": `${SITE_URL}/`,
                 "name": "Itukarua",
                 "description": "Local marketplace for jobs, services, and business listings in Itukarua County, Kenya.",
                 "potentialAction": {
                   "@type": "SearchAction",
                   "target": {
                     "@type": "EntryPoint",
-                    "urlTemplate": "https://www.itukarua.co.ke/?q={search_term_string}"
+                    "urlTemplate": `${SITE_URL}/?q={search_term_string}`
                   },
                   "query-input": "required name=search_term_string"
                 }

@@ -4,6 +4,7 @@ import type { Page } from './Header';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
 import { subscribeNewsletter } from '@/lib/database';
 import { KENYA_COUNTIES } from '@/data/siteData';
+import { SITE_URL } from '@/lib/siteConfig';
 interface FooterProps {
   onNavigate: (page: Page) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
@@ -217,7 +218,7 @@ const Footer: React.FC<FooterProps> = ({
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-500" data-mixed-content="true">
-            &copy; {new Date().getFullYear()} ITUKARUA KENYA. All rights reserved. | www.itukarua.co.ke
+            &copy; {new Date().getFullYear()} ITUKARUA KENYA. All rights reserved. | {SITE_URL.replace(/^https?:\/\//, '')}
           </p>
           <div className="flex gap-4">
             <button onClick={() => setShowTerms(true)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms</button>
