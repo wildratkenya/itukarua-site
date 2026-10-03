@@ -260,8 +260,13 @@ data: {
     setServerError('');
     setErrors({});
     try {
-      const { data } = await supabase.from('profiles').select('email').ilike('email', email).maybeSingle();
-      if (!data) {
+      // Boolean RPC rather than a table read: selecting the profile row here both
+      // bypassed the RLS lockdown and confirmed to any caller whether an address
+      // is registered. The enum is inherent to password reset, so this keeps the
+      // same behaviour without returning profile data.
+      const { data: exists, error: existsError } = await supabase.rpc('email_is_registered', { p_email: email });
+      if (existsError) throw existsError;
+      if (!exists) {
         setServerError('No account found with this email. Check the address or create a new account.');
         return;
       }

@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
@@ -40,6 +40,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [acceptingBidId, setAcceptingBidId] = useState<string | null>(null);
   const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  // Contact for the bidder modal. Never read from the profile row: that would
+  // bypass both the payment window and the jobseeker's own consent flag.
+  const [bidderContact, setBidderContact] = useState<ProfileContactResult | null>(null);
   const [ads, setAds] = useState<DbServiceAd[]>([]);
   const [myServiceAds, setMyServiceAds] = useState<DbServiceAd[]>([]);
   const [renewAd, setRenewAd] = useState<DbServiceAd | null>(null); // service ad pending renewal picker
@@ -465,9 +468,16 @@ const notifRef = useRef<HTMLDivElement>(null);
 
   const handleViewBidderProfile = async (bidderId: string) => {
     setLoadingProfile(true);
+    setBidderContact(null);
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', bidderId).single();
-      if (data) setViewingBidder(data);
+      // Card fields from the directory view; phone/email/resume only from the
+      // RPC, which enforces the employer's window and the jobseeker's consent.
+      const { data } = await supabase.from('public_worker_directory').select('*').eq('id', bidderId).single();
+      if (data) {
+        setViewingBidder(data);
+        const contact = await getProfileContact(bidderId);
+        setBidderContact(contact);
+      }
     } catch (err) { console.error('Failed to load bidder profile:', err); }
     setLoadingProfile(false);
   };
@@ -1857,20 +1867,28 @@ const notifRef = useRef<HTMLDivElement>(null);
                   </div>
                 </div>
 
-                {employerAccessActive ? (
+                {bidderContact?.allowed ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
-                    {viewingBidder.phone && (
+                    {bidderContact.contact?.phone && (
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Phone className="w-4 h-4 text-green-600" />
-                        <a href={`tel:${viewingBidder.phone}`} className="hover:text-green-700">{viewingBidder.phone}</a>
+                        <a href={`tel:${bidderContact.contact.phone}`} className="hover:text-green-700">{bidderContact.contact.phone}</a>
                       </div>
                     )}
-                    {viewingBidder.email && (
+                    {bidderContact.contact?.email && (
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Mail className="w-4 h-4 text-green-600" />
-                        <a href={`mailto:${viewingBidder.email}`} className="hover:text-green-700 truncate">{viewingBidder.email}</a>
+                        <a href={`mailto:${bidderContact.contact.email}`} className="hover:text-green-700 truncate">{bidderContact.contact.email}</a>
                       </div>
                     )}
+                    {!bidderContact.contact?.phone && !bidderContact.contact?.email && (
+                      <p className="text-sm text-gray-500 col-span-2">This worker has no phone or email on file.</p>
+                    )}
+                  </div>
+                ) : bidderContact?.reason === 'opted_out' ? (
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700">Contact unavailable</p>
+                    <p className="text-xs text-gray-600">This worker has chosen not to share their contact details.</p>
                   </div>
                 ) : (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-wrap items-center justify-between gap-3">
@@ -1933,12 +1951,12 @@ const notifRef = useRef<HTMLDivElement>(null);
                   </div>
                 )}
 
-                {viewingBidder.resume && (
+                {bidderContact?.resume && (
                   <div>
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                       <FileText className="w-3.5 h-3.5" /> Professional CV
                     </h4>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-40 overflow-y-auto">{viewingBidder.resume}</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-40 overflow-y-auto">{bidderContact.resume}</p>
                   </div>
                 )}
               </div>

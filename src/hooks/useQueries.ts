@@ -141,8 +141,10 @@ export function useProfile(userId: string) {
   return useQuery({
     queryKey: ['profile', userId],
     queryFn: async () => {
+      // Directory view, not the table: this hook is used on public pages, and
+      // profiles is no longer readable by anon. The view omits contact fields.
       const { data, error } = await supabase
-        .from('profiles')
+        .from('public_worker_directory')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
