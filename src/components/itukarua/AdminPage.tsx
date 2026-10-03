@@ -1858,8 +1858,36 @@ const AdminPage: React.FC = () => {
     }, 60);
   };
 
+  // Builds the banner-form payload from an advert row. Every edit entry point
+  // needs the same field list, and it was previously written out inline at each
+  // call site, so adding a field meant finding all of them. corporate_tier and
+  // corporate_account_id must be carried through or the form opens looking like
+  // an ordinary banner and saving would unlink the placement from its account.
+  const bannerPayloadFrom = (ad: any) => ({
+    id: ad.id,
+    title: ad.title,
+    image_url: ad.image_url,
+    images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []),
+    destination_url: ad.destination_url || '',
+    description: ad.description || '',
+    cta_text: ad.cta_text || 'Learn More',
+    whatsapp_number: ad.whatsapp_number || '',
+    is_affiliate: ad.is_affiliate,
+    featured: ad.featured ?? true,
+    owner_email: ad.owner_email || '',
+    slot: ad.slot || 'homepage_banner',
+    billing_cycle: ad.billing_cycle || '10 days',
+    corporate_tier: ad.corporate_tier || undefined,
+    corporate_account_id: ad.corporate_account_id || undefined,
+  });
+
   const deleteAdvertRow = async (ad: any) => {
-    if (!window.confirm(`Delete "${ad.title}" from the advertisements table?`)) return;
+    // A corporate placement is paid for, so the generic message is too thin to
+    // be an informed confirmation.
+    const message = ad.corporate_account_id
+      ? `Delete "${ad.title}"? This is a corporate placement, so it stops serving on the site immediately. This cannot be undone.`
+      : `Delete "${ad.title}" from the advertisements table?`;
+    if (!window.confirm(message)) return;
     try {
       const { error } = await proxyTable('advertisements').delete('id', ad.id);
       if (error) throw error;
@@ -2226,7 +2254,7 @@ const AdminPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => { openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '10 days', corporate_tier: ad.corporate_tier || undefined, corporate_account_id: ad.corporate_account_id || undefined }); }}>
+                        <Button variant="outline" size="sm" onClick={() => openBannerForm(bannerPayloadFrom(ad))}>
                           Edit
                         </Button>
                         <DropdownMenu>
@@ -3741,31 +3769,46 @@ const AdminPage: React.FC = () => {
                   <CardTitle>Corporate Placements — corporate accounts ({corporateAds.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-gray-500 mb-4">Tiered placements (Bronze/Silver/Gold/Custom). Bronze shows on the homepage strip; Silver shows across Jobs & Services. Toggling an advert live/paused starts or stops it serving.</p>
+                  <p className="text-sm text-gray-500 mb-4">Tiered placements (Bronze/Silver/Gold/Custom). Bronze shows on the homepage strip; Silver shows across Jobs &amp; Services. Toggling an advert live/paused starts or stops it serving. Admins can edit or remove any placement here; corporate clients can also edit their own from their panel.</p>
                   {corporateAds.length === 0 ? (
                     <div className="py-8 text-center">
                       <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-400">No corporate placements yet. Corporate clients create their own placements from their panel (Corporate Dashboard → New Placement) — this list is admin oversight only.</p>
+                      <p className="text-sm text-gray-400">No corporate placements yet. Corporate clients create their own placements from their panel (Corporate Dashboard → New Placement), or add one here from the Banners tab.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {corporateAds.map(ad => (
+                      {corporateAds.map(ad => {
+                        const acct = corporateAccounts.find(a => a.id === ad.corporate_account_id);
+                        return (
                         <div key={ad.id} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl">
                           <img src={proxyImageUrl(ad.image_url)} alt="" className="w-20 h-11 object-cover rounded-lg bg-gray-100 flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 truncate">{ad.title}</p>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <Badge variant={ad.active ? 'default' : 'secondary'}>{ad.active ? 'LIVE' : 'PAUSED'}</Badge>
                               {ad.corporate_tier && <Badge variant="outline" className="capitalize">{ad.corporate_tier}</Badge>}
-                              {!ad.corporate_tier && <Badge variant="outline">{ad.slot}</Badge>}
-                              {corporateAccounts.find(a => a.id === ad.corporate_account_id) && <Badge variant="outline">{corporateAccounts.find(a => a.id === ad.corporate_account_id)!.company_name}</Badge>}
+                              {/* The slot decides where this actually serves, so it is shown
+                                  even when a tier badge is present. */}
+                              <Badge variant="outline">{slotLabel(ad.slot || 'homepage_banner')}</Badge>
+                              {acct && <Badge variant="outline">{acct.company_name}</Badge>}
                             </div>
                           </div>
-                          <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>
-                            {ad.active ? 'Pause' : 'Activate'}
-                          </Button>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>
+                              {ad.active ? 'Pause' : 'Activate'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => openBannerForm(bannerPayloadFrom(ad))}>
+                              Edit
+                            </Button>
+                            <RowMoreMenu label="Actions">
+                              <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => deleteAdvertRow(ad)}>
+                                <X className="w-4 h-4 mr-2" /> Delete placement
+                              </DropdownMenuItem>
+                            </RowMoreMenu>
+                          </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
@@ -3791,7 +3834,7 @@ const AdminPage: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <Button size="sm" variant="outline" onClick={() => openBannerForm({ id: ad.id, title: ad.title, image_url: ad.image_url, images: ad.images?.length ? ad.images : (ad.image_url ? [ad.image_url] : []), destination_url: ad.destination_url || '', description: ad.description || '', cta_text: ad.cta_text || 'Learn More', whatsapp_number: ad.whatsapp_number || '', is_affiliate: ad.is_affiliate, featured: ad.featured ?? true, owner_email: ad.owner_email || '', slot: ad.slot || 'homepage_banner', billing_cycle: ad.billing_cycle || '10 days', corporate_tier: undefined, corporate_account_id: undefined })}>
+                            <Button size="sm" variant="outline" onClick={() => openBannerForm({ ...bannerPayloadFrom(ad), corporate_tier: undefined, corporate_account_id: undefined })}>
                               Link to account
                             </Button>
                             <RowMoreMenu label="Actions">
@@ -4926,10 +4969,22 @@ const AdminPage: React.FC = () => {
                           <p className="font-semibold text-sm text-gray-900 truncate">{ad.title}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <Badge variant={ad.active ? 'default' : 'secondary'}>{ad.active ? 'LIVE' : 'PAUSED'}</Badge>
-                            <Badge variant="outline">{ad.slot}</Badge>
+                            <Badge variant="outline">{slotLabel(ad.slot || 'homepage_banner')}</Badge>
                           </div>
                         </div>
-                        <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>{ad.active ? 'Pause' : 'Activate'}</Button>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Button size="sm" variant={ad.active ? 'outline' : 'default'} onClick={() => toggleCorporateAd(ad)}>{ad.active ? 'Pause' : 'Activate'}</Button>
+                          {/* The banner form lives on the Banners tab, so close this
+                              drawer first or it would sit on top of the form. */}
+                          <Button size="sm" variant="outline" onClick={() => { setSelectedCorporate(null); openBannerForm(bannerPayloadFrom(ad)); }}>
+                            Edit
+                          </Button>
+                          <RowMoreMenu label="Actions">
+                            <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => { setSelectedCorporate(null); deleteAdvertRow(ad); }}>
+                              <X className="w-4 h-4 mr-2" /> Delete placement
+                            </DropdownMenuItem>
+                          </RowMoreMenu>
+                        </div>
                       </div>
                     ))}
                   </div>
