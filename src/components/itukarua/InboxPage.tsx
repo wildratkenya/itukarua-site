@@ -59,7 +59,7 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
       { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `conversation_id=eq.${activeConv}` },
       async (payload: any) => {
         const newMsg = payload.new;
-        const { data: sender } = await supabase.from('profiles').select('full_name, profile_image').eq('id', newMsg.sender_id).maybeSingle();
+        const { data: sender } = await supabase.from('public_worker_directory').select('full_name, profile_image').eq('id', newMsg.sender_id).maybeSingle();
         setMessages(prev => [...prev, {
           ...newMsg,
           sender_name: sender?.full_name || 'Unknown',

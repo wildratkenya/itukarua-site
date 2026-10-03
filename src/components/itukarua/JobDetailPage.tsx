@@ -285,7 +285,10 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const handleViewBidderProfile = async (bidderId: string) => {
     setLoadingProfile(true);
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', bidderId).single();
+      // Contact comes from loadWinnerContact below, gated by the payment window
+      // and the jobseeker's consent flag. Reading the table directly here would
+      // hand back phone and email and make that gate decorative.
+      const { data } = await supabase.from('public_worker_directory').select('*').eq('id', bidderId).single();
       if (data) {
         setViewingBidder(data);
         // Re-read the gate on every open so an expired window re-locks, and a
@@ -850,13 +853,14 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   </div>
                 )}
 
-                {/* Resume */}
-                {viewingBidder.resume && (
+                {/* Resume and certificates arrive with the gated contact RPC, not
+                    from the profile row, so they sit behind the same window. */}
+                {canViewContact && winnerResume && (
                   <div>
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                       <FileText className="w-3.5 h-3.5" /> Professional CV
                     </h4>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-40 overflow-y-auto">{viewingBidder.resume}</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-40 overflow-y-auto">{winnerResume}</p>
                   </div>
                 )}
               </div>

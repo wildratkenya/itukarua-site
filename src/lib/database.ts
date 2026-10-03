@@ -198,9 +198,15 @@ export async function updateProfile(userId: string, updates: Partial<DbProfile>)
   return data as DbProfile;
 }
 
+// Worker cards are readable by anyone, so they come from the directory view
+// rather than profiles. The view omits phone, email, whatsapp_number and
+// resume; contact is fetched through get_profile_contact once a payment window
+// is active. See migration 20261003120000_lock_down_profile_reads.
+const WORKER_DIRECTORY = 'public_worker_directory';
+
 export async function getWorkers(limit = 20): Promise<DbProfile[]> {
   const { data, error } = await supabase
-    .from('profiles')
+    .from(WORKER_DIRECTORY)
     .select('*')
     .eq('role', 'jobseeker')
     .eq('verified', true)
@@ -228,7 +234,7 @@ export async function getProfiles(filters?: {
   ratings_enabled?: boolean;
 }): Promise<DbProfile[]> {
   let query = supabase
-    .from('profiles')
+    .from(WORKER_DIRECTORY)
     .select(
       `id, full_name, profile_image, rating, reviews_count, qualifications, experience, skills, location, created_at, role, verified, registration_paid, updated_at, suspended, ratings_enabled, terms_accepted, data_sharing_consent, accepted_terms_at, subscription_expires_at, county, subcounty, profile_views, likes_count, dislikes_count, is_featured, allow_contact_display`
     );
@@ -1279,8 +1285,10 @@ export async function getConversations(userId: string): Promise<DbConversationWi
     const otherUserId = participants?.find(p => p.user_id !== userId)?.user_id;
     if (!otherUserId) continue;
 
+    // Another participant's row, so it must come from the directory view rather
+    // than profiles, which is now readable only by the owner and admins.
     const { data: otherProfile } = await supabase
-      .from('profiles')
+      .from(WORKER_DIRECTORY)
       .select('full_name, profile_image')
       .eq('id', otherUserId)
       .maybeSingle();
@@ -1588,7 +1596,7 @@ export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
   if (!job) return;
 
   const { data: jobseekers } = await supabase
-    .from('profiles')
+    .from(WORKER_DIRECTORY)
     .select('id, skills, county')
     .eq('role', 'jobseeker')
     .not('subscription_expires_at', 'is', null);
@@ -1741,7 +1749,7 @@ export async function getSiteTraffic(days = 30): Promise<{ date: string; visitor
 
 export async function getProfileRanking(profileId: string): Promise<{ rank: number; total: number; reviews_count: number; rating: number } | null> {
   const { data, error } = await supabase
-    .from('profiles')
+    .from(WORKER_DIRECTORY)
     .select('id, rating, reviews_count')
     .eq('role', 'jobseeker')
     .order('rating', { ascending: false, nullsLast: true })
