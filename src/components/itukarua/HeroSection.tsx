@@ -138,7 +138,29 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
             )}
 
             <div className="flex items-center justify-between gap-3 mb-2">
-              <div className="flex gap-2">
+              {/* Quick action buttons, hidden below lg.
+
+                This row is the last thing in the hero that could overflow on a
+                phone. The three buttons need roughly 353px at min-content,
+                because a flex item will not shrink below its longest word and
+                "opportunities" is 13 characters at text-[10px]. The stats group
+                adds roughly 188px and is flex-shrink-0, so it holds its width
+                however tight the row gets. With the gap-3 between them that is
+                about 553px of min-content against the 328px available inside
+                px-4 on a 360px Android viewport, so the row was overflowing by
+                roughly 225px and being clipped by the section's overflow-hidden.
+
+                lg rather than sm is deliberate: at the sm breakpoint, 640px, the
+                row is about 673px at max-content against 592px available, so it
+                is still overflowing there. md at 768px would fit, 673 against
+                720, but lg is used so these buttons come back at the same
+                breakpoint as the two How It Works cards rather than introducing
+                a third one.
+
+                The buttons duplicate the header nav and the search field, so
+                they are the cheapest thing to drop. The counts are the part
+                that earns the space, so they stay. */}
+              <div className="hidden lg:flex gap-2">
                 <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-all">
                   <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center"><Briefcase className="w-4 h-4 text-green-400" /></div>
                   <div className="text-left"><p className="text-white font-semibold text-xs">Find Jobs</p><p className="text-gray-400 text-[10px]">Browse opportunities</p></div>
