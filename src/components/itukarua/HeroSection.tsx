@@ -169,8 +169,27 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
 
           </div>
 
-          {/* Right Column: How It Works — two cards */}
-          <div className="lg:col-span-3 flex gap-3">
+          {/* Right Column: How It Works — two cards.
+
+              Both cards are hidden below lg. On mobile the two sit side by side
+              in a flex row, which leaves each card about 170px wide on a 375px
+              screen for content built from 36px icons and wrapped headings. The
+              mobile hero is better served by the search field and the quick
+              action buttons above.
+
+              lg:-mr-[...] is what puts "How to Apply for Jobs" at the far right
+              of the section. The content lives in a centred max-w-7xl, so its
+              right edge sits at
+              (100vw - min(100vw, 80rem)) / 2 + 2rem from the viewport edge.
+              Cancelling exactly that leaves the card on the section edge.
+
+              max(0px, ...) guards the case where the viewport is narrower than
+              80rem: there the container is already full width, so the only
+              offset is the 2rem gutter and the expression must not go positive.
+
+              The outer section is overflow-hidden, so the sub-pixel scrollbar
+              width folded into 100vw clips rather than scrolling sideways. */}
+          <div className="lg:col-span-3 hidden lg:flex gap-3 lg:-mr-[calc(max(0px,(100vw-80rem)/2)+2rem)]">
             {/* Card 1: Employer — How Local Jobs Works */}
             <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
               <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
@@ -220,8 +239,20 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
               </h3>
               <div className="relative">
                 <div className="absolute right-4 top-3 bottom-3 w-0.5 bg-white/20" />
-                {jobseekerSteps.map((step, i) => (
-                  <div key={i} className="relative flex items-start justify-end gap-3 pb-1 last:pb-0">
+                {jobseekerSteps.map((step, i) => {
+                  // Sign Up is redundant on mobile, where the search field above
+                  // already covers first contact, so it is dropped below lg.
+                  // It is kept from lg up, where the card is beside the hero
+                  // copy rather than stacked under it.
+                  //
+                  // The badge needs two numbers as a result: with step 1 gone,
+                  // mobile must read 1/2/3 rather than 2/3/4.
+                  const isSignup = i === 0;
+                  return (
+                  <div
+                    key={i}
+                    className={`relative items-start justify-end gap-3 pb-1 last:pb-0 ${isSignup ? 'hidden lg:flex' : 'flex'}`}
+                  >
                     <div className="flex items-start gap-3 flex-1 min-w-0 pt-0.5 flex-row-reverse">
                       <div className={`w-9 h-9 ${step.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
                         <step.icon className="w-4 h-4" />
@@ -231,10 +262,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
                       </div>
                     </div>
                     <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white text-xs font-bold">
-                      {i + 1}
+                      <span className="lg:hidden">{i}</span>
+                      <span className="hidden lg:inline">{i + 1}</span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 onClick={() => onNavigate('jobs')}
