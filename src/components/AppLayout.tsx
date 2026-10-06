@@ -535,7 +535,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             />
           );
         case 'services':
-          return <ServicesPage onNavigate={handleNavigate} user={user} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
+          return <ServicesPage onNavigate={handleNavigate} onViewService={handleViewService} user={user} onOpenMpesa={handleOpenMpesa} onOpenAuth={handleOpenAuth} />;
         case 'service-detail':
           return (
             <ServiceDetailPage
@@ -560,28 +560,28 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           return <AdvertisePage onNavigate={handleNavigate} />;
         case 'dashboard':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
         case 'inbox':
           if (!user) {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
         case 'corporate':
           if (!user || user.role !== 'corporate') {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} onOpenMpesa={handleOpenMpesa} />;
         case 'corporate-signup':
           return <CorporateSignupPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onAuthComplete={handleAuthComplete} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
-            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+            return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <AdminPage />;
         default:
-          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
+          return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
       }
     } catch (err: any) {
       console.error('CRITICAL RENDER ERROR:', err);
