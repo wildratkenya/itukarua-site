@@ -713,7 +713,7 @@ const AdminPage: React.FC = () => {
           toast({ title: 'File too large', description: 'Image must be 20MB or less', variant: 'destructive' });
           continue;
         }
-        const compressed = await compressImage(file, 1600, 400);
+        const compressed = await compressImage(file, 1200, 200);
         const safeName = compressed.name.replace(/[^a-zA-Z0-9._-]/g, '').replace(/\.[^.]+$/, '') || 'image';
         const fileName = `${Date.now()}_${safeName}.jpg`;
         const { error: uploadError } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 30000, 'Upload');

@@ -308,11 +308,20 @@ const STORAGE_PREFIX = `${supabaseUrl}/storage/v1/object/public/`;
 const BUCKET_ALIASES: Record<string, string> = { adverts: 'a' }
 const BUCKET_ALIASES_REVERSE: Record<string, string> = { a: 'adverts' }
 
+// Image Transformations is a Pro-plan Supabase feature, toggled under
+// Storage > Settings in the dashboard. Until it is on, /storage/v1/render/image/
+// answers 403 and the width/quality/format params are ignored by
+// /storage/v1/object/public/, which returns the stored original regardless.
+// Verified 2026-10-03: the same job image is 12,399,934 bytes with and without
+// the params. Flipping this to true is the whole upgrade path; until then we
+// must not emit params that look like optimisation but do nothing.
+const TRANSFORMS_ENABLED = false;
+
 export function optimizeImageUrl(url: string, width: number = 400, height: number = 400): string {
   if (!url || !url.startsWith(supabaseUrl)) {
     return url;
   }
-  
+
   if (url.startsWith(STORAGE_PREFIX) && typeof window !== 'undefined') {
     const origin = window.location.origin;
     const path = url.substring(STORAGE_PREFIX.length);
@@ -321,10 +330,15 @@ export function optimizeImageUrl(url: string, width: number = 400, height: numbe
     const rest = slash > 0 ? path.slice(slash + 1) : '';
     const safe = BUCKET_ALIASES[bucket];
     if (safe) {
-      return `${origin}/img/${safe}/${rest}?width=${width}&height=${height}&resize=cover&quality=80&format=webp`;
+      const target = TRANSFORMS_ENABLED ? `${origin}/img/${safe}/${rest}` : url;
+      return TRANSFORMS_ENABLED
+        ? `${target}?width=${width}&height=${height}&resize=cover&quality=80&format=webp`
+        : target;
     }
   }
-  
+
+  if (!TRANSFORMS_ENABLED) return url;
+
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}width=${width}&height=${height}&resize=cover&quality=80&format=webp`;
 }

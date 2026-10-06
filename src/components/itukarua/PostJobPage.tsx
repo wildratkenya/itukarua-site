@@ -93,7 +93,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     const compressed: File[] = [];
     const previews: string[] = [];
     for (const f of toAdd) {
-      const c = await compressImage(f, 1200, 0.8);
+      const c = await compressImage(f, 1200, 200);
       compressed.push(c);
       previews.push(URL.createObjectURL(c));
     }
