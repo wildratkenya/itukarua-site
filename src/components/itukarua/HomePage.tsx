@@ -168,8 +168,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   }, [selectedWorker]);
 
   // Load homepage data with retry logic
-  const { data: jobsData = [], isLoading: jobsLoading } = useJobs({ featured: true, activeOnly: true, limit: 3 });
-  const { data: servicesData = [], isLoading: servicesLoading } = useServiceAds({ featured: true, limit: 3 });
+  const { data: jobsData = [], isLoading: jobsLoading } = useJobs({ featured: true, activeOnly: true, limit: 5 });
+  const { data: servicesData = [], isLoading: servicesLoading } = useServiceAds({ featured: true, limit: 5 });
   const { data: workersData = [], isLoading: workersLoading } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
 
   const [timedOut, setTimedOut] = useState(false);
@@ -537,8 +537,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 View All Jobs <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {jobs.slice(0, 3).map(job => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+              {jobs.slice(0, 5).map(job => (
                 <JobCard key={job.id} job={job} onViewJob={onViewJob} />
               ))}
             </div>
@@ -560,8 +560,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 View All Services <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {services.slice(0, 3).map(service => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+              {services.slice(0, 5).map(service => (
                 <ServiceCard key={service.id} service={service} onClick={() => onViewService(service.id)} />
               ))}
             </div>
