@@ -29,6 +29,22 @@ interface HomePageProps {
   onConsumeAutoOpenWorkerSearch?: () => void;
 }
 
+// A row only needs a scroll control when its content genuinely overflows the
+// visible track, and that differs by breakpoint: five cards fit at lg, two at
+// sm, one on phones. Counting items cannot answer it, so measure the element.
+const useRowOverflow = (ref: React.RefObject<HTMLDivElement>, itemCount: number): boolean => {
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setOverflowing(el.scrollWidth > el.clientWidth + 8);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [ref, itemCount]);
+  return overflowing;
+};
+
 const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onOpenEmployerPayment, onWorkerPopupOpen, onWorkerSearchAuth, autoOpenWorkerSearch, onConsumeAutoOpenWorkerSearch }) => {
   const pendingAdvertNav = useRef(false);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
@@ -255,6 +271,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const jobsWithoutImage = jobs.filter(job => !hasImages(job.images));
   const servicesWithImage = services.filter(service => hasImages(service.images));
   const servicesWithoutImage = services.filter(service => !hasImages(service.images));
+  const jobsOverflow = useRowOverflow(jobsRowRef, jobsWithImage.length);
+  const servicesOverflow = useRowOverflow(servicesRowRef, servicesWithImage.length);
 
   // Sort top-rated workers: rating desc, then thumbs-up desc, then reviews desc
   const topRatedWorkers = useMemo(() => {
@@ -556,10 +574,10 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   </div>
                 ))}
               </div>
-              {jobsWithImage.length > 5 && (
+              {jobsOverflow && (
                 <button
                   onClick={() => { const el = jobsRowRef.current; if (el) el.scrollBy({ left: el.clientWidth, behavior: 'smooth' }); }}
-                  className="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-600 hover:text-green-600 transition-colors"
+                  className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-600 hover:text-green-600 transition-colors"
                   aria-label="Show more jobs"
                 >
                   <ArrowRight className="w-4 h-4" />
@@ -601,10 +619,10 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   </div>
                 ))}
               </div>
-              {servicesWithImage.length > 5 && (
+              {servicesOverflow && (
                 <button
                   onClick={() => { const el = servicesRowRef.current; if (el) el.scrollBy({ left: el.clientWidth, behavior: 'smooth' }); }}
-                  className="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-600 hover:text-green-600 transition-colors"
+                  className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-600 hover:text-green-600 transition-colors"
                   aria-label="Show more services"
                 >
                   <ArrowRight className="w-4 h-4" />
