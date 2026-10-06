@@ -1,4 +1,4 @@
-import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
+﻿import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
 import { isCorporateOnlySlot, type SavedCorporateFeatures } from '@/data/siteData';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ export interface DbProfile {
   whatsapp_number?: string;
   likes_count?: number;
   dislikes_count?: number;
+  allow_contact_display?: boolean;
 }
 
 export interface DbJob {
@@ -2432,4 +2433,11 @@ export async function markCorporateInvoicePaid(invoiceId: string): Promise<any> 
 /** Admin: manually run the monthly invoicing cycle (auto-invoice + digest). */
 export async function runMonthlyCorporateBilling(): Promise<any> {
   return callCorporateEdge('corporate-monthly-billing', {});
+}
+export async function toggleProfileContactDisplay(userId: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ allow_contact_display: enabled })
+    .eq('id', userId);
+  if (error) throw error;
 }
