@@ -165,7 +165,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
             if (!mounted) return;
           }
 
-          if (profile?.suspended) {
+          if ((profile as any)?.suspended) {
             await supabase.auth.signOut();
             alert('Your account has been suspended. Please contact support.');
             setUser(null);
@@ -243,7 +243,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
           // Retry fetching the profile
           const refreshedProfile = await getProfile(session.user.id);
           if (!mounted) return;
-          if (refreshedProfile?.suspended) {
+          if ((refreshedProfile as any)?.suspended) {
             await supabase.auth.signOut();
             setUser(null);
           } else {
@@ -272,7 +272,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
           return;
         }
 
-        if (profile?.suspended) {
+        if ((profile as any)?.suspended) {
           await supabase.auth.signOut();
           setUser(null);
         } else {
@@ -531,7 +531,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
               user={user}
               onOpenAuth={handleOpenAuth}
               onOpenMpesa={handleOpenMpesa}
-              onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen}
+              onOpenEmployerPayment={handleOpenEmployerPayment}
             />
           );
         case 'services':

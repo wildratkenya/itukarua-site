@@ -274,7 +274,7 @@ export async function getProfiles(filters?: {
     console.error('[getProfiles] error:', error); 
     return []; 
   }
-  return data as DbProfile[];
+  return (data as unknown) as DbProfile[];
 }
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
@@ -347,7 +347,7 @@ export async function getJobs(filters?: {
   const expired = results.filter(j => j.featured && j.boost_until && j.boost_until < now);
   if (expired.length > 0) {
     expired.forEach(j => {
-      supabase.from('jobs').update({ featured: false, boost_until: null }).eq('id', j.id).then(() => {}).catch(() => {});
+      void supabase.from('jobs').update({ featured: false, boost_until: null }).eq('id', j.id);
     });
   }
   return results.filter(j => !j.boost_until || j.boost_until >= now || !j.featured);
@@ -581,7 +581,7 @@ export async function getServiceAds(filters?: {
   const expired = results.filter(ad => ad.featured && ad.boost_until && ad.boost_until < now);
   if (expired.length > 0) {
     expired.forEach(ad => {
-      supabase.from('service_ads').update({ featured: false, boost_until: null }).eq('id', ad.id).then(() => {}).catch(() => {});
+      void supabase.from('service_ads').update({ featured: false, boost_until: null }).eq('id', ad.id);
     });
   }
   return results.filter(ad => !ad.boost_until || ad.boost_until >= now || !ad.featured);
@@ -1767,8 +1767,8 @@ export async function getProfileRanking(profileId: string): Promise<{ rank: numb
     .from(WORKER_DIRECTORY)
     .select('id, rating, reviews_count')
     .eq('role', 'jobseeker')
-    .order('rating', { ascending: false, nullsLast: true })
-    .order('reviews_count', { ascending: false, nullsLast: true });
+    .order('rating', { ascending: false, nullsFirst: false })
+    .order('reviews_count', { ascending: false, nullsFirst: false });
   if (error || !data) { console.error('[getProfileRanking]', error); return null; }
   const idx = data.findIndex(p => p.id === profileId);
   if (idx === -1) return null;
@@ -1867,7 +1867,7 @@ export async function getActiveAds(featured?: boolean) {
   const expired = (data || []).filter(ad => ad.featured && ad.boost_until && ad.boost_until < now);
   if (expired.length > 0) {
     expired.forEach(ad => {
-      supabase.from('advertisements').update({ featured: false, boost_until: null }).eq('id', ad.id).then(() => {}).catch(() => {});
+      void supabase.from('advertisements').update({ featured: false, boost_until: null }).eq('id', ad.id);
     });
   }
   return (data || []).filter(ad => !ad.boost_until || ad.boost_until >= now || !ad.featured);
