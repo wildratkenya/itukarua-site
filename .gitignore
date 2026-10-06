@@ -1,5 +1,6 @@
 scratch/
 temp_disable_rls.sql
+_tmp*.mjs
 check_rls.sql
 complete_setup.sql
 emergency_disable_rls.sql
