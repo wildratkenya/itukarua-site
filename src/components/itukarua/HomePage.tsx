@@ -168,9 +168,11 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   }, [selectedWorker]);
 
   // Load homepage data with retry logic
-  const { data: jobsData = [], isLoading: jobsLoading } = useJobs({ featured: true, activeOnly: true, limit: 5 });
-  const { data: servicesData = [], isLoading: servicesLoading } = useServiceAds({ featured: true, limit: 5 });
+  const { data: jobsData = [], isLoading: jobsLoading } = useJobs({ featured: true, activeOnly: true, limit: 50 });
+  const { data: servicesData = [], isLoading: servicesLoading } = useServiceAds({ featured: true, limit: 50 });
   const { data: workersData = [], isLoading: workersLoading } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
+  const jobsRowRef = useRef<HTMLDivElement>(null);
+  const servicesRowRef = useRef<HTMLDivElement>(null);
 
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
@@ -244,6 +246,15 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       return null;
     }
   }).filter(Boolean);
+
+  // Cards with a photo fill the scrolling row; cards without one drop into a
+  // compact strip beneath it, so an empty image slot never stretches a tall
+  // grey column across the grid.
+  const hasImages = (images: unknown): boolean => Array.isArray(images) && images.length > 0;
+  const jobsWithImage = jobs.filter(job => hasImages(job.images));
+  const jobsWithoutImage = jobs.filter(job => !hasImages(job.images));
+  const servicesWithImage = services.filter(service => hasImages(service.images));
+  const servicesWithoutImage = services.filter(service => !hasImages(service.images));
 
   // Sort top-rated workers: rating desc, then thumbs-up desc, then reviews desc
   const topRatedWorkers = useMemo(() => {
@@ -537,11 +548,33 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 View All Jobs <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-              {jobs.slice(0, 5).map(job => (
-                <JobCard key={job.id} job={job} onViewJob={onViewJob} />
-              ))}
+            <div className="relative">
+              <div ref={jobsRowRef} className="flex gap-5 overflow-x-auto pb-3 snap-x snap-mandatory">
+                {jobsWithImage.map(job => (
+                  <div key={job.id} className="shrink-0 snap-start w-[85%] sm:w-[calc(50%-0.625rem)] lg:w-[calc(20%-1rem)]">
+                    <JobCard job={job} onViewJob={onViewJob} />
+                  </div>
+                ))}
+              </div>
+              {jobsWithImage.length > 5 && (
+                <button
+                  onClick={() => { const el = jobsRowRef.current; if (el) el.scrollBy({ left: el.clientWidth, behavior: 'smooth' }); }}
+                  className="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-600 hover:text-green-600 transition-colors"
+                  aria-label="Show more jobs"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
+            {jobsWithoutImage.length > 0 && (
+              <div className="mt-5 flex gap-3 overflow-x-auto pb-2">
+                {jobsWithoutImage.map(job => (
+                  <div key={job.id} className="shrink-0 w-[90%] sm:w-[calc(50%-0.375rem)] lg:w-[calc(33.333%-0.5rem)]">
+                    <JobCard job={job} onViewJob={onViewJob} compact />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -560,11 +593,33 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 View All Services <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-              {services.slice(0, 5).map(service => (
-                <ServiceCard key={service.id} service={service} onClick={() => onViewService(service.id)} />
-              ))}
+            <div className="relative">
+              <div ref={servicesRowRef} className="flex gap-5 overflow-x-auto pb-3 snap-x snap-mandatory">
+                {servicesWithImage.map(service => (
+                  <div key={service.id} className="shrink-0 snap-start w-[85%] sm:w-[calc(50%-0.625rem)] lg:w-[calc(20%-1rem)]">
+                    <ServiceCard service={service} onClick={() => onViewService(service.id)} />
+                  </div>
+                ))}
+              </div>
+              {servicesWithImage.length > 5 && (
+                <button
+                  onClick={() => { const el = servicesRowRef.current; if (el) el.scrollBy({ left: el.clientWidth, behavior: 'smooth' }); }}
+                  className="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-600 hover:text-green-600 transition-colors"
+                  aria-label="Show more services"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
+            {servicesWithoutImage.length > 0 && (
+              <div className="mt-5 flex gap-3 overflow-x-auto pb-2">
+                {servicesWithoutImage.map(service => (
+                  <div key={service.id} className="shrink-0 w-[90%] sm:w-[calc(50%-0.375rem)] lg:w-[calc(33.333%-0.5rem)]">
+                    <ServiceCard service={service} compact onClick={() => onViewService(service.id)} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
