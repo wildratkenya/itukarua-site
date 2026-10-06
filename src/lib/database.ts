@@ -1649,27 +1649,41 @@ export async function updatePlatformSetting(key: string, value: number): Promise
   if (error) throw error;
 }
 
-export interface AdCarouselSettings {
-  scrollIntervalSeconds: number;
-  transitionDurationSeconds: number;
-  effect: 'slide' | 'fade';
+export interface AdBannerSettings {
+  horizontalLoopSeconds: number;
+  horizontalDirection: 'left' | 'right';
+  verticalLoopSeconds: number;
+  verticalDirection: 'up' | 'down';
 }
 
-export async function getAdCarouselSettings(): Promise<AdCarouselSettings> {
+export const DEFAULT_AD_BANNER_SETTINGS: AdBannerSettings = {
+  horizontalLoopSeconds: 30,
+  horizontalDirection: 'left',
+  verticalLoopSeconds: 30,
+  verticalDirection: 'up',
+};
+
+export async function getAdBannerSettings(): Promise<AdBannerSettings> {
+  const fallback = { ...DEFAULT_AD_BANNER_SETTINGS };
   const { data, error } = await supabase
     .from('ad_carousel_settings')
     .select('key, value');
-  if (error && error.name !== 'AbortError') { console.error('getAdCarouselSettings error:', error); return { scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' }; }
+  if (error && error.name !== 'AbortError') { console.error('getAdBannerSettings error:', error); return fallback; }
   const map: Record<string, string> = {};
   (data || []).forEach((s: any) => { map[s.key] = s.value; });
+  const num = (raw: string | undefined, dflt: number) => {
+    const n = parseFloat(raw ?? '');
+    return Number.isFinite(n) && n > 0 ? n : dflt;
+  };
   return {
-    scrollIntervalSeconds: parseFloat(map['scroll_interval_seconds']) || 5,
-    transitionDurationSeconds: parseFloat(map['transition_duration_seconds']) || 0.8,
-    effect: map['effect'] === 'fade' ? 'fade' : 'slide',
+    horizontalLoopSeconds: num(map['horizontal_loop_seconds'], fallback.horizontalLoopSeconds),
+    horizontalDirection: map['horizontal_direction'] === 'right' ? 'right' : 'left',
+    verticalLoopSeconds: num(map['vertical_loop_seconds'], fallback.verticalLoopSeconds),
+    verticalDirection: map['vertical_direction'] === 'down' ? 'down' : 'up',
   };
 }
 
-export async function updateAdCarouselSetting(key: string, value: string): Promise<void> {
+export async function updateAdBannerSetting(key: string, value: string): Promise<void> {
   const { error } = await supabase
     .from('ad_carousel_settings')
     .upsert({ key, value, updated_at: new Date().toISOString() });

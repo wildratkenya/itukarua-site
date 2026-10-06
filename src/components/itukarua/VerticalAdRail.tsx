@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ExternalLink, X } from 'lucide-react';
-import { getRailAds, incrementAdClick, incrementAdDisplay } from '@/lib/database';
+import { getRailAds, incrementAdClick, incrementAdDisplay, getAdBannerSettings, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS } from '@/lib/database';
 import { proxyImageUrl } from '@/lib/supabase';
 
 const VerticalAdRail: React.FC = () => {
   const [ads, setAds] = useState<any[]>([]);
+  const [settings, setSettings] = useState<AdBannerSettings>(DEFAULT_AD_BANNER_SETTINGS);
   const [paused, setPaused] = useState(false);
   const [modalAd, setModalAd] = useState<any>(null);
   const [modalImg, setModalImg] = useState('');
@@ -21,6 +22,7 @@ const VerticalAdRail: React.FC = () => {
 
   useEffect(() => {
     getRailAds('homepage_banner').then(setAds).catch(() => {});
+    getAdBannerSettings().then(setSettings).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -48,16 +50,10 @@ const VerticalAdRail: React.FC = () => {
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        <style>{`
-          @keyframes itukarua-rail-down {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-50%); }
-          }
-        `}</style>
         <div
-          className="absolute inset-x-0 flex flex-col gap-3"
+          className="itukarua-marquee absolute inset-x-0 flex flex-col"
           style={{
-            animation: `itukarua-rail-down ${Math.max(12, ads.length * 5)}s linear infinite`,
+            animation: `itukarua-scroll-${settings.verticalDirection} ${Math.max(5, Math.round(settings.verticalLoopSeconds))}s linear infinite`,
             animationPlayState: paused ? 'paused' : 'running',
           }}
         >
@@ -65,6 +61,7 @@ const VerticalAdRail: React.FC = () => {
             <button
               key={`${ad.id}-${i}`}
               onClick={() => setModalAd(ad)}
+              style={{ marginBottom: 12 }}
               className="relative group block w-full overflow-hidden rounded-xl bg-gray-200 cursor-pointer"
             >
               <div className="relative" style={{ height: 180 }}>

@@ -162,3 +162,33 @@ img {
 .animate-slide-in-right {
   animation: slide-in-right 0.6s ease-out forwards;
 }
+
+/* Ad marquee tracks. Each track holds a list rendered twice and travels -50%,
+   so the loop restarts exactly where the copy begins. Direction is chosen at
+   runtime by which keyframe the component names. */
+@keyframes itukarua-scroll-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes itukarua-scroll-right {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes itukarua-scroll-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+@keyframes itukarua-scroll-down {
+  from { transform: translateY(-50%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .itukarua-marquee {
+    animation: none !important;
+  }
+}
+
