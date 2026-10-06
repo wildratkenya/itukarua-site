@@ -1469,13 +1469,13 @@ const AdminPage: React.FC = () => {
       if (jobImages.length > 0) {
         const imageUrls: string[] = [];
         for (const file of jobImages) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
+          const compressed = await compressImage(file, 1200, 200);
+          const fileName = `img_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
           const filePath = `${jobData.posted_by || 'admin'}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
             .from('jobs')
-            .upload(filePath, file);
+            .upload(filePath, compressed);
 
           if (uploadError) throw uploadError;
 
@@ -1566,13 +1566,13 @@ const AdminPage: React.FC = () => {
         
         for (const file of adFiles) {
           if (newImages.length >= 3) break;
-          console.log('Uploading file:', file.name);
-          const fileExt = file.name.split('.').pop();
-          const fileName = `img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
+          const compressed = await compressImage(file, 1200, 200);
+          console.log('Uploading file:', compressed.name);
+          const fileName = `img_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
           
           const uploadPromise = supabase.storage
             .from('adverts')
-            .upload(`admin/${fileName}`, file);
+            .upload(`admin/${fileName}`, compressed);
           
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Upload timeout after 60s')), 60000)
