@@ -164,3 +164,14 @@ export function serviceAdImageCap(planKey: string, boosted = false): number {
   const cap = SERVICE_IMAGE_CAPS[planKey] ?? 3
   return boosted ? Math.max(cap, BOOST_MIN_IMAGES) : cap
 }
+
+// ─── Plan durations ─────────────────────────────────────────────────────────
+// Mirrors SERVICE_PLANS in supabase/functions/_shared/paymentEffects.ts so the
+// admin preview, renewServiceAd and the payment fulfilment all agree on how
+// many days a plan buys. Unknown keys fall back to the 30-day default that
+// fulfilment uses.
+export const SERVICE_PLAN_DAYS: Record<string, number> = { '10-day': 10, '20-day': 20, '30-day': 30 }
+
+export function servicePlanDays(plan: string | null | undefined): number {
+  return SERVICE_PLAN_DAYS[plan ?? ''] ?? 30
+}

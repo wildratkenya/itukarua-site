@@ -5,7 +5,7 @@ import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, pr
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
-import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
+import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
 import MpesaModal from './MpesaModal';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
 import { compressImage } from '@/lib/imageUtils';
@@ -112,6 +112,12 @@ interface Ad {
   contact_person: string;
   contact: string;
   expiry_date: string;
+  // Billing columns exist on service_ads but were missing from this interface,
+  // which is why the admin panel's own plan/billing reads were failing tsc.
+  plan?: '10-day' | '20-day' | '30-day';
+  billing_cycle?: string | null;
+  billing_start?: string | null;
+  billing_end?: string | null;
   featured: boolean;
   boost_until?: string | null;
   payment_confirmed: boolean;
@@ -151,6 +157,26 @@ interface Message {
   created_at: string;
 }
 
+/**
+ * Expiry for a service ad, derived from its plan.
+ *
+ * Extends from the later of now and the current billing window so days that
+ * were already paid for are never thrown away. This is deliberately the same
+ * rule as renewServiceAd (src/lib/database.ts) and fulfilServiceAd
+ * (supabase/functions/_shared/paymentEffects.ts) - the dialog's live preview
+ * calls this too, so what the admin sees is what gets written.
+ *
+ * Returns a date-only YYYY-MM-DD string, which is what service_ads.expiry_date
+ * stores; billing_end is derived from it at local midnight below.
+ */
+const computeExpiry = (plan: string | null | undefined, currentEnd?: string | null): string => {
+  const now = new Date();
+  const current = currentEnd ? new Date(currentEnd) : null;
+  const base = current && current.getTime() > now.getTime() ? current : now;
+  base.setDate(base.getDate() + servicePlanDays(plan));
+  return base.toISOString().split('T')[0];
+};
+
 const AdminPage: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<string>('admin');
   const [users, setUsers] = useState<Profile[]>([]);
@@ -185,6 +211,11 @@ const AdminPage: React.FC = () => {
   const [editingAd, setEditingAd] = useState<any>(null);
   const [adFiles, setAdFiles] = useState<File[]>([]);
   const [adUploading, setAdUploading] = useState(false);
+  // Drives the live expiry preview in the ad dialog. Kept in state because the
+  // plan Select is uncontrolled (its value is mirrored into a hidden input for
+  // FormData) and the preview has to track it.
+  const [adFormPlan, setAdFormPlan] = useState('30-day');
+  const [adExpiryOverride, setAdExpiryOverride] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
@@ -1540,8 +1571,13 @@ const AdminPage: React.FC = () => {
       plan: formData.get('plan') || editingAd?.plan || '30-day',
       featured: formData.get('featured') === 'true',
       payment_confirmed: formData.get('payment_confirmed') === 'true',
-      expiry_date: formData.get('expiry_date') || editingAd?.expiry_date,
+      expiry_date: adExpiryOverride ? formData.get('expiry_date') : editingAd?.expiry_date,
     };
+
+    // Only populated when the admin switched the override on and typed a date.
+    // With the toggle off the form has no expiry_date input at all, so this is
+    // empty and every branch below derives the date from the plan instead.
+    const overrideExpiry = adExpiryOverride ? String(formData.get('expiry_date') || '') : '';
 
     if ((adData as any).featured && !editingAd?.boost_until) {
       (adData as any).boost_until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -1606,17 +1642,33 @@ const AdminPage: React.FC = () => {
 
       if (editingAd?.id) {
         console.log('ðŸ" Updating existing ad:', editingAd.id, adData);
-        adData.billing_end = adData.expiry_date ? new Date(`${adData.expiry_date}T00:00:00`).toISOString() : editingAd?.billing_end;
+        if (overrideExpiry) {
+          adData.expiry_date = overrideExpiry;
+          adData.billing_end = new Date(`${overrideExpiry}T00:00:00`).toISOString();
+        } else if (adData.plan !== (editingAd.plan || '30-day')) {
+          // Extends from the later of now and the current window - the same
+          // rule renewServiceAd and the payment fulfilment use - so days that
+          // were already paid for survive a plan change.
+          const expiryDate = computeExpiry(adData.plan, editingAd.billing_end);
+          adData.expiry_date = expiryDate;
+          adData.billing_end = new Date(`${expiryDate}T00:00:00`).toISOString();
+          adData.billing_start = new Date().toISOString();
+        } else {
+          // The billing window did not change. Dropping both keys from the
+          // patch matters: rebuilding billing_end from a date-only expiry
+          // would silently truncate its stored time of day on every save.
+          delete adData.expiry_date;
+          delete adData.billing_end;
+        }
         const { error } = await proxyTable('service_ads').update(adData, 'id', editingAd.id);
         if (error) throw error;
         toast({ title: 'Success', description: 'Ad updated successfully' });
       } else {
-        // For new ads, calculate expiry if not present
-        const days = adData.plan === '10-day' ? 10 : adData.plan === '20-day' ? 20 : 30;
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + days);
-        adData.expiry_date = expiryDate.toISOString().split('T')[0];
-        adData.billing_end = new Date(`${adData.expiry_date}T00:00:00`).toISOString();
+        // A new ad opens a fresh window from today, unless the admin forced a
+        // date with the override.
+        const expiryDate = overrideExpiry || computeExpiry(adData.plan);
+        adData.expiry_date = expiryDate;
+        adData.billing_end = new Date(`${expiryDate}T00:00:00`).toISOString();
         
         const { error } = await proxyTable('service_ads').insert(adData);
         if (error) throw error;
@@ -2820,7 +2872,7 @@ const AdminPage: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                  <Button onClick={() => { setEditingAd(null); setAdFiles([]); setIsAdModalOpen(true); }}>Add Ad</Button>
+                  <Button onClick={() => { setEditingAd(null); setAdFiles([]); setAdFormPlan('30-day'); setAdExpiryOverride(false); setIsAdModalOpen(true); }}>Add Ad</Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -2904,7 +2956,7 @@ const AdminPage: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => { setEditingAd(ad); setIsAdModalOpen(true); }}
+                              onClick={() => { setEditingAd(ad); setAdFormPlan(ad.plan || '30-day'); setAdExpiryOverride(false); setIsAdModalOpen(true); }}
                             >
                               Edit
                             </Button>
@@ -4163,6 +4215,7 @@ const AdminPage: React.FC = () => {
                   onValueChange={(val) => {
                     const el = document.getElementById('ad_plan_hidden') as HTMLInputElement;
                     if (el) el.value = val;
+                    setAdFormPlan(val);
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Plan" /></SelectTrigger>
@@ -4178,7 +4231,30 @@ const AdminPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Expiry Date</Label>
-                <Input name="expiry_date" type="date" defaultValue={editingAd?.expiry_date ? new Date(editingAd.expiry_date).toISOString().split('T')[0] : ''} required />
+                {adExpiryOverride ? (
+                  <Input name="expiry_date" type="date" defaultValue={editingAd?.expiry_date ? new Date(editingAd.expiry_date).toISOString().split('T')[0] : ''} required />
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                    {(() => {
+                      const days = servicePlanDays(adFormPlan);
+                      if (!editingAd?.id) {
+                        const d = computeExpiry(adFormPlan);
+                        return (<><span className="font-semibold">{d}</span><span className="ml-2 text-xs text-gray-500">{days} days from today</span></>);
+                      }
+                      if (adFormPlan === (editingAd.plan || '30-day')) {
+                        return (<><span className="font-semibold">{editingAd.expiry_date || '—'}</span><span className="ml-2 text-xs text-gray-500">current, unchanged</span></>);
+                      }
+                      const d = computeExpiry(adFormPlan, editingAd.billing_end);
+                      return (<><span className="font-semibold">{d}</span><span className="ml-2 text-xs text-gray-500">extends from current expiry</span></>);
+                    })()}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <Checkbox id="ad_expiry_override" checked={adExpiryOverride} onCheckedChange={(c) => setAdExpiryOverride(c === true)} />
+                  <Label htmlFor="ad_expiry_override" className="text-xs font-normal text-gray-600 cursor-pointer">
+                    Override expiry manually
+                  </Label>
+                </div>
               </div>
               <div>
                 <Label>Owner (User)</Label>
@@ -4201,7 +4277,7 @@ const AdminPage: React.FC = () => {
             <div>
               <Label>Advertiser Email (for billing invoices)</Label>
               <Input name="owner_email" type="email" defaultValue={editingAd?.owner_email || ''} placeholder="e.g. advertiser@example.com" />
-              <p className="text-[11px] text-gray-400 mt-1">Used to send renewal alerts & invoices. Billing cycle follows the plan ({editingAd?.plan === '10-day' ? 'KES 300' : editingAd?.plan === '20-day' ? 'KES 500' : 'KES 800'}).</p>
+              <p className="text-[11px] text-gray-400 mt-1">Used to send renewal alerts & invoices. Billing cycle follows the plan ({servicePlanDays(adFormPlan)} days at KES {adFormPlan === '10-day' ? '300' : adFormPlan === '20-day' ? '500' : '800'}).</p>
             </div>
             {/* Image Upload for Ads */}
             <div>
