@@ -8,10 +8,14 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      '/img/a/': {
-        target: 'https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/',
+      // Mirrors vercel.json's /img/a/:match* + /img/:bucket/:match* rewrites:
+      // one generic rule, with the 'a' -> 'adverts' alias (BUCKET_ALIASES in
+      // src/lib/supabase.ts) applied inside the rewrite. Buckets other than
+      // adverts pass through under their own name.
+      '/img/': {
+        target: 'https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/img\/a\//, ''),
+        rewrite: (path) => path.replace(/^\/img\//, '').replace(/^a\//, 'adverts/'),
       },
       '/supabase': {
         target: 'https://xahaxtbudiubelemewna.supabase.co',

@@ -315,6 +315,10 @@ const BUCKET_ALIASES_REVERSE: Record<string, string> = { a: 'adverts' }
 // Verified 2026-10-03: the same job image is 12,399,934 bytes with and without
 // the params. Flipping this to true is the whole upgrade path; until then we
 // must not emit params that look like optimisation but do nothing.
+//
+// This flag gates the *query params only*. The same-origin /img/ rewrite below
+// is independent of it and must never be gated, because ad blockers filter URLs
+// containing "adverts" (see c5ef3df) and cards fall back to the placeholder.
 const TRANSFORMS_ENABLED = false;
 
 export function optimizeImageUrl(url: string, width: number = 400, height: number = 400): string {
@@ -323,18 +327,11 @@ export function optimizeImageUrl(url: string, width: number = 400, height: numbe
   }
 
   if (url.startsWith(STORAGE_PREFIX) && typeof window !== 'undefined') {
-    const origin = window.location.origin;
-    const path = url.substring(STORAGE_PREFIX.length);
-    const slash = path.indexOf('/');
-    const bucket = slash > 0 ? path.slice(0, slash) : path;
-    const rest = slash > 0 ? path.slice(slash + 1) : '';
-    const safe = BUCKET_ALIASES[bucket];
-    if (safe) {
-      const target = TRANSFORMS_ENABLED ? `${origin}/img/${safe}/${rest}` : url;
-      return TRANSFORMS_ENABLED
-        ? `${target}?width=${width}&height=${height}&resize=cover&quality=80&format=webp`
-        : target;
+    const target = proxyImageUrl(url);
+    if (TRANSFORMS_ENABLED) {
+      return `${target}?width=${width}&height=${height}&resize=cover&quality=80&format=webp`;
     }
+    return target;
   }
 
   if (!TRANSFORMS_ENABLED) return url;
@@ -344,7 +341,11 @@ export function optimizeImageUrl(url: string, width: number = 400, height: numbe
 }
 
 export function proxyImageUrl(url: string): string {
-  // Same-origin /img/<alias>/<rest> avoids ad blockers that filter URLs containing "adverts".
+  // Same-origin /img/<segment>/<rest> avoids ad blockers that filter URLs
+  // containing "adverts". Aliases keep the short, opaque segment where the
+  // bucket name itself is the filtered word; every other bucket passes through
+  // under its own name. The whole point is that this happens regardless of
+  // TRANSFORMS_ENABLED — otherwise cards fall back to the placeholder image.
   if (!url || !url.startsWith(supabaseUrl) || typeof window === 'undefined') return url;
   if (url.startsWith(STORAGE_PREFIX)) {
     const origin = window.location.origin;
@@ -352,8 +353,9 @@ export function proxyImageUrl(url: string): string {
     const slash = path.indexOf('/');
     const bucket = slash > 0 ? path.slice(0, slash) : path;
     const rest = slash > 0 ? path.slice(slash + 1) : '';
-    const safe = BUCKET_ALIASES[bucket];
-    if (safe) return `${origin}/img/${safe}/${rest}`;
+    const segment = BUCKET_ALIASES[bucket] || bucket;
+    if (!rest) return url;
+    return `${origin}/img/${segment}/${rest}`;
   }
   return url;
 }
