@@ -1,4 +1,6 @@
-export function compressImage(file: File, maxWidth = 800, maxSizeKB = 200, timeoutMs = 15000): Promise<File> {
+// 1200px matches the largest requested size in the app (ImageViewerModal), so a
+// full-screen view is not served an upscale. maxSizeKB is the real ceiling.
+export function compressImage(file: File, maxWidth = 1200, maxSizeKB = 200, timeoutMs = 15000): Promise<File> {
   return new Promise((resolve) => {
     let done = false;
     const finish = (f: File) => { if (!done) { done = true; resolve(f); } };

@@ -110,6 +110,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
           src={optimizeImageUrl(images[currentImageIndex], 400, 400)}
           alt={`${job.title} - Image ${currentImageIndex + 1}`}
           loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={handleImageError}
           draggable={false}
@@ -163,7 +164,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
               onClick={(e) => e.stopPropagation()}
               className="flex-shrink-0 w-12 h-12 rounded overflow-hidden border-2 border-green-500"
             >
-              <img src={optimizeImageUrl(images[0], 100, 100)} alt="" className="w-full h-full object-cover" />
+              <img src={optimizeImageUrl(images[0], 100, 100)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />
             </button>
           ) : (
             images.map((img, i) => (
@@ -177,7 +178,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
                   i === currentImageIndex ? 'border-green-500' : 'border-transparent hover:border-gray-300'
                 }`}
               >
-                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
+                <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />
               </button>
             ))
           )}
