@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdCarouselSettings, updateAdCarouselSetting, type AdCarouselSettings, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
@@ -296,8 +296,8 @@ const AdminPage: React.FC = () => {
   const [billingPreviewItem, setBillingPreviewItem] = useState<BillingItem | null>(null);
   const [billingPreviewHtml, setBillingPreviewHtml] = useState('');
   const [billingPreviewText, setBillingPreviewText] = useState('');
-  const [carouselSettings, setCarouselSettings] = useState<AdCarouselSettings>({ scrollIntervalSeconds: 5, transitionDurationSeconds: 0.8, effect: 'slide' });
-  const [carouselSaving, setCarouselSaving] = useState(false);
+  const [bannerSettings, setBannerSettings] = useState<AdBannerSettings>(DEFAULT_AD_BANNER_SETTINGS);
+  const [bannerSaving, setBannerSaving] = useState<'horizontal' | 'vertical' | null>(null);
   const [emailProviders, setEmailProviders] = useState<DbEmailProvider[]>([]);
   const [emailForm, setEmailForm] = useState<Partial<DbEmailProvider>>({ name: '', username: '', password: '', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465, from_name: 'Itukarua', from_email: '', is_active: false });
   const [showEmailPw, setShowEmailPw] = useState(false);
@@ -781,18 +781,30 @@ const AdminPage: React.FC = () => {
     });
   };
 
-  const saveCarouselSettings = async () => {
-    setCarouselSaving(true);
+  const saveHorizontalBannerSettings = async () => {
+    setBannerSaving('horizontal');
     try {
       await Promise.all([
-        updateAdCarouselSetting('scroll_interval_seconds', String(carouselSettings.scrollIntervalSeconds)),
-        updateAdCarouselSetting('transition_duration_seconds', String(carouselSettings.transitionDurationSeconds)),
-        updateAdCarouselSetting('effect', carouselSettings.effect),
+        updateAdBannerSetting('horizontal_loop_seconds', String(bannerSettings.horizontalLoopSeconds)),
+        updateAdBannerSetting('horizontal_direction', bannerSettings.horizontalDirection),
       ]);
-      toast({ title: 'Saved', description: 'Carousel settings updated' });
+      toast({ title: 'Saved', description: 'Homepage banner settings updated' });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
-    } finally { setCarouselSaving(false); }
+    } finally { setBannerSaving(null); }
+  };
+
+  const saveVerticalBannerSettings = async () => {
+    setBannerSaving('vertical');
+    try {
+      await Promise.all([
+        updateAdBannerSetting('vertical_loop_seconds', String(bannerSettings.verticalLoopSeconds)),
+        updateAdBannerSetting('vertical_direction', bannerSettings.verticalDirection),
+      ]);
+      toast({ title: 'Saved', description: 'Side rail banner settings updated' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally { setBannerSaving(null); }
   };
 
   const loadJobs = async () => {
@@ -825,7 +837,7 @@ const AdminPage: React.FC = () => {
         loadLeads(),
         loadCorporateAccounts(),
         loadCorporateInvoices(),
-        getAdCarouselSettings().then(setCarouselSettings),
+        getAdBannerSettings().then(setBannerSettings),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
         loadEmailProviders(),
@@ -1983,38 +1995,62 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const renderCarouselSettings = () => (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>Homepage Carousel Settings</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-gray-500 mb-4">The homepage banner shows 5 ad photos at once and rotates to the next 5. These controls set the speed and transition.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <Label>Scroll Speed (seconds)</Label>
-            <Input type="number" min={1} max={60} step={1} value={carouselSettings.scrollIntervalSeconds} onChange={e => setCarouselSettings(s => ({ ...s, scrollIntervalSeconds: Math.max(1, Number(e.target.value) || 1) }))} />
-            <p className="text-xs text-gray-400 mt-1">Time before it rotates to the next 5 ads</p>
+  const renderBannerSettings = () => (
+    <>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Horizontal Banner (Homepage)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 mb-4">The homepage banner sits directly below the hero and streams its ad photos sideways, five at a time on desktop and one on mobile. Scrolling pauses while the pointer is over it.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Loop Duration (seconds)</Label>
+              <Input type="number" min={5} max={300} step={1} value={bannerSettings.horizontalLoopSeconds} onChange={e => setBannerSettings(s => ({ ...s, horizontalLoopSeconds: Math.min(300, Math.max(5, Number(e.target.value) || 5)) }))} />
+              <p className="text-xs text-gray-400 mt-1">Seconds for one full pass of every banner</p>
+            </div>
+            <div>
+              <Label>Direction</Label>
+              <select value={bannerSettings.horizontalDirection} onChange={e => setBannerSettings(s => ({ ...s, horizontalDirection: e.target.value as 'left' | 'right' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Which way the banners travel</p>
+            </div>
           </div>
-          <div>
-            <Label>Transition Duration (seconds)</Label>
-            <Input type="number" min={0} max={5} step={0.1} value={carouselSettings.transitionDurationSeconds} onChange={e => setCarouselSettings(s => ({ ...s, transitionDurationSeconds: Math.max(0, Number(e.target.value) || 0) }))} />
-            <p className="text-xs text-gray-400 mt-1">How fast the slide/fade happens</p>
+          <Button onClick={saveHorizontalBannerSettings} disabled={bannerSaving !== null} className="mt-4 bg-green-600 hover:bg-green-700">
+            {bannerSaving === 'horizontal' ? 'Saving...' : 'Save Horizontal Banner'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Vertical Banner (Jobs &amp; Services sidebar)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 mb-4">The Sponsored Banners rail runs down the right-hand sidebar of the Jobs and Services pages. Scrolling pauses while the pointer is over it.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Loop Duration (seconds)</Label>
+              <Input type="number" min={5} max={300} step={1} value={bannerSettings.verticalLoopSeconds} onChange={e => setBannerSettings(s => ({ ...s, verticalLoopSeconds: Math.min(300, Math.max(5, Number(e.target.value) || 5)) }))} />
+              <p className="text-xs text-gray-400 mt-1">Seconds for one full pass of every banner</p>
+            </div>
+            <div>
+              <Label>Direction</Label>
+              <select value={bannerSettings.verticalDirection} onChange={e => setBannerSettings(s => ({ ...s, verticalDirection: e.target.value as 'up' | 'down' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                <option value="up">Up</option>
+                <option value="down">Down</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Which way the banners travel</p>
+            </div>
           </div>
-          <div>
-            <Label>Transition Effect</Label>
-            <select value={carouselSettings.effect} onChange={e => setCarouselSettings(s => ({ ...s, effect: e.target.value as 'slide' | 'fade' }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-              <option value="slide">Slide</option>
-              <option value="fade">Fade</option>
-            </select>
-            <p className="text-xs text-gray-400 mt-1">Slide scrolls pages; Fade cross-fades them</p>
-          </div>
-        </div>
-        <Button onClick={saveCarouselSettings} disabled={carouselSaving} className="mt-4 bg-green-600 hover:bg-green-700">
-          {carouselSaving ? 'Saving...' : 'Save Carousel Settings'}
-        </Button>
-      </CardContent>
-    </Card>
+          <Button onClick={saveVerticalBannerSettings} disabled={bannerSaving !== null} className="mt-4 bg-green-600 hover:bg-green-700">
+            {bannerSaving === 'vertical' ? 'Saving...' : 'Save Vertical Banner'}
+          </Button>
+        </CardContent>
+      </Card>
+    </>
   );
 
   const renderBannerManager = () => {
@@ -3758,7 +3794,7 @@ const AdminPage: React.FC = () => {
             </Card>
           )}
 
-          {activeTab === 'homepage-banners' && renderCarouselSettings()}
+          {activeTab === 'homepage-banners' && renderBannerSettings()}
 
           {activeTab === 'homepage-banners' && renderBannerManager()}
 
