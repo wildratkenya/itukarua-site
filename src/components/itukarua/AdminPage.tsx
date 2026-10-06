@@ -1850,12 +1850,21 @@ const AdminPage: React.FC = () => {
   }
 
   const openBannerForm = (payload: any) => {
+    // The form lives inside renderBannerManager(), which only mounts when
+    // activeTab === 'homepage-banners'. Three entry points — the Corporate
+    // Placements card, the Ungated card and the Manage drawer — run from the
+    // corporate tab, where setting showAdForm alone scrolled to an element that
+    // did not exist and nothing appeared to happen. Switching tab first is what
+    // makes those buttons work.
+    setActiveTab('homepage-banners');
     setAdForm(payload);
     setAdvUrlInput('');
     setShowAdForm(true);
+    // Longer than before: the target is rendered by the tab switch above, so it
+    // only exists on the next paint.
     setTimeout(() => {
       document.getElementById('admin-banner-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
+    }, 150);
   };
 
   // Builds the banner-form payload from an advert row. Every edit entry point
