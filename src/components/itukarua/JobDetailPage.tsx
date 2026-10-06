@@ -109,6 +109,20 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     loadRatings();
   }, [job, user]);
 
+  // Every hook must run before the loading/not-found returns below, or the
+  // first render (36 hooks) and the loaded render (38 hooks) disagree and React
+  // throws "Rendered more hooks than during the previous render".
+  useEffect(() => {
+    if (!viewingBidder || !job || !user) return;
+    if (user.role === 'admin' || user.role === 'super_admin') {
+      loadWinnerContact(viewingBidder.id);
+    }
+  }, [viewingBidder, job, user]);
+
+  useEffect(() => {
+    getContactAccessConfig().then(cfg => { setContactFee(cfg.fee); setContactWindowHours(cfg.windowHours); }).catch(() => {});
+  }, [jobId]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -275,13 +289,6 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     setContactUnlocked(true);
   };
 
-  useEffect(() => {
-    if (!viewingBidder || !job || !user) return;
-    if (user.role === 'admin' || user.role === 'super_admin') {
-      loadWinnerContact(viewingBidder.id);
-    }
-  }, [viewingBidder, job, user]);
-
   const handleViewBidderProfile = async (bidderId: string) => {
     setLoadingProfile(true);
     try {
@@ -300,10 +307,6 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     } catch (err) { console.error('Failed to load profile:', err); }
     setLoadingProfile(false);
   };
-
-  useEffect(() => {
-    getContactAccessConfig().then(cfg => { setContactFee(cfg.fee); setContactWindowHours(cfg.windowHours); }).catch(() => {});
-  }, [jobId]);
 
   const viewingBid = viewingBidder ? bids.find(b => b.bidder_id === viewingBidder.id) : null;
   const viewingWinner = viewingBid ? viewingBid.id === winnerId : false;
