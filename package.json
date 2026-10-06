@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "build:dev": "tsc --noEmit && vite build --mode development",
     "seo:generate": "node scripts/generate-seo.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "lint": "eslint .",
     "preview": "vite preview"
   },
