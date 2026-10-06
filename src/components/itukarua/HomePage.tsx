@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import SEO, { generateOrganizationSchema, generateLocalBusinessSchema } from '@/lib/seo';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown } from 'lucide-react';
 import HeroSection from './HeroSection';
@@ -713,8 +713,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
           <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">Ready to Connect Your Community?</h2>
           <p className="text-green-100 max-w-2xl mx-auto mb-8">Join thousands of Kenyans building stronger local economies through ITUKARUA Solutions.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button onClick={() => onNavigate('post-job')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
-            <button onClick={handleAdvertiseClick} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
+            <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
+            <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
           </div>
         </div>
       </section>
