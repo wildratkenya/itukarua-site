@@ -1,0 +1,112 @@
+{
+  "generated_at": "2026-10-06T04:06:15.128Z",
+  "purpose": "pre-mutation snapshot of every image-bearing row in scope",
+  "restore": "for each row, write columns[].old_value back to the row with .eq('id', id)",
+  "settings": {
+    "max_edge": 1200,
+    "target_kb": 200,
+    "min_kb": 400,
+    "tables": [
+      "jobs",
+      "service_ads"
+    ]
+  },
+  "rows": [
+    {
+      "table": "jobs",
+      "columns": [
+        "images"
+      ],
+      "rows": [
+        {
+          "id": "fa760e55-7064-4f99-964e-61d3ec0472c1",
+          "values": {
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/b567362d-66cb-402b-931f-0e3c489c66ed/0.4935691193789222.jpg",
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/b567362d-66cb-402b-931f-0e3c489c66ed/0.6514141396615808.jpg"
+            ]
+          }
+        },
+        {
+          "id": "cbbe6855-cac9-40b1-bc80-37b4f46cb903",
+          "values": {
+            "images": []
+          }
+        },
+        {
+          "id": "05e12476-d1aa-45f4-b5aa-1b0ad5edcab1",
+          "values": {
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/0.18724973822006075.png",
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/0.6303874379611708.png"
+            ]
+          }
+        },
+        {
+          "id": "56004265-8b2c-4afe-aeea-28069632a519",
+          "values": {
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/0.727566257314787.png"
+            ]
+          }
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000005",
+          "values": {
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.8984236899668714.jpg",
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.04063366687583936.jpg",
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.7499369227565272.jpg"
+            ]
+          }
+        },
+        {
+          "id": "610ca2bf-7322-414f-9b03-3c81b60fc703",
+          "values": {
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/54e68b1e-e54a-4cfe-9282-9dac1264e385/img_1786985067976_n5j8ut.jpg"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "table": "service_ads",
+      "columns": [
+        "image",
+        "images"
+      ],
+      "rows": [
+        {
+          "id": "e72e54f4-78f0-4c98-9ad2-4e780ed6917a",
+          "values": {
+            "image": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.6019706523338285.png",
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.6019706523338285.png",
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.34931981580319393.png"
+            ]
+          }
+        },
+        {
+          "id": "a1b7dabb-539f-4fa2-b93a-882606d4eaa4",
+          "values": {
+            "image": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.9635386118983363.jpg",
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.9635386118983363.jpg",
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.7233361273963175.png"
+            ]
+          }
+        },
+        {
+          "id": "c3da8e7d-c14d-41f6-bc24-b811caef9685",
+          "values": {
+            "image": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/img_1778680689111_IMG_20260425_143133.jpg",
+            "images": [
+              "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/img_1778680689111_IMG_20260425_143133.jpg"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

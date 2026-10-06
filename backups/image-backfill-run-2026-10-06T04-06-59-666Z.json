@@ -1,0 +1,196 @@
+{
+  "generated_at": "2026-10-06T04:06:59.666Z",
+  "applied": true,
+  "settings": {
+    "max_edge": 1200,
+    "target_kb": 200,
+    "min_kb": 400,
+    "tables": [
+      "jobs",
+      "service_ads"
+    ]
+  },
+  "originals_kept": true,
+  "totals": {
+    "images_found": 14,
+    "converted": 12,
+    "skipped_small_or_non_image": 2,
+    "bytes_before": 54299225,
+    "bytes_after_applied": 1432946,
+    "bytes_after_if_applied": 2457600
+  },
+  "reversibility": "swap new_url back to old_url in each row; original objects were never deleted",
+  "conversions": [
+    {
+      "table_refs": [
+        "jobs.images#fa760e55-7064-4f99-964e-61d3ec0472c1"
+      ],
+      "bucket": "jobs",
+      "old_path": "b567362d-66cb-402b-931f-0e3c489c66ed/0.4935691193789222.jpg",
+      "new_path": "b567362d-66cb-402b-931f-0e3c489c66ed/opt_1791259577712_0.4935691193789222.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/b567362d-66cb-402b-931f-0e3c489c66ed/0.4935691193789222.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/b567362d-66cb-402b-931f-0e3c489c66ed/opt_1791259577712_0.4935691193789222.webp",
+      "old_bytes": 12399934,
+      "new_bytes": 35960,
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "table_refs": [
+        "jobs.images#fa760e55-7064-4f99-964e-61d3ec0472c1"
+      ],
+      "bucket": "jobs",
+      "old_path": "b567362d-66cb-402b-931f-0e3c489c66ed/0.6514141396615808.jpg",
+      "new_path": "b567362d-66cb-402b-931f-0e3c489c66ed/opt_1791259584687_0.6514141396615808.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/b567362d-66cb-402b-931f-0e3c489c66ed/0.6514141396615808.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/b567362d-66cb-402b-931f-0e3c489c66ed/opt_1791259584687_0.6514141396615808.webp",
+      "old_bytes": 8602396,
+      "new_bytes": 67232,
+      "width": 1200,
+      "height": 673
+    },
+    {
+      "table_refs": [
+        "jobs.images#05e12476-d1aa-45f4-b5aa-1b0ad5edcab1"
+      ],
+      "bucket": "jobs",
+      "old_path": "admin/0.18724973822006075.png",
+      "new_path": "admin/opt_1791259588018_0.18724973822006075.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/0.18724973822006075.png",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/opt_1791259588018_0.18724973822006075.webp",
+      "old_bytes": 8248198,
+      "new_bytes": 166460,
+      "width": 900,
+      "height": 1200
+    },
+    {
+      "table_refs": [
+        "jobs.images#05e12476-d1aa-45f4-b5aa-1b0ad5edcab1"
+      ],
+      "bucket": "jobs",
+      "old_path": "admin/0.6303874379611708.png",
+      "new_path": "admin/opt_1791259591970_0.6303874379611708.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/0.6303874379611708.png",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/admin/opt_1791259591970_0.6303874379611708.webp",
+      "old_bytes": 2149989,
+      "new_bytes": 137210,
+      "width": 815,
+      "height": 1200
+    },
+    {
+      "table_refs": [
+        "jobs.images#00000000-0000-0000-0000-000000000005"
+      ],
+      "bucket": "jobs",
+      "old_path": "6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.8984236899668714.jpg",
+      "new_path": "6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/opt_1791259594594_0.8984236899668714.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.8984236899668714.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/opt_1791259594594_0.8984236899668714.webp",
+      "old_bytes": 567077,
+      "new_bytes": 74474,
+      "width": 857,
+      "height": 1200
+    },
+    {
+      "table_refs": [
+        "jobs.images#00000000-0000-0000-0000-000000000005"
+      ],
+      "bucket": "jobs",
+      "old_path": "6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.04063366687583936.jpg",
+      "new_path": "6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/opt_1791259596905_0.04063366687583936.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.04063366687583936.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/opt_1791259596905_0.04063366687583936.webp",
+      "old_bytes": 4972385,
+      "new_bytes": 79492,
+      "width": 900,
+      "height": 1200
+    },
+    {
+      "table_refs": [
+        "jobs.images#00000000-0000-0000-0000-000000000005"
+      ],
+      "bucket": "jobs",
+      "old_path": "6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.7499369227565272.jpg",
+      "new_path": "6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/opt_1791259599324_0.7499369227565272.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/0.7499369227565272.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/jobs/6e61ef8b-0c97-45f6-9ea5-29c3bc384fc1/opt_1791259599324_0.7499369227565272.webp",
+      "old_bytes": 5470578,
+      "new_bytes": 135654,
+      "width": 900,
+      "height": 1200
+    },
+    {
+      "table_refs": [
+        "service_ads.image#e72e54f4-78f0-4c98-9ad2-4e780ed6917a",
+        "service_ads.images#e72e54f4-78f0-4c98-9ad2-4e780ed6917a"
+      ],
+      "bucket": "adverts",
+      "old_path": "admin/0.6019706523338285.png",
+      "new_path": "admin/opt_1791259604161_0.6019706523338285.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.6019706523338285.png",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/opt_1791259604161_0.6019706523338285.webp",
+      "old_bytes": 1821438,
+      "new_bytes": 139154,
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "table_refs": [
+        "service_ads.images#e72e54f4-78f0-4c98-9ad2-4e780ed6917a"
+      ],
+      "bucket": "adverts",
+      "old_path": "admin/0.34931981580319393.png",
+      "new_path": "admin/opt_1791259607264_0.34931981580319393.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.34931981580319393.png",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/opt_1791259607264_0.34931981580319393.webp",
+      "old_bytes": 1686499,
+      "new_bytes": 121710,
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "table_refs": [
+        "service_ads.image#a1b7dabb-539f-4fa2-b93a-882606d4eaa4",
+        "service_ads.images#a1b7dabb-539f-4fa2-b93a-882606d4eaa4"
+      ],
+      "bucket": "adverts",
+      "old_path": "admin/0.9635386118983363.jpg",
+      "new_path": "admin/opt_1791259609686_0.9635386118983363.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.9635386118983363.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/opt_1791259609686_0.9635386118983363.webp",
+      "old_bytes": 1004786,
+      "new_bytes": 180886,
+      "width": 1200,
+      "height": 896
+    },
+    {
+      "table_refs": [
+        "service_ads.images#a1b7dabb-539f-4fa2-b93a-882606d4eaa4"
+      ],
+      "bucket": "adverts",
+      "old_path": "admin/0.7233361273963175.png",
+      "new_path": "admin/opt_1791259612858_0.7233361273963175.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/0.7233361273963175.png",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/opt_1791259612858_0.7233361273963175.webp",
+      "old_bytes": 2033651,
+      "new_bytes": 199470,
+      "width": 1200,
+      "height": 896
+    },
+    {
+      "table_refs": [
+        "service_ads.image#c3da8e7d-c14d-41f6-bc24-b811caef9685",
+        "service_ads.images#c3da8e7d-c14d-41f6-bc24-b811caef9685"
+      ],
+      "bucket": "adverts",
+      "old_path": "admin/img_1778680689111_IMG_20260425_143133.jpg",
+      "new_path": "admin/opt_1791259615851_img_1778680689111_IMG_20260425_143133.webp",
+      "old_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/img_1778680689111_IMG_20260425_143133.jpg",
+      "new_url": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/admin/opt_1791259615851_img_1778680689111_IMG_20260425_143133.webp",
+      "old_bytes": 5216319,
+      "new_bytes": 95244,
+      "width": 1200,
+      "height": 900
+    }
+  ]
+}
