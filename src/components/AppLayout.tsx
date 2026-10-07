@@ -547,7 +547,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             />
           );
         case 'pricing':
-          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onStayAfterLogin={() => { loginFromBoost.current = true; }} user={user} />;
+          return <PricingPage onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onStayAfterLogin={() => { loginFromBoost.current = true; }} user={user} />;
         case 'about':
           return <AboutPage />;
         case 'contact':
@@ -555,14 +555,14 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         case 'post-job':
           return <PostJobPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} />;
         case 'post-advert':
-          return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
+          return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
         case 'advertise':
           return <AdvertisePage onNavigate={handleNavigate} />;
         case 'dashboard':
           if (!user) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
-          return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onWorkerPopupOpen={handleWorkerPopupOpen} />;
+          return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} />;
         case 'inbox':
           if (!user) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
