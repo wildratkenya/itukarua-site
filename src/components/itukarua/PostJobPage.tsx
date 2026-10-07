@@ -7,12 +7,13 @@ import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface PostJobPageProps {
   onNavigate: (page: Page) => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
+  onOpenMpesa?: MpesaHandler;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
 }
 

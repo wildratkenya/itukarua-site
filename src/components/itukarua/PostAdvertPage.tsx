@@ -7,12 +7,13 @@ import { createServiceAd, getCustomCategories, hasEntitlement } from '@/lib/data
 import { serviceAdImageCap } from '@/lib/adLifecycle';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface PostAdvertPageProps {
   onNavigate: (page: Page) => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
+  onOpenMpesa: MpesaHandler;
 }
 
 const PLAN_IMAGE_CAP: Record<string, number> = { '10-Day Advert': 3, '20-Day Advert': 5, '30-Day Advert': 8 };

@@ -14,6 +14,7 @@ import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
 import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface HomePageProps {
   onNavigate: (page: Page) => void;
@@ -21,7 +22,7 @@ interface HomePageProps {
   onViewJob: (jobId: string) => void;
   onViewService: (serviceId: string) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenMpesa: MpesaHandler;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onWorkerPopupOpen?: () => void;
   onWorkerSearchAuth?: () => void;

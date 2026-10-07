@@ -4,13 +4,14 @@ import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess,
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import CertificateViewer from './CertificateViewer';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface WorkerSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenAuth?: (tab: 'login' | 'signup') => void;
   onNavigate?: (page: string) => void;
-  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenMpesa?: MpesaHandler;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNeedAuth?: () => void;
 }

@@ -16,6 +16,7 @@ import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
 import { Badge } from '@/components/ui/badge';
 import CertificateViewer from './CertificateViewer';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 const workerFallback = (id: string) => IMAGES.workers[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % IMAGES.workers.length];
 
@@ -23,7 +24,7 @@ interface DashboardPageProps {
   user: UserState;
   onNavigate: (page: Page) => void;
   onViewJob: (jobId: string) => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
+  onOpenMpesa: MpesaHandler;
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa }) => {
