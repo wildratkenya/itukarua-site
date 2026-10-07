@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Building2, LayoutDashboard, BarChart3, User, Receipt, Users, Plus, X, Upload, Eye, EyeOff, Loader2, Zap, Crown, Settings, LogOut, ChevronDown, ChevronUp, ExternalLink, Trash2, Save } from 'lucide-react';
 import { supabase, proxyRequest, proxyTable, proxyImageUrl } from '@/lib/supabase';
-import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
+import { toast } from '@/hooks/use-toast';
+import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, adminResetPassword, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
 import { effectiveFeaturesFor, corporateMonthlyAmount, type EffectiveCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { compressImage } from '@/lib/imageUtils';
@@ -50,6 +51,10 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberForm, setMemberForm] = useState({ email: '', password: '', full_name: '' });
   const [addingMember, setAddingMember] = useState(false);
+  const [showResetPw, setShowResetPw] = useState(false);
+  const [resetTarget, setResetTarget] = useState<{ id: string | null; email: string } | null>(null);
+  const [resetPw, setResetPw] = useState('');
+  const [resetting, setResetting] = useState(false);
 
   const tierFeatures = effectiveFeaturesFor(account || { tier: 'bronze' });
   const isOwner = !!members.find(m => m.profile_id === user.id && m.member_role === 'owner');
@@ -485,8 +490,14 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                     <p className="font-medium text-gray-900 text-sm">{m.full_name || m.email}</p>
                     <p className="text-xs text-gray-500">{m.email}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap justify-end">
                     <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-full uppercase">{m.member_role}</span>
+                    {isOwner && m.email && (
+                      <>
+                        <button onClick={async () => { try { await supabase.auth.resetPasswordForEmail(m.email!); toast({ title: 'Reset email sent', description: `Sent to ${m.email}` }); } catch (err:any) { toast({ title: 'Failed', description: err.message, variant: 'destructive' }); } }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Send reset email</button>
+                        <button onClick={() => { setResetTarget({ id: m.profile_id, email: m.email }); setResetPw(''); setShowResetPw(true); }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Set password</button>
+                      </>
+                    )}
                     {m.member_role !== 'owner' && m.profile_id !== user.id && (
                       <button onClick={() => handleRemoveMember(m.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
                     )}
