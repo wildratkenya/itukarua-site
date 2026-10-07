@@ -814,7 +814,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
                 {/* Skills */}
                 {(() => {
-                  const viewingSkills = typeof viewingBidder.skills === 'string' ? viewingBidder.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(viewingBidder.skills) ? viewingBidder.skills : [];
+                  const rawSkills = viewingBidder.skills as unknown;
+                  const viewingSkills = typeof rawSkills === 'string' ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(rawSkills) ? rawSkills as string[] : [];
                   return viewingSkills.length > 0 && (
                     <div>
                       <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills</h4>

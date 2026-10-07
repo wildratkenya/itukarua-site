@@ -30,7 +30,7 @@ import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
 import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
 import CertificateViewer from './CertificateViewer';
 
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${label} timed out — check your connection and retry`)), ms);
     p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
@@ -78,6 +78,8 @@ interface Profile {
   ratings_enabled?: boolean;
   is_featured?: boolean;
   whatsapp_number?: string;
+  county?: string | null;
+  subcounty?: string | null;
   subscription_expires_at?: string;
   created_at: string;
   deleted_at?: string;
@@ -101,6 +103,9 @@ interface Job {
   boost_until?: string | null;
   corporate_account_id?: string | null;
   corporate_tier?: string | null;
+  valid_until?: string | null;
+  retired_at?: string | null;
+  retired_by?: string | null;
 }
 
 interface Ad {
@@ -140,6 +145,7 @@ interface Payment {
   user_id?: string;
   token?: string;
   related_profile_id?: string;
+  related_ad_id?: string | null;
   created_at: string;
 }
 
@@ -327,7 +333,7 @@ const AdminPage: React.FC = () => {
     const orphanActive = rows.filter(a => (a.active ?? false) && isCorporateOnlySlot(a.slot || 'homepage_banner') && !a.corporate_account_id && !a.corporate_tier);
     const selfHealIds = new Set([...expiredActive, ...orphanActive].map(a => a.id));
     selfHealIds.forEach(id => {
-      supabase.from('advertisements').update({ active: false }).eq('id', id).then(() => {}).catch(() => {});
+      supabase.from('advertisements').update({ active: false }).eq('id', id).then(() => {}, () => {});
     });
     setAdverts(rows.map(a => selfHealIds.has(a.id) ? { ...a, active: false } : a));
   };
@@ -380,7 +386,7 @@ const AdminPage: React.FC = () => {
   const [corporateMsg, setCorporateMsg] = useState('');
   const [corporateSuspendingId, setCorporateSuspendingId] = useState<string | null>(null);
   const [editingCorporate, setEditingCorporate] = useState(false);
-  const [corporateEditForm, setCorporateEditForm] = useState({ tier: 'bronze', contact_person: '', contact_phone: '', contact_email: '', billing_email: '', notes: '', features: [] as string[], placements: 1, team_seats: 1 });
+  const [corporateEditForm, setCorporateEditForm] = useState({ tier: 'bronze' as DbCorporateAccount['tier'], contact_person: '', contact_phone: '', contact_email: '', billing_email: '', notes: '', features: [] as string[], placements: 1, team_seats: 1 });
   const [savingCorporate, setSavingCorporate] = useState(false);
   const [addMemberForm, setAddMemberForm] = useState<{ email: string; password: string; full_name: string }>({ email: '', password: '', full_name: '' });
   const [addingMember, setAddingMember] = useState(false);
@@ -1851,7 +1857,7 @@ const AdminPage: React.FC = () => {
         return;
       }
 
-      const adminUser = authUsers.users.find(user => user.email === adminEmail);
+      const adminUser = (authUsers.users as Array<{ id: string; email?: string }>).find(user => user.email === adminEmail);
       if (!adminUser) {
         toast({
           title: 'Error',
@@ -4683,7 +4689,7 @@ const AdminPage: React.FC = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setDeletingUser(null); setIsDeleteDialogOpen(false); }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteUser} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteUser()} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -4967,7 +4973,7 @@ const AdminPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
                   <div>
                     <Label>Tier</Label>
-                    <select value={corporateEditForm.tier} onChange={e => { const t = e.target.value; if (t === corporateEditForm.tier) return; const d = defaultBundleForTier(t); setCorporateEditForm(prev => ({ ...prev, tier: t, features: d.ids, placements: d.placements, team_seats: d.team_seats })); }} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <select value={corporateEditForm.tier} onChange={e => { const t = e.target.value; if (t === corporateEditForm.tier) return; const d = defaultBundleForTier(t); setCorporateEditForm(prev => ({ ...prev, tier: t as DbCorporateAccount['tier'], features: d.ids, placements: d.placements, team_seats: d.team_seats })); }} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                       <option value="bronze">Bronze</option>
                       <option value="silver">Silver</option>
                       <option value="gold">Gold</option>

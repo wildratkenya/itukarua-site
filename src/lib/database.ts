@@ -68,6 +68,8 @@ export interface DbJob {
   corporate_tier?: string | null;
   // corporate account name (resolved for display)
   corporate_company_name?: string | null;
+  company?: string | null;
+  type?: string | null;
 }
 
 export interface DbBid {
@@ -91,6 +93,7 @@ export interface DbBid {
   bidder_location?: string;
   bidder_county?: string;
   bidder_subcounty?: string;
+  bidder_email?: string | null;
 }
 
 export interface DbServiceAd {

@@ -75,7 +75,7 @@ export default function BoostProductModal({
               id: a.id,
               title: a.business_name || 'Untitled Service',
               image: a.images?.[0] ?? null,
-              subtitle: a.service_type || 'Service',
+              subtitle: a.category || 'Service',
               boosted: !!a.featured && !!a.boost_until && new Date(a.boost_until) > now,
               boostUntil: a.boost_until,
             }));
