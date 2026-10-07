@@ -291,7 +291,6 @@ export const KENYA_COUNTY_DATA: CountyData[] = [
       { name: 'Kaiti', wards: ['Emali', 'Kimaeti', 'Kithungo', 'Ukia', 'Wote'] },
       { name: 'Kibwezi East', wards: ['Chimbanio', 'Embuya', 'Kibwezi', 'Makueni', 'Mtito Andei'] },
       { name: 'Kibwezi West', wards: ['Chyulu', 'Kibwezi', 'Kikumini', 'Makindu', 'Mikoko'] },
-      { name: 'Kilome', advancing: ['Kibwezi', 'Makueni', 'Mtito Andei', 'Ukamba'] },
       { name: 'Kilome', wards: ['Kibwezi', 'Kilome', 'Kikima', 'Makueni', 'Tawa'] },
       { name: 'Makueni', wards: ['Kako', 'Keburu', 'Kikoko', 'Kilungu', 'Makueni', 'Wote'] },
       { name: 'Makueni Central', wards: ['Kako', 'Keve', 'Kikima', 'Kikumbi', 'Kilungu', 'Wote'] },
