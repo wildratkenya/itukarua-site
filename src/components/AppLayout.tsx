@@ -715,7 +715,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             <p className="text-sm text-gray-600 mt-2">
               Your employer subscription has expired{subNotice?.expiredAt ? <> on <span className="font-semibold">{new Date(subNotice.expiredAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span></> : ''}. Renew to unlock posting jobs and accessing worker contacts.
             </p>
-            <button onClick={handleOpenEmployerPayment} className="w-full mt-5 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors">
+            <button onClick={() => handleOpenEmployerPayment()} className="w-full mt-5 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors">
               Renew Now — Weekly Plan
             </button>
             <button onClick={() => handleOpenMpesa(100, 'Employer 1-Day Access', 'EMP-DAY', 'employer_day_access', undefined, undefined, undefined, undefined, false, true, undefined, 'employer')} className="w-full mt-2 py-3 border border-green-200 text-green-700 font-semibold rounded-xl transition-colors hover:bg-green-50">
