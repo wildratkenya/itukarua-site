@@ -4087,9 +4087,9 @@ const AdminPage: React.FC = () => {
                         X
                       </button>
                     </div>
-                  ))}
-                </div>
-hello
+                    ))}
+                  </div>
+              )}
               <Input 
                 type="file" 
                 accept="image/png, image/jpeg" 
