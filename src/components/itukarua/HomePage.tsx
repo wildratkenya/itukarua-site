@@ -667,7 +667,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {topRatedWorkers.map((worker) => {
-                    const firstSkill = typeof worker.skills === 'string' ? worker.skills.split(',')[0]?.trim() : worker.skills?.[0];
+                    const rawWorkerSkills = worker.skills as unknown;
+                    const firstSkill = typeof rawWorkerSkills === 'string' ? rawWorkerSkills.split(',')[0]?.trim() : Array.isArray(rawWorkerSkills) ? (rawWorkerSkills as string[])[0] : undefined;
                     return (
                     <div key={worker.id} onClick={() => { setSelectedWorker(worker); incrementProfileViews(worker.id); onWorkerPopupOpen?.(); }} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer">
                       {worker.profile_image ? (

@@ -16,6 +16,7 @@ import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
 import { Badge } from '@/components/ui/badge';
 import CertificateViewer from './CertificateViewer';
+import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
 import type { MpesaHandler } from '@/lib/mpesa';
 
 const workerFallback = (id: string) => IMAGES.workers[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % IMAGES.workers.length];
@@ -55,6 +56,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [advError, setAdvError] = useState<string | null>(null);
+  const [showAdSpecs, setShowAdSpecs] = useState(false);
   const [certFiles, setCertFiles] = useState<File[]>([]);
   const [certPickError, setCertPickError] = useState<string | null>(null);
   const [viewerCert, setViewerCert] = useState<string | null>(null);
@@ -245,7 +248,7 @@ const notifRef = useRef<HTMLDivElement>(null);
           const { error: upErr } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 20000, 'Certificate upload');
           if (upErr) {
             console.warn(`[ProfileSave] cert upload failed (${file.name}):`, upErr);
-            certUploadErrors.push(`${file.name}: ${upErr.message || (upErr.error ?? 'upload failed')}`);
+            certUploadErrors.push(`${file.name}: ${upErr.message ?? 'upload failed'}`);
           } else {
             certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
           }
@@ -259,7 +262,7 @@ const notifRef = useRef<HTMLDivElement>(null);
         location: profileForm.location,
         county: profileForm.county || null,
         subcounty: profileForm.subcounty || null,
-        skills: profileForm.skills,
+        skills: profileForm.skills ? profileForm.skills.split(',').map((sk: string) => sk.trim()).filter(Boolean) : [],
         resume: profileForm.resume,
         qualifications: profileForm.qualifications,
         experience: profileForm.experience,
@@ -1912,7 +1915,8 @@ const notifRef = useRef<HTMLDivElement>(null);
                 )}
 
                 {(() => {
-                  const viewingSkills = typeof viewingBidder.skills === 'string' ? viewingBidder.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(viewingBidder.skills) ? viewingBidder.skills : [];
+                  const rawSkills = viewingBidder.skills as unknown;
+                  const viewingSkills = typeof rawSkills === 'string' ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean) : Array.isArray(rawSkills) ? rawSkills as string[] : [];
                   return viewingSkills.length > 0 && (
                     <div>
                       <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills</h4>
@@ -1966,6 +1970,13 @@ const notifRef = useRef<HTMLDivElement>(null);
         </div>
       )}
       <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
+      <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="profile" />
+      {advError && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
+          {advError}
+          <button className="ml-3 underline" onClick={() => setAdvError(null)}>Dismiss</button>
+        </div>
+      )}
     </div>
   );
 };
