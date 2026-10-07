@@ -3,9 +3,10 @@ import SEO from '@/lib/seo';
 import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, Crown, Briefcase, ArrowRight } from 'lucide-react';
 import { PRICING_PLANS, CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES } from '@/data/siteData';
 import BoostProductModal from './BoostProductModal';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface PricingPageProps {
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
+  onOpenMpesa: MpesaHandler;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNavigate?: (page: string) => void;
   onOpenAuth?: (tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;

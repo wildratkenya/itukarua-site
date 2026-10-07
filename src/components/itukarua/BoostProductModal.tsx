@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Briefcase, Wrench, LogIn, X, Zap, Clock, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getMyServiceAds, getJobs } from '@/lib/database';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 type BoostType = 'job' | 'service';
 
@@ -25,14 +26,7 @@ interface Props {
   user: any | null;
   role: string | null | undefined;
   initialType?: BoostType;
-  onOpenMpesa: (
-    amount: number,
-    description: string,
-    accountRef: string,
-    paymentType: string,
-    relatedAdId?: string,
-    relatedJobId?: string
-  ) => void;
+  onOpenMpesa: MpesaHandler;
   onOpenAuth: (tab?: string) => void;
   refreshJobs?: () => void;
 }

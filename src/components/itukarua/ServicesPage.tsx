@@ -12,12 +12,13 @@ import { createServiceRating, checkServiceRating, getCustomCategories, getMyServ
 import type { Page } from './Header';
 import ImageViewerModal from './ImageViewerModal';
 import BoostProductModal from './BoostProductModal';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface ServicesPageProps {
   onNavigate: (page: Page) => void;
   onViewService: (serviceId: string) => void;
   user?: any | null;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string) => void;
+  onOpenMpesa: MpesaHandler;
   onOpenAuth?: (tab?: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
 }
 

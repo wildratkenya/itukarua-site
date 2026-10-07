@@ -11,13 +11,14 @@ import { useInfiniteJobs } from '@/hooks/useQueries';
 import { getCustomCategories, getJobs, type DbJob } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface JobsPageProps {
   onViewJob: (jobId: string) => void;
   onNavigate: (page: Page) => void;
   initialSearch?: string;
   user?: any | null;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string) => void;
+  onOpenMpesa: MpesaHandler;
   onOpenAuth?: (tab?: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
 }
 

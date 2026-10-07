@@ -10,6 +10,7 @@ import ImageViewerModal from './ImageViewerModal';
 import JobListingsTopBanner from './JobListingsTopBanner';
 import CertificateViewer from './CertificateViewer';
 import CorporateBadge from './CorporateBadge';
+import type { MpesaHandler } from '@/lib/mpesa';
 
 interface JobDetailPageProps {
   jobId: string;
@@ -17,7 +18,7 @@ interface JobDetailPageProps {
   onBack: () => void;
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
-  onOpenMpesa: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void) => void;
+  onOpenMpesa: MpesaHandler;
   onOpenEmployerPayment: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
 }
 
