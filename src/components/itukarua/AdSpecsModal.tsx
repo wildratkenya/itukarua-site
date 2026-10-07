@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Monitor, Smartphone, Image, AlertTriangle } from 'lucide-react';
+import { X, Monitor, Smartphone, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 
 interface AdSpecsModalProps {
   isOpen: boolean;
@@ -81,7 +81,7 @@ const AdSpecsModal: React.FC<AdSpecsModalProps> = ({ isOpen, onClose, slot = 'ho
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                <Image className="w-5 h-5 text-gray-700" />
+                <ImageIcon className="w-5 h-5 text-gray-700" />
               </div>
               <div>
                 <p className="font-semibold text-gray-900">File Requirements</p>
