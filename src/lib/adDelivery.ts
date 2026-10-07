@@ -144,7 +144,7 @@ export function selectAdsForDelivery(
     const urgencyBoost = daysLeft < 1 ? 2.0 : daysLeft < 2 ? 1.5 : daysLeft < 3 ? 1.2 : 1.0;
 
     // Pacing correction: under-delivering ads get boosted
-    const paceBoost = pace < 0.8 ? 1.5 : pace > 1.2 ? 0.7 : 1.0;
+    const paceBoost = pace.pace < 0.8 ? 1.5 : pace.pace > 1.2 ? 0.7 : 1.0;
 
     // Score = geo priority * urgency * pace correction
     const score = (geo + 1) * urgencyBoost * paceBoost;
