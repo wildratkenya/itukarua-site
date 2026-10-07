@@ -2126,13 +2126,12 @@ const AdminPage: React.FC = () => {
                   <option value="30 days">30 Days (KES 800)</option>
                 </select>
                 <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                <select value={adForm.corporate_tier || ''} onChange={e => setAdForm({ ...adForm, corporate_tier: e.target.value === '' ? undefined : e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="">Regular advert</option>
-                  <option value="bronze">Corporate — Bronze</option>
-                  <option value="silver">Corporate — Silver</option>
-                  <option value="gold">Corporate — Gold</option>
-                  <option value="custom">Corporate — Custom</option>
-                </select>
+                {adForm.corporate_account_id ? (
+                  <div className="px-3 py-2 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500">Corporate tier</p>
+                    <p className="text-sm font-medium text-gray-700">{adForm.corporate_tier ? adForm.corporate_tier.charAt(0).toUpperCase() + adForm.corporate_tier.slice(1) : 'Inherited from account'}</p>
+                  </div>
+                ) : null}
                 <select value={adForm.corporate_account_id || ''} onChange={e => { const id = e.target.value === '' ? undefined : e.target.value; const acc = id ? corporateAccounts.find(a => a.id === id) : undefined; setAdForm({ ...adForm, corporate_account_id: id, corporate_tier: acc?.tier, featured: acc ? effectiveFeaturesFor(acc).featured : adForm.featured }); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">No corporate account (personal/regular)</option>
                   {corporateAccounts.map(acc => (
