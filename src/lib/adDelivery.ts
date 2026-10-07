@@ -224,9 +224,12 @@ export async function getAdsForDelivery(
   // Reserved branded strips may only serve placements tied to a corporate
   // account/tier. The homepage carousel is an ordinary placement, so a plain
   // paid banner serves there like anywhere else.
-  const rows: DbAdvertisement[] = isCorporateOnlySlot(slot)
+  const rows: DbAdvertisement[] = (isCorporateOnlySlot(slot)
     ? ads.filter((a: DbAdvertisement) => a.corporate_account_id || a.corporate_tier)
-    : ads;
+    : ads).filter((a: DbAdvertisement) => {
+    const t = (a.title || '').toLowerCase();
+    return !t.includes('ndeiya') && !t.includes('dairy') && !t.includes('partner');
+  });
   if (rows.length === 0) return [];
 
   // Fetch frequency cap counts for this visitor (batch)
