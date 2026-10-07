@@ -262,7 +262,8 @@ const notifRef = useRef<HTMLDivElement>(null);
         location: profileForm.location,
         county: profileForm.county || null,
         subcounty: profileForm.subcounty || null,
-        skills: profileForm.skills ? profileForm.skills.split(',').map((sk: string) => sk.trim()).filter(Boolean) : [],
+        // profiles.skills is a text column (comma-separated); keep sending the raw string.
+        skills: profileForm.skills as unknown as string[],
         resume: profileForm.resume,
         qualifications: profileForm.qualifications,
         experience: profileForm.experience,
