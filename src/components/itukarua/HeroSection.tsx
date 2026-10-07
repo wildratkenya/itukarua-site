@@ -45,7 +45,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
 
   useEffect(() => {
     if (filterCounty) {
-      getSubcounties(filterCounty).then(setSubCats).catch(() => setSubCats([]));
+      setSubCats(getSubcounties(filterCounty));
       setFilterSubcounty('');
     } else {
       setSubCats([]);
@@ -72,7 +72,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
   return (
     <section className="relative overflow-hidden">
       <div className="absolute inset-0">
-        <img src={IMAGES.hero} alt="Itukarua Community" fetchpriority="high" decoding="async" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <img src={IMAGES.hero} alt="Itukarua Community" fetchPriority="high" decoding="async" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 via-gray-900/75 to-gray-900/60" />
       </div>
 

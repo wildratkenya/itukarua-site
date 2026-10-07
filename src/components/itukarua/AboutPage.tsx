@@ -16,7 +16,7 @@ const AboutPage: React.FC = () => {
       />
       {/* Hero */}
       <div className="relative">
-        <img src={IMAGES.community[1]} alt="ITUKARUA community members collaborating" fetchpriority="high" className="w-full h-64 lg:h-80 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <img src={IMAGES.community[1]} alt="ITUKARUA community members collaborating" fetchPriority="high" className="w-full h-64 lg:h-80 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 to-gray-900/30" />
         <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-12">
           <div className="max-w-7xl mx-auto">
