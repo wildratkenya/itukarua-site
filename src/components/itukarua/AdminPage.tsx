@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
@@ -83,6 +83,7 @@ interface Profile {
   deleted_at?: string;
   resume?: string;
   certificates?: string[];
+  allow_contact_display?: boolean;
 }
 
 interface Job {
@@ -2611,9 +2612,20 @@ const AdminPage: React.FC = () => {
                                   <DropdownMenuItem onClick={() => { setEditingUser(user); setRatingsEnabled(!!user.ratings_enabled); setEditCerts(user.certificates || []); setEditCertFiles([]); setEditCertPickError(null); setIsEditUserModalOpen(true); }}>
                                     Edit user
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => trashUser(user.id)}>
-                                    Trash user
-                                  </DropdownMenuItem>
+                                   <DropdownMenuItem onClick={async () => {
+                                     try {
+                                       await toggleProfileContactDisplay(user.id, !user.allow_contact_display);
+                                       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, allow_contact_display: !user.allow_contact_display } : u));
+                                       toast({ title: !user.allow_contact_display ? 'Contact display enabled' : 'Contact display disabled', description: 'Updated successfully' });
+                                     } catch (err: any) {
+                                       toast({ title: 'Failed to update', description: err?.message || 'Unknown error', variant: 'destructive' });
+                                     }
+                                   }}>
+                                     {user.allow_contact_display ? 'Disable contact display' : 'Enable contact display'}
+                                   </DropdownMenuItem>
+                                   <DropdownMenuItem className="text-red-600 focus:bg-red-50" onClick={() => trashUser(user.id)}>
+                                     Trash user
+                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuLabel className="text-[11px] font-medium text-gray-500">Subscription</DropdownMenuLabel>
                                   {!subActive && currentRole === 'super_admin' ? (
@@ -5231,6 +5243,7 @@ const NewsletterSection: React.FC<NewsletterSectionProps> = ({ title, icon, item
 };
 
 export default AdminPage;
+
 
 
 
