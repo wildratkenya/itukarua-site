@@ -796,7 +796,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                           <div className="flex gap-2 flex-wrap">
                             {!subscriptionActive && (
                               <>
-                                <button onClick={() => onNavigate('search-jobs')} disabled={weeklyBidCount >= FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                                <button onClick={() => onNavigate('jobs')} disabled={weeklyBidCount >= FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
                                   <Briefcase className="w-4 h-4" /> Bid on Jobs
                                 </button>
                                 <button onClick={() => openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription')} disabled={weeklyBidCount < FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${weeklyBidCount < FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
@@ -828,7 +828,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                                 : 'Browse open jobs matching your skills'}
                             </p>
                           </div>
-                          <button onClick={() => onNavigate('search-jobs')} className="text-xs font-semibold text-green-700 hover:text-green-800">View All</button>
+                          <button onClick={() => onNavigate('jobs')} className="text-xs font-semibold text-green-700 hover:text-green-800">View All</button>
                         </div>
                         <div className="space-y-2">
                           {matchingJobs.slice(0, 8).map(job => (
@@ -849,7 +849,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                           ))}
                         </div>
                         {matchingJobs.length > 8 && (
-                          <button onClick={() => onNavigate('search-jobs')} className="w-full mt-3 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                          <button onClick={() => onNavigate('jobs')} className="w-full mt-3 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
                             View {matchingJobs.length - 8} more jobs
                           </button>
                         )}
@@ -859,7 +859,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                         <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                         <p className="text-sm font-medium text-gray-600">No matching jobs yet</p>
                         <p className="text-xs text-gray-400 mt-1">Jobs in your selected categories will appear here</p>
-                        <button onClick={() => onNavigate('search-jobs')} className="mt-3 px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                        <button onClick={() => onNavigate('jobs')} className="mt-3 px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
                           Browse All Jobs
                         </button>
                       </div>
