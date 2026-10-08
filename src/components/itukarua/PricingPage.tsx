@@ -36,9 +36,13 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
     if (user && pendingPlan) {
       const p = pendingPlan;
       setPendingPlan(null);
-      onOpenMpesa(p.price, p.name, `ADV-${p.duration.replace(' ', '')}`, 'advert');
+      // No pre-payment: paying here would charge with no advert attached to
+      // fulfil. The package price is paid once when the advert is submitted,
+      // so just carry the chosen plan to the form.
+      sessionStorage.setItem('advert_selected_plan', p.name);
+      onNavigate?.('post-advert');
     }
-  }, [user, pendingPlan, onOpenMpesa]);
+  }, [user, pendingPlan, onNavigate]);
 
   return (
     <div className="min-h-screen bg-gray-50">

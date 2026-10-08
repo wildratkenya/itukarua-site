@@ -1563,6 +1563,13 @@ export async function ensureJobseekerEntitlement(userId: string): Promise<void> 
   }
 }
 
+// Advertiser access itself carries no fee — the advert package is paid once
+// when the advert is submitted. The upsert also clears a legacy expiry (the
+// retired KES 100 flow), turning an old time-boxed grant into permanent access.
+export async function ensureAdvertiserEntitlement(userId: string): Promise<void> {
+  await setRoleEntitlement(userId, 'advertiser', { paid: true, expires_at: null, token_days: 0 });
+}
+
 // ─── Weekly Bid Counter ─────────────────────────────────────────────────────
 
 export async function getWeeklyBidCount(userId: string): Promise<number> {

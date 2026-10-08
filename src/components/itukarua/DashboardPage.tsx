@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
@@ -17,6 +17,8 @@ import UserRanking from './UserRanking';
 import { Badge } from '@/components/ui/badge';
 import CertificateViewer from './CertificateViewer';
 import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
+import AdvertPlanPicker from './AdvertPlanPicker';
+import type { AdvertPlan } from './AdvertPlanPicker';
 import type { MpesaHandler } from '@/lib/mpesa';
 
 const workerFallback = (id: string) => IMAGES.workers[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % IMAGES.workers.length];
@@ -26,9 +28,10 @@ interface DashboardPageProps {
   onNavigate: (page: Page) => void;
   onViewJob: (jobId: string) => void;
   onOpenMpesa: MpesaHandler;
+  onEntitlementsRefresh?: () => void;
 }
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa }) => {
+const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa, onEntitlementsRefresh }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [publishingJobId, setPublishingJobId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>(user.role);
@@ -48,6 +51,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [ads, setAds] = useState<DbServiceAd[]>([]);
   const [myServiceAds, setMyServiceAds] = useState<DbServiceAd[]>([]);
   const [renewAd, setRenewAd] = useState<DbServiceAd | null>(null); // service ad pending renewal picker
+  const [showAdPlanPicker, setShowAdPlanPicker] = useState(false);
+  const [adPlanBusy, setAdPlanBusy] = useState(false);
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [profiles, setProfiles] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
@@ -330,7 +335,9 @@ const notifRef = useRef<HTMLDivElement>(null);
       // day/role metadata is attached.
       onOpenMpesa(200, 'Employer Weekly Access', 'EMP-WK', 'registration', undefined, undefined, undefined, undefined, true, false, null, 'employer');
     } else if (r === 'advertiser') {
-      openAdvertiserSubscription('Advertiser Subscription');
+      // Advertiser access is free — the package chosen below is paid once when
+      // the advert is submitted.
+      setShowAdPlanPicker(true);
     } else {
       openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription');
     }
@@ -341,6 +348,24 @@ const notifRef = useRef<HTMLDivElement>(null);
       window.location.reload();
     } else {
       openRolePayment(r);
+    }
+  };
+
+  // Grant free advertiser access, remember the package, and open the advert
+  // form with that plan preselected — the price is paid at submit.
+  const handleAdPlanPicked = async (plan: AdvertPlan) => {
+    setAdPlanBusy(true);
+    setAdvError(null);
+    try {
+      await ensureAdvertiserEntitlement(user.id);
+      sessionStorage.setItem('advert_selected_plan', plan.name);
+      setShowAdPlanPicker(false);
+      onEntitlementsRefresh?.();
+      onNavigate('post-advert');
+    } catch (err: any) {
+      setAdvError(err.message || 'Could not unlock advertiser access. Please try again.');
+    } finally {
+      setAdPlanBusy(false);
     }
   };
 
@@ -556,20 +581,6 @@ const notifRef = useRef<HTMLDivElement>(null);
       () => { refreshSubscriptionState(); },
       false, false, null, 'jobseeker', undefined, undefined,
       { metadata: { kind: 'subscription', role: 'jobseeker', days } },
-    );
-  };
-
-  // Advertiser subscription: a one-time paid flag with no expiry, so days = 0.
-  const openAdvertiserSubscription = (label: string) => {
-    onOpenMpesa(
-      100,
-      label,
-      'ADV-SUB',
-      'registration',
-      undefined, undefined, undefined,
-      () => { refreshSubscriptionState(); },
-      false, false, null, 'advertiser', undefined, undefined,
-      { metadata: { kind: 'subscription', role: 'advertiser', days: 0 } },
     );
   };
 
@@ -989,32 +1000,18 @@ const notifRef = useRef<HTMLDivElement>(null);
             </div>
 
             {isAdvertiser && (
-              <div className={`rounded-xl p-5 border ${subscriptionActive && subscriptionDays <= 7 ? 'border-amber-200 bg-amber-50' : subscriptionActive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                <div className="flex items-center justify-between">
+              <div className="rounded-xl p-5 border border-green-200 bg-green-50">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    {subscriptionActive ? (
-                      subscriptionDays <= 7 ? <AlertCircle className="w-6 h-6 text-amber-600" /> : <RefreshCw className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <AlertCircle className="w-6 h-6 text-red-600" />
-                    )}
+                    <Megaphone className="w-6 h-6 text-green-600" />
                     <div>
-                      <p className="font-semibold text-gray-900">
-                        {subscriptionActive
-                          ? `Subscription active — ${subscriptionDays} day${subscriptionDays === 1 ? '' : 's'} remaining`
-                          : 'No active subscription'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {subscriptionActive
-                          ? subscriptionDays <= 7 ? 'Your subscription is expiring soon. Renew to keep your adverts live.' : 'Your subscription is active.'
-                          : 'Subscribe to publish service ads and boost your listings.'}
-                      </p>
+                      <p className="font-semibold text-gray-900">Post a business advert</p>
+                      <p className="text-sm text-gray-600">Advertiser access is free — choose a package, paid once when you submit your advert.</p>
                     </div>
                   </div>
-                  {(!subscriptionActive || subscriptionDays <= 7) && (
-                              <button onClick={() => openAdvertiserSubscription('Advertiser subscription renewal')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
-                      {subscriptionActive ? 'Renew KES 100' : 'Subscribe KES 100'}
-                    </button>
-                  )}
+                  <button onClick={() => setShowAdPlanPicker(true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    Choose a Package
+                  </button>
                 </div>
               </div>
             )}
@@ -1972,6 +1969,22 @@ const notifRef = useRef<HTMLDivElement>(null);
       )}
       <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
       <AdSpecsModal isOpen={showAdSpecs} onClose={() => setShowAdSpecs(false)} slot="profile" />
+      {showAdPlanPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => { if (!adPlanBusy) setShowAdPlanPicker(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-green-600 to-green-700 rounded-t-2xl">
+              <div>
+                <h2 className="text-lg font-bold text-white">Choose Your Advert Package</h2>
+                <p className="text-green-100 text-sm">Advertiser access is free — the package price is paid once when you submit your advert.</p>
+              </div>
+              <button onClick={() => { if (!adPlanBusy) setShowAdPlanPicker(false); }} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-white" /></button>
+            </div>
+            <div className="p-5">
+              <AdvertPlanPicker onSelect={handleAdPlanPicked} onBack={() => setShowAdPlanPicker(false)} backLabel="Cancel" busy={adPlanBusy} />
+            </div>
+          </div>
+        </div>
+      )}
       {advError && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
           {advError}
