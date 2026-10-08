@@ -2774,7 +2774,6 @@ const AdminPage: React.FC = () => {
                       <TableHead>Category</TableHead>
                       <TableHead className="hidden lg:table-cell">Posted By</TableHead>
                       <TableHead>Location</TableHead>
-                      <TableHead className="hidden xl:table-cell">Corporate</TableHead>
                       <TableHead>Lifecycle</TableHead>
                       <TableHead className="hidden md:table-cell">Engagement</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -2805,11 +2804,6 @@ const AdminPage: React.FC = () => {
                         <TableCell>{job.category}</TableCell>
                         <TableCell className="hidden lg:table-cell">{job.posted_by_name}</TableCell>
                         <TableCell>{job.location || '-'}</TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          {job.corporate_account_id
-                            ? <Badge variant="outline" className="max-w-[140px] truncate">{corporateAccounts.find(a => a.id === job.corporate_account_id)?.company_name || 'Corporate'}</Badge>
-                            : <span className="text-gray-400">—</span>}
-                        </TableCell>
                         <TableCell>
                           <Badge variant={
                             jobState.key === 'live' ? 'default' :
