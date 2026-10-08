@@ -1714,6 +1714,7 @@ export const SOCIAL_PLATFORMS = [
   { key: 'tiktok', label: 'TikTok' },
   { key: 'whatsapp', label: 'WhatsApp' },
   { key: 'telegram', label: 'Telegram' },
+  { key: 'mastodon', label: 'Mastodon' },
 ] as const;
 
 export type SocialPlatformKey = (typeof SOCIAL_PLATFORMS)[number]['key'];
