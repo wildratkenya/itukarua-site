@@ -2537,7 +2537,7 @@ const AdminPage: React.FC = () => {
 
         <div className="flex gap-6 items-start">
           <div className={`${adminSidebarCollapsed ? 'w-16' : 'w-56'} flex-shrink-0 sticky top-6 transition-all duration-200`}>
-            <nav className="bg-white rounded-xl border border-gray-200 p-2 space-y-1">
+            <nav className="bg-white rounded-xl border border-gray-200 p-2 space-y-1 overflow-y-auto max-h-[calc(100vh-3rem)]">
               <button onClick={() => setAdminSidebarCollapsed(v => !v)} title={adminSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-gray-50 transition-colors">
                 {adminSidebarCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /><span>Collapse</span></>}
               </button>
