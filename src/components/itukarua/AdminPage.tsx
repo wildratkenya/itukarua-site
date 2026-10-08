@@ -93,11 +93,13 @@ interface Job {
   title: string;
   status: string;
   category: string;
+  location?: string;
   budget_min: number;
   budget_max: number;
   views?: number;
   bids_count?: number;
   posted_by_name: string;
+  images?: string[];
   created_at: string;
   featured?: boolean;
   boost_until?: string | null;
@@ -2767,15 +2769,15 @@ const AdminPage: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Title</TableHead>
+                      <TableHead>Image</TableHead>
+                      <TableHead>Job</TableHead>
                       <TableHead>Category</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden lg:table-cell">Budget</TableHead>
                       <TableHead className="hidden lg:table-cell">Posted By</TableHead>
+                      <TableHead>Location</TableHead>
                       <TableHead className="hidden xl:table-cell">Corporate</TableHead>
-                      <TableHead className="hidden md:table-cell">Views</TableHead>
-                      <TableHead className="hidden md:table-cell">Bids</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Lifecycle</TableHead>
+                      <TableHead className="hidden md:table-cell">Engagement</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2789,48 +2791,48 @@ const AdminPage: React.FC = () => {
                       const jobState = jobLifecycle(job);
                       return (
                       <TableRow key={job.id}>
-                        <TableCell className="max-w-[240px] truncate">{job.title}</TableCell>
-                        <TableCell>{job.category}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant={
-                              jobState.key === 'live' ? 'default' :
-                              jobState.key === 'expired' ? 'destructive' :
-                              jobState.key === 'retired' ? 'destructive' :
-                              jobState.key === 'unpublished' ? 'secondary' :
-                              job.status === 'completed' ? 'secondary' : 'destructive'
-                            }>
-                              {jobState.label}
-                            </Badge>
-                            {jobState.hint && <span className="text-[10px] text-gray-400">{jobState.hint}</span>}
-                            {!!job.featured && !!job.boost_until && new Date(job.boost_until).getTime() > Date.now() && (
-                              <Badge variant="default" className="bg-amber-100 text-amber-700">
-                                Boosted · {Math.ceil((new Date(job.boost_until).getTime() - Date.now()) / 86400000)}d
-                              </Badge>
-                            )}
-                          </div>
+                          {job.images?.[0] ? (
+                            <img src={optimizeImageUrl(job.images[0], 100, 100)} alt="" className="w-12 h-12 object-cover rounded" />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200" />
+                          )}
                         </TableCell>
-                        <TableCell className="hidden lg:table-cell">KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="max-w-[220px] truncate">{job.title}</div>
+                          <div className="text-xs text-gray-500">KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</div>
+                        </TableCell>
+                        <TableCell>{job.category}</TableCell>
                         <TableCell className="hidden lg:table-cell">{job.posted_by_name}</TableCell>
+                        <TableCell>{job.location || '-'}</TableCell>
                         <TableCell className="hidden xl:table-cell">
                           {job.corporate_account_id
                             ? <Badge variant="outline" className="max-w-[140px] truncate">{corporateAccounts.find(a => a.id === job.corporate_account_id)?.company_name || 'Corporate'}</Badge>
                             : <span className="text-gray-400">—</span>}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">{job.views ?? 0}</TableCell>
-                        <TableCell className="hidden md:table-cell">{job.bids_count ?? 0}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            jobState.key === 'live' ? 'default' :
+                            jobState.key === 'expired' ? 'destructive' :
+                            jobState.key === 'retired' ? 'destructive' :
+                            jobState.key === 'unpublished' ? 'secondary' :
+                            job.status === 'completed' ? 'secondary' : 'destructive'
+                          }>
+                            {jobState.label}
+                          </Badge>
+                          {jobState.hint && <div className="text-[10px] text-gray-400 mt-0.5">{jobState.hint}</div>}
+                          {!!job.featured && !!job.boost_until && new Date(job.boost_until).getTime() > Date.now() && (
+                            <div className="text-[10px] text-amber-600 mt-0.5">
+                              Boosted · {Math.ceil((new Date(job.boost_until).getTime() - Date.now()) / 86400000)}d
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div className="text-sm">{job.views ?? 0} views</div>
+                          <div className="text-xs text-gray-500">{job.bids_count ?? 0} bids</div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1.5">
-                            {(jobState.key === 'expired' || jobState.key === 'retired' || jobState.key === 'unpublished') && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-green-300 text-green-700 hover:bg-green-50"
-                                onClick={() => reactivateJob(job, 30)}
-                              >
-                                Revive · +30d
-                              </Button>
-                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -4077,10 +4079,10 @@ const AdminPage: React.FC = () => {
             {/* Image Upload for Jobs */}
             <div>
               <Label>Job Images (Max 3, Min size: 300x300px)</Label>
-              {editingJob?.images && editingJob.images.length > 0 && (
-                <div className="flex gap-2 mb-2">
-                  {editingJob.images.map((img: string, i: number) => (
-                    <div key={i} className="relative w-20 h-20 rounded border border-gray-200 overflow-hidden group">
+              {(editingJob?.images?.length || 0) + jobImages.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(editingJob?.images || []).map((img: string, i: number) => (
+                    <div key={`saved-${i}`} className="relative w-20 h-20 rounded border-2 border-green-500 overflow-hidden group">
                       <img src={optimizeImageUrl(img, 100, 100)} alt="" className="w-full h-full object-cover" />
                       <button 
                         type="button"
@@ -4093,8 +4095,20 @@ const AdminPage: React.FC = () => {
                         X
                       </button>
                     </div>
-                    ))}
-                  </div>
+                  ))}
+                  {jobImages.map((file, i) => (
+                    <div key={`new-${i}`} className="relative w-20 h-20 rounded border-2 border-blue-500 overflow-hidden group">
+                      <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => setJobImages(prev => prev.filter((_, idx) => idx !== i))}
+                        className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
               <Input 
                 type="file" 
