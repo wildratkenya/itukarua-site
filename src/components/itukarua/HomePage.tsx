@@ -731,7 +731,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
 
 
       {/* CTA */}
-      <section className="py-16 lg:py-20 bg-gradient-to-br from-green-700 via-green-800 to-green-900">
+      <section className="relative py-16 lg:py-20 bg-gradient-to-br from-green-700 via-green-800 to-green-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">Ready to Connect Your Community?</h2>
           <p className="text-green-100 max-w-2xl mx-auto mb-8">Join thousands of Kenyans building stronger local economies through ITUKARUA Solutions.</p>
@@ -740,7 +740,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
             <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
           </div>
           {visibleSocials.length > 0 && (
-            <div className="mt-8 flex items-center justify-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2 sm:gap-3 sm:absolute sm:top-6 sm:right-6 sm:mt-0 sm:justify-end">
               {visibleSocials.map(s => {
                 const Icon = SOCIAL_ICONS[s.key] || MessageCircle;
                 return (
