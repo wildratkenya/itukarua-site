@@ -2927,20 +2927,18 @@ const AdminPage: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input type="text" value={searchAds} onChange={e => setSearchAds(e.target.value)} placeholder="Search by business name, title or category..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Image</TableHead>
-                      <TableHead>Business</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="hidden lg:table-cell">Contact Person</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead className="hidden xl:table-cell">Corporate</TableHead>
-                      <TableHead>Expiry</TableHead>
-                      <TableHead className="hidden md:table-cell">Featured</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <Table className="[&_td]:px-3 [&_th]:px-3">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Image</TableHead>
+                        <TableHead>Business</TableHead>
+                        <TableHead className="hidden lg:table-cell">Contact</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>Expiry</TableHead>
+                        <TableHead className="hidden xl:table-cell">Featured</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
                     {ads.filter(a => {
                       const isExpired = !!a.expiry_date && new Date(`${a.expiry_date}T23:59:59`).getTime() <= Date.now();
@@ -2963,17 +2961,11 @@ const AdminPage: React.FC = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div>{ad.business_name}</div>
-                          <div className="text-xs text-gray-500">{ad.title}</div>
+                          <div className="max-w-[170px] truncate">{ad.business_name}</div>
+                          <div className="max-w-[170px] truncate text-xs text-gray-500">{ad.title} · {ad.category}</div>
                         </TableCell>
-                        <TableCell>{ad.category}</TableCell>
-                        <TableCell className="hidden lg:table-cell">{ad.contact_person || '-'}</TableCell>
-                        <TableCell>{ad.contact || '-'}</TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          {ad.corporate_account_id
-                            ? <Badge variant="outline" className="max-w-[140px] truncate">{corporateAccounts.find(a => a.id === ad.corporate_account_id)?.company_name || 'Corporate'}</Badge>
-                            : <span className="text-gray-400">—</span>}
-                        </TableCell>
+                        <TableCell className="hidden lg:table-cell"><div className="max-w-[110px] truncate">{ad.contact_person || '-'}</div></TableCell>
+                        <TableCell><div className="max-w-[100px] truncate">{ad.contact || '-'}</div></TableCell>
                         <TableCell>
                           {!ad.expiry_date ? (
                             <Badge variant="secondary" className="bg-amber-100 text-amber-700">Billing not set</Badge>
@@ -2989,7 +2981,7 @@ const AdminPage: React.FC = () => {
                             </>
                           )}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">
+                        <TableCell className="hidden xl:table-cell">
                           {adIsBoosted ? (
                             <Badge variant="default" className="bg-amber-100 text-amber-700">Boosted · {adBoostDaysLeft}d left</Badge>
                           ) : adFeaturedPermanent ? (
