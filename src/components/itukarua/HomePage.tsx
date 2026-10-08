@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import SEO, { generateOrganizationSchema, generateLocalBusinessSchema } from '@/lib/seo';
-import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown, Facebook, Instagram, Twitter, Linkedin, Youtube, Music2, MessageCircle, Send } from 'lucide-react';
 import HeroSection from './HeroSection';
 import AdBanner from './AdBanner';
 import JobCard from './JobCard';
@@ -11,7 +11,7 @@ import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
-import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult } from '@/lib/database';
+import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, getSocialLinks, SOCIAL_PLATFORMS, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult, type SocialLinks } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 import type { MpesaHandler } from '@/lib/mpesa';
@@ -46,6 +46,19 @@ const useRowOverflow = (ref: React.RefObject<HTMLDivElement>, itemCount: number)
   return overflowing;
 };
 
+// Brand glyphs for the CTA social row. TikTok has no brand icon in lucide, so
+// Music2 stands in.
+const SOCIAL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  facebook: Facebook,
+  instagram: Instagram,
+  x: Twitter,
+  linkedin: Linkedin,
+  youtube: Youtube,
+  tiktok: Music2,
+  whatsapp: MessageCircle,
+  telegram: Send,
+};
+
 const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onOpenEmployerPayment, onWorkerPopupOpen, onWorkerSearchAuth, autoOpenWorkerSearch, onConsumeAutoOpenWorkerSearch }) => {
   const pendingAdvertNav = useRef(false);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
@@ -70,6 +83,14 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [showTopRated, setShowTopRated] = useState(false);
   const [userCategories, setUserCategories] = useState<string[]>([]);
+  const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
+
+  useEffect(() => { getSocialLinks().then(setSocialLinks).catch(() => {}); }, []);
+
+  const visibleSocials = useMemo(
+    () => SOCIAL_PLATFORMS.filter(p => socialLinks[p.key]).map(p => ({ ...p, url: socialLinks[p.key]! })),
+    [socialLinks]
+  );
 
   useEffect(() => {
     const loadUser = async (authUser: any) => {
@@ -718,6 +739,26 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
             <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
             <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
           </div>
+          {visibleSocials.length > 0 && (
+            <div className="mt-8 flex items-center justify-center gap-3">
+              {visibleSocials.map(s => {
+                const Icon = SOCIAL_ICONS[s.key] || MessageCircle;
+                return (
+                  <a
+                    key={s.key}
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.label}
+                    title={s.label}
+                    className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-green-100 hover:bg-white hover:text-green-700 transition-colors"
+                  >
+                    <Icon className="w-5 h-5" />
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
     </div>

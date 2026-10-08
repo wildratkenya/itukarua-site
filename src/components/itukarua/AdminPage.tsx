@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen, Share2 } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, getSocialLinks, setSocialLink, SOCIAL_PLATFORMS, type SocialLinks, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
@@ -306,6 +306,8 @@ const AdminPage: React.FC = () => {
   const [billingPreviewHtml, setBillingPreviewHtml] = useState('');
   const [billingPreviewText, setBillingPreviewText] = useState('');
   const [bannerSettings, setBannerSettings] = useState<AdBannerSettings>(DEFAULT_AD_BANNER_SETTINGS);
+  const [socialLinks, setSocialLinksState] = useState<SocialLinks>({});
+  const [socialSaving, setSocialSaving] = useState(false);
   const [bannerSaving, setBannerSaving] = useState<'horizontal' | 'vertical' | null>(null);
   const [emailProviders, setEmailProviders] = useState<DbEmailProvider[]>([]);
   const [emailForm, setEmailForm] = useState<Partial<DbEmailProvider>>({ name: '', username: '', password: '', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465, from_name: 'Itukarua', from_email: '', is_active: false });
@@ -816,6 +818,21 @@ const AdminPage: React.FC = () => {
     } finally { setBannerSaving(null); }
   };
 
+  // Persist every social URL in one pass; clearing a field deletes its row so
+  // the icon disappears from the homepage.
+  const saveSocialLinks = async () => {
+    setSocialSaving(true);
+    try {
+      for (const p of SOCIAL_PLATFORMS) {
+        await setSocialLink(p.key, socialLinks[p.key] || '');
+      }
+      setSocialLinksState(await getSocialLinks());
+      toast({ title: 'Saved', description: 'Social links updated' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to save social links', variant: 'destructive' });
+    } finally { setSocialSaving(false); }
+  };
+
   const loadJobs = async () => {
     const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
     setJobs(data || []);
@@ -847,6 +864,7 @@ const AdminPage: React.FC = () => {
         loadCorporateAccounts(),
         loadCorporateInvoices(),
         getAdBannerSettings().then(setBannerSettings),
+        getSocialLinks().then(setSocialLinksState),
         getCustomCategories('job').then(setCustomJobCats),
         getCustomCategories('service').then(setCustomServiceCats),
         loadEmailProviders(),
@@ -2062,6 +2080,37 @@ const AdminPage: React.FC = () => {
     </>
   );
 
+  const renderSocials = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Social Media Links</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-gray-500 mb-4">
+          Links shown as icons in the homepage &ldquo;Ready to Connect Your Community?&rdquo; section.
+          Leave a field empty to hide that platform.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {SOCIAL_PLATFORMS.map(p => (
+            <div key={p.key}>
+              <Label>{p.label}</Label>
+              <Input
+                type="url"
+                inputMode="url"
+                placeholder={`https://${p.key === 'x' ? 'x.com/itukarua' : `${p.key}.com/itukarua`}`}
+                value={socialLinks[p.key] || ''}
+                onChange={e => setSocialLinksState(s => ({ ...s, [p.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <Button onClick={saveSocialLinks} disabled={socialSaving} className="mt-5 bg-green-600 hover:bg-green-700">
+          {socialSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save Social Links'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
   const renderBannerManager = () => {
     const scope = adverts.filter(a => a.slot === 'homepage_banner');
     const expCount = scope.filter(a => a.billing_end && new Date(a.billing_end).getTime() <= Date.now()).length;
@@ -2504,6 +2553,7 @@ const AdminPage: React.FC = () => {
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
                 { id: 'homepage-banners', label: 'Banners', icon: <Images className="w-4 h-4" /> },
+                { id: 'socials', label: 'Socials', icon: <Share2 className="w-4 h-4" /> },
                 { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} title={item.label} className={`w-full flex items-center rounded-lg text-sm font-medium transition-colors ${adminSidebarCollapsed ? 'flex-col gap-1 py-2' : 'justify-start gap-2.5 px-3 py-2.5'} ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -3800,6 +3850,8 @@ const AdminPage: React.FC = () => {
           {activeTab === 'homepage-banners' && renderBannerSettings()}
 
           {activeTab === 'homepage-banners' && renderBannerManager()}
+
+          {activeTab === 'socials' && renderSocials()}
 
           {activeTab === 'corporate' && (
             <>
