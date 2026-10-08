@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle, Upload, Loader2, X, Shield } from 'lucide-react
 import { supabase } from '@/lib/supabase';
 import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { createServiceAd, getCustomCategories, hasEntitlement, ensureAdvertiserEntitlement } from '@/lib/database';
+import { createServiceAd, getCustomCategories, hasEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
 import { serviceAdImageCap } from '@/lib/adLifecycle';
 import AdvertPlanPicker from './AdvertPlanPicker';
 import type { AdvertPlan } from './AdvertPlanPicker';
@@ -61,6 +61,16 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     const check = async () => {
       if (!user || !user.id) { if (mounted) setGateChecked(true); return; }
       if (['admin', 'super_admin', 'corporate'].includes(user.role)) { if (mounted) { setAdvLocked(false); setGateChecked(true); } return; }
+      const active = await hasActiveAdvertiserSubscription(user.id);
+      if (active) {
+        const tier = await getActiveAdvertiserTier(user.id);
+        if (mounted) {
+          setAdvLocked(false);
+          if (tier.tierName) setFormData(prev => ({ ...prev, plan: tier.tierName }));
+          setGateChecked(true);
+        }
+        return;
+      }
       let has = await hasEntitlement(user.id, 'advertiser');
       if (!has && user.role === 'advertiser' && user.profile?.registration_paid) has = true;
       if (mounted) { setAdvLocked(!has); setGateChecked(true); }
@@ -246,6 +256,20 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
               <div className="mt-6 max-w-2xl mx-auto">
                 <AdvertPlanPicker
                   onSelect={handleGatePlanPick}
+                  onBeforeSelect={async (plan) => {
+                    if (!user?.id) return true;
+                    const active = await hasActiveAdvertiserSubscription(user.id);
+                    if (active) {
+                      const tier = await getActiveAdvertiserTier(user.id);
+                      sessionStorage.setItem('advert_selected_plan', tier.tierName || plan.name);
+                      setAdvLocked(false);
+                      if (tier.tierName) setFormData(prev => ({ ...prev, plan: tier.tierName }));
+                      else setFormData(prev => ({ ...prev, plan: plan.name }));
+                      onEntitlementsRefresh?.();
+                      return false;
+                    }
+                    return true;
+                  }}
                   onBack={() => onNavigate('services')}
                   backLabel="Back to Services"
                   busy={gateBusy}

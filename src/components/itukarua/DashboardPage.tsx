@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
@@ -357,6 +357,15 @@ const notifRef = useRef<HTMLDivElement>(null);
     setAdPlanBusy(true);
     setAdvError(null);
     try {
+      const active = await hasActiveAdvertiserSubscription(user.id);
+      if (active) {
+        const tier = await getActiveAdvertiserTier(user.id);
+        sessionStorage.setItem('advert_selected_plan', tier.tierName || plan.name);
+        setShowAdPlanPicker(false);
+        onEntitlementsRefresh?.();
+        onNavigate('post-advert');
+        return;
+      }
       await ensureAdvertiserEntitlement(user.id);
       sessionStorage.setItem('advert_selected_plan', plan.name);
       setShowAdPlanPicker(false);
@@ -1980,7 +1989,18 @@ const notifRef = useRef<HTMLDivElement>(null);
               <button onClick={() => { if (!adPlanBusy) setShowAdPlanPicker(false); }} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-white" /></button>
             </div>
             <div className="p-5">
-              <AdvertPlanPicker onSelect={handleAdPlanPicked} onBack={() => setShowAdPlanPicker(false)} backLabel="Cancel" busy={adPlanBusy} />
+              <AdvertPlanPicker onSelect={handleAdPlanPicked} onBeforeSelect={async (plan) => {
+                const active = await hasActiveAdvertiserSubscription(user.id);
+                if (active) {
+                  const tier = await getActiveAdvertiserTier(user.id);
+                  sessionStorage.setItem('advert_selected_plan', tier.tierName || plan.name);
+                  setShowAdPlanPicker(false);
+                  onEntitlementsRefresh?.();
+                  onNavigate('post-advert');
+                  return false;
+                }
+                return true;
+              }} onBack={() => setShowAdPlanPicker(false)} backLabel="Cancel" busy={adPlanBusy} />
             </div>
           </div>
         </div>

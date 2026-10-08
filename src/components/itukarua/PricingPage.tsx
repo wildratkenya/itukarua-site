@@ -4,6 +4,7 @@ import { Check, Zap, Shield, Phone, CheckCircle, ChevronDown, ChevronUp, Star, C
 import { PRICING_PLANS, CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES } from '@/data/siteData';
 import BoostProductModal from './BoostProductModal';
 import type { MpesaHandler } from '@/lib/mpesa';
+import { hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
 
 interface PricingPageProps {
   onOpenMpesa: MpesaHandler;
@@ -378,8 +379,15 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                     ))}
                   </ul>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (user) {
+                        const active = await hasActiveAdvertiserSubscription(user.id);
+                        if (active) {
+                          const tier = await getActiveAdvertiserTier(user.id);
+                          sessionStorage.setItem('advert_selected_plan', tier.tierName || plan.name);
+                          onNavigate('post-advert');
+                          return;
+                        }
                         sessionStorage.setItem('advert_selected_plan', plan.name);
                         onNavigate('post-advert');
                       } else {
