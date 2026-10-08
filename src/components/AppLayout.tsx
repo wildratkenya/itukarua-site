@@ -407,6 +407,16 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     loginJustHappened.current = true;
   }, []);
 
+  // Free role grants (advertiser access) are written client-side and skip the
+  // M-Pesa flow, so onPaymentComplete never fires for them — this pulls the
+  // fresh profile_roles rows into user.entitlements so role chips/tabs update.
+  const refreshEntitlements = () => {
+    if (!user) return;
+    getRoleEntitlements(user.id)
+      .then(ents => setUser(prev => (prev ? { ...prev, entitlements: ents } : prev)))
+      .catch(() => {});
+  };
+
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -555,14 +565,14 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         case 'post-job':
           return <PostJobPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} />;
         case 'post-advert':
-          return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
+          return <PostAdvertPage onNavigate={handleNavigate} user={user} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} onEntitlementsRefresh={refreshEntitlements} />;
         case 'advertise':
           return <AdvertisePage onNavigate={handleNavigate} />;
         case 'dashboard':
           if (!user) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
-          return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} />;
+          return <DashboardPage user={user} onNavigate={handleNavigate} onViewJob={handleViewJob} onOpenMpesa={handleOpenMpesa} onEntitlementsRefresh={refreshEntitlements} />;
         case 'inbox':
           if (!user) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;

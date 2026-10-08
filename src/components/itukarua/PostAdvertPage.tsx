@@ -3,8 +3,10 @@ import { ArrowLeft, CheckCircle, Upload, Loader2, X, Shield } from 'lucide-react
 import { supabase } from '@/lib/supabase';
 import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { createServiceAd, getCustomCategories, hasEntitlement } from '@/lib/database';
+import { createServiceAd, getCustomCategories, hasEntitlement, ensureAdvertiserEntitlement } from '@/lib/database';
 import { serviceAdImageCap } from '@/lib/adLifecycle';
+import AdvertPlanPicker from './AdvertPlanPicker';
+import type { AdvertPlan } from './AdvertPlanPicker';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import type { MpesaHandler } from '@/lib/mpesa';
@@ -14,6 +16,7 @@ interface PostAdvertPageProps {
   user: UserState | null;
   onOpenAuth: (tab: 'login' | 'signup') => void;
   onOpenMpesa: MpesaHandler;
+  onEntitlementsRefresh?: () => void;
 }
 
 const PLAN_IMAGE_CAP: Record<string, number> = { '10-Day Advert': 3, '20-Day Advert': 5, '30-Day Advert': 8 };
@@ -26,7 +29,7 @@ const ADVERT_PLANS = PRICING_PLANS.advertPlans.map(p => ({ ...p, kind: 'service'
 
 const ALL_PLANS = ADVERT_PLANS;
 
-const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa }) => {
+const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpenAuth, onOpenMpesa, onEntitlementsRefresh }) => {
   const [formData, setFormData] = useState({ businessName: '', category: '', description: '', location: '', county: '', subcounty: '', contact: '', website: '', plan: '' });
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -51,6 +54,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
 
   const [advLocked, setAdvLocked] = useState(false);
   const [gateChecked, setGateChecked] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -64,6 +68,24 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
     check();
     return () => { mounted = false; };
   }, [user]);
+
+  // Advertiser access itself is free: picking a package unlocks the form and
+  // preselects the plan; its price is paid once when the advert is submitted.
+  const handleGatePlanPick = async (plan: AdvertPlan) => {
+    if (!user) { onOpenAuth('login'); return; }
+    setGateBusy(true);
+    setServerError('');
+    try {
+      await ensureAdvertiserEntitlement(user.id);
+      setFormData(prev => ({ ...prev, plan: plan.name }));
+      setAdvLocked(false);
+      onEntitlementsRefresh?.();
+    } catch (err: any) {
+      setServerError(err.message || 'Could not unlock advertiser access. Please try again.');
+    } finally {
+      setGateBusy(false);
+    }
+  };
 
   const selectedPlan = ALL_PLANS.find(p => p.name === formData.plan);
 
@@ -210,24 +232,24 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-xl p-6 lg:p-8 border border-gray-100">
           {gateChecked && advLocked ? (
-            <div className="text-center py-10">
-              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-amber-600" />
+            <div className="py-8">
+              {serverError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-center">{serverError}</div>}
+              <div className="text-center">
+                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-amber-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Choose Your Advert Package</h2>
+                <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                  Creating adverts requires Advertiser access, which is free. Pick a package to unlock the form — you'll pay its price once when you submit.
+                </p>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Advertiser Access Required</h2>
-              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-                Creating adverts requires an Advertiser account. Add advertiser access to your account to unlock service ad placement.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
-                <button
-                  onClick={() => onOpenMpesa(100, 'Advertiser Subscription', 'ADV-SUB', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'advertiser')}
-                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
-                >
-                  Add Advertiser Access (KES 100)
-                </button>
-                <button onClick={() => onNavigate('services')} className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-lg transition-colors">
-                  Back to Services
-                </button>
+              <div className="mt-6 max-w-2xl mx-auto">
+                <AdvertPlanPicker
+                  onSelect={handleGatePlanPick}
+                  onBack={() => onNavigate('services')}
+                  backLabel="Back to Services"
+                  busy={gateBusy}
+                />
               </div>
             </div>
           ) : (
