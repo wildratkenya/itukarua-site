@@ -1701,6 +1701,54 @@ export async function updateAdBannerSetting(key: string, value: string): Promise
   if (error) throw error;
 }
 
+// ─── Site social links ───────────────────────────────────────────────────────
+// Stored as text rows in ad_carousel_settings (the public-read key/value
+// store), one key per platform: social_<platform>. Absent or empty = hidden.
+
+export const SOCIAL_PLATFORMS = [
+  { key: 'facebook', label: 'Facebook' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'x', label: 'X (Twitter)' },
+  { key: 'linkedin', label: 'LinkedIn' },
+  { key: 'youtube', label: 'YouTube' },
+  { key: 'tiktok', label: 'TikTok' },
+  { key: 'whatsapp', label: 'WhatsApp' },
+  { key: 'telegram', label: 'Telegram' },
+] as const;
+
+export type SocialPlatformKey = (typeof SOCIAL_PLATFORMS)[number]['key'];
+export type SocialLinks = Partial<Record<SocialPlatformKey, string>>;
+
+export async function getSocialLinks(): Promise<SocialLinks> {
+  const { data, error } = await supabase
+    .from('ad_carousel_settings')
+    .select('key, value')
+    .like('key', 'social\\_%');
+  if (error) { console.error('getSocialLinks error:', error); return {}; }
+  const links: SocialLinks = {};
+  (data || []).forEach((row: any) => {
+    const platform = String(row.key || '').slice('social_'.length) as SocialPlatformKey;
+    const url = String(row.value || '').trim();
+    if (url) links[platform] = url;
+  });
+  return links;
+}
+
+export async function setSocialLink(platform: string, url: string): Promise<void> {
+  let value = url.trim();
+  if (value && !/^https?:\/\//i.test(value)) value = `https://${value}`;
+  const key = `social_${platform}`;
+  if (!value) {
+    const { error } = await supabase.from('ad_carousel_settings').delete().eq('key', key);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from('ad_carousel_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 // ─── Profile Views ─────────────────────────────────────────────────────────
 
 export async function incrementProfileViews(profileId: string): Promise<void> {
