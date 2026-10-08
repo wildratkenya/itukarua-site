@@ -11,6 +11,7 @@ import { AppProvider } from "./contexts/AppContext";
 import AdminPage from "./components/itukarua/AdminPage";
 import { supabase, restoreSession } from "@/lib/supabase";
 import { getProfile } from "@/lib/database";
+import CookieConsent from "@/components/CookieConsent";
 import React, { useState, useEffect } from "react";
 
 const queryClient = new QueryClient({
@@ -76,6 +77,8 @@ const App = () => (
             <Route path="/admin" element={<AdminRoute />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
+          <CookieConsent />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

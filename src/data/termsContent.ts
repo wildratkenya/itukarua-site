@@ -154,3 +154,30 @@ This Privacy Policy describes how Itukarua Kenya ("we", "us", "our") collects, u
 12. CONTACT US
 For privacy-related inquiries, please contact us through the Platform's contact page at itukarua.co.ke/contact.
 `.trim();
+
+export const COOKIE_POLICY = `
+ITUKARUA COOKIE POLICY
+
+1. WHAT ARE COOKIES
+Cookies are small text files placed on your device when you visit a website. They help the site remember your actions and preferences over a period of time.
+
+2. COOKIES WE USE
+2.1. Session & authentication cookies: keep you signed in securely and protect your account from unauthorised access.
+2.2. Preference cookies: remember choices such as light/dark theme and collapsed sidebar so the site looks the way you left it.
+2.3. Security & rate-limit cookies/local storage: prevent abuse of forms such as contact and newsletter submissions.
+2.4. Consent record: stores your cookie and privacy acceptance locally so we do not ask you again on every visit.
+
+3. COOKIES WE DO NOT USE
+3.1. We do not use third-party advertising cookies.
+3.2. We do not use cross-site tracking, retargeting pixels, or behavioural profiling cookies.
+3.3. We do not sell or share cookie data with advertisers.
+
+4. YOUR CHOICES
+4.1. On your first visit you can Accept or Decline the consent notice. Declining does not block the site because only essential cookies are required for it to work.
+4.2. You can clear or block cookies through your browser settings at any time. Blocking essential cookies may prevent sign-in and other core features from working.
+4.3. Clearing your consent record will cause the consent notice to appear again on your next visit.
+
+5. CHANGES & CONTACT
+5.1. We may update this Cookie Policy from time to time. Material changes will be notified through the Platform.
+5.2. Questions? Contact us through itukarua.co.ke/contact.
+`.trim();
