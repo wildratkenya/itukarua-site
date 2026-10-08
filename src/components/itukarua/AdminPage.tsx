@@ -2766,16 +2766,15 @@ const AdminPage: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input type="text" value={searchJobs} onChange={e => setSearchJobs(e.target.value)} placeholder="Search by title, category or poster..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 </div>
-                <Table>
+                <Table className="[&_td]:px-3 [&_th]:px-3">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Image</TableHead>
                       <TableHead>Job</TableHead>
-                      <TableHead>Category</TableHead>
                       <TableHead className="hidden lg:table-cell">Posted By</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Lifecycle</TableHead>
-                      <TableHead className="hidden md:table-cell">Engagement</TableHead>
+                      <TableHead className="hidden xl:table-cell">Engagement</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2798,12 +2797,11 @@ const AdminPage: React.FC = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="max-w-[220px] truncate">{job.title}</div>
-                          <div className="text-xs text-gray-500">KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</div>
+                          <div className="max-w-[170px] truncate">{job.title}</div>
+                          <div className="max-w-[170px] truncate text-xs text-gray-500">{job.category} · KSh {(job.budget_min || 0).toLocaleString()} – {(job.budget_max || 0).toLocaleString()}</div>
                         </TableCell>
-                        <TableCell>{job.category}</TableCell>
-                        <TableCell className="hidden lg:table-cell">{job.posted_by_name}</TableCell>
-                        <TableCell>{job.location || '-'}</TableCell>
+                        <TableCell className="hidden lg:table-cell"><div className="max-w-[110px] truncate">{job.posted_by_name}</div></TableCell>
+                        <TableCell><div className="max-w-[110px] truncate">{job.location || '-'}</div></TableCell>
                         <TableCell>
                           <Badge variant={
                             jobState.key === 'live' ? 'default' :
@@ -2821,7 +2819,7 @@ const AdminPage: React.FC = () => {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">
+                        <TableCell className="hidden xl:table-cell">
                           <div className="text-sm">{job.views ?? 0} views</div>
                           <div className="text-xs text-gray-500">{job.bids_count ?? 0} bids</div>
                         </TableCell>
