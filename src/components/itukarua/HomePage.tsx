@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import SEO, { generateOrganizationSchema, generateLocalBusinessSchema } from '@/lib/seo';
-import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown, Facebook, Instagram, Twitter, Linkedin, Youtube, Music2, MessageCircle, Send } from 'lucide-react';
+import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown, Facebook, Instagram, Twitter, Linkedin, Youtube, Music2, MessageCircle, Send, Share2 } from 'lucide-react';
 import HeroSection from './HeroSection';
 import AdBanner from './AdBanner';
 import JobCard from './JobCard';
@@ -57,6 +57,7 @@ const SOCIAL_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   tiktok: Music2,
   whatsapp: MessageCircle,
   telegram: Send,
+  mastodon: Share2,
 };
 
 const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onOpenEmployerPayment, onWorkerPopupOpen, onWorkerSearchAuth, autoOpenWorkerSearch, onConsumeAutoOpenWorkerSearch }) => {
