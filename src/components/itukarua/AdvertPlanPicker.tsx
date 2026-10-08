@@ -6,12 +6,13 @@ export type AdvertPlan = (typeof PRICING_PLANS.advertPlans)[number];
 
 interface AdvertPlanPickerProps {
   onSelect: (plan: AdvertPlan) => void;
+  onBeforeSelect?: (plan: AdvertPlan) => Promise<boolean>; // if returns false, selection is aborted (no STK)
   onBack?: () => void;
   backLabel?: string;
   busy?: boolean;
 }
 
-const AdvertPlanPicker: React.FC<AdvertPlanPickerProps> = ({ onSelect, onBack, backLabel = 'Back', busy = false }) => (
+const AdvertPlanPicker: React.FC<AdvertPlanPickerProps> = ({ onSelect, onBeforeSelect, onBack, backLabel = 'Back', busy = false }) => (
   <div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
       {PRICING_PLANS.advertPlans.map(plan => (
@@ -19,7 +20,14 @@ const AdvertPlanPicker: React.FC<AdvertPlanPickerProps> = ({ onSelect, onBack, b
           key={plan.name}
           type="button"
           disabled={busy}
-          onClick={() => onSelect(plan)}
+          onClick={async () => {
+            if (busy) return;
+            if (onBeforeSelect) {
+              const ok = await onBeforeSelect(plan);
+              if (!ok) return;
+            }
+            onSelect(plan);
+          }}
           className={`relative p-4 rounded-xl border-2 text-left transition-all disabled:opacity-60 ${
             plan.popular ? 'border-purple-300 bg-purple-50 hover:border-purple-400' : 'border-gray-200 bg-white hover:border-green-400'
           }`}

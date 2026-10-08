@@ -1570,6 +1570,87 @@ export async function ensureAdvertiserEntitlement(userId: string): Promise<void>
   await setRoleEntitlement(userId, 'advertiser', { paid: true, expires_at: null, token_days: 0 });
 }
 
+export async function hasActiveAdvertiserSubscription(userId?: string): Promise<boolean> {
+  if (!userId) return false;
+  return hasEntitlement(userId, 'advertiser');
+}
+
+export type ActiveAdvertiserTier = {
+  hasActive: boolean;
+  tierKey: '10-day' | '20-day' | '30-day' | null; // plan key
+  tierName: string | null;                        // e.g. '10-Day Advert'
+  days: number | null;
+  inferredFrom: 'entitlement+payment' | 'entitlement+ad' | 'entitlement' | null;
+};
+
+function tierKeyToName(k: '10-day' | '20-day' | '30-day' | null): string | null {
+  if (k === '10-day') return '10-Day Advert';
+  if (k === '20-day') return '20-Day Advert';
+  if (k === '30-day') return '30-Day Advert';
+  return null;
+}
+
+function tierKeyToDays(k: '10-day' | '20-day' | '30-day' | null): number | null {
+  if (k === '10-day') return 10;
+  if (k === '20-day') return 20;
+  if (k === '30-day') return 30;
+  return null;
+}
+
+export async function getActiveAdvertiserTier(userId?: string): Promise<ActiveAdvertiserTier> {
+  if (!userId) return { hasActive: false, tierKey: null, tierName: null, days: null, inferredFrom: null };
+  const active = await hasEntitlement(userId, 'advertiser');
+  if (!active) return { hasActive: false, tierKey: null, tierName: null, days: null, inferredFrom: null };
+  // 1) latest successful advertiser payment
+  const { data: pays } = await supabase
+    .from('payments')
+    .select('id, created_at, payment_type, status, description, related_ad_id')
+    .eq('user_id', userId)
+    .eq('payment_type', 'advert')
+    .order('created_at', { ascending: false })
+    .limit(10);
+  const success = (pays || []).find((p: any) =>
+    ['completed', 'success', 'successful', 'paid', 'confirmed'].includes(String(p.status || '').toLowerCase())
+  );
+  if (success) {
+    // try related ad first
+    if (success.related_ad_id) {
+      const { data: ad } = await supabase.from('advertisements').select('plan').eq('id', success.related_ad_id).maybeSingle();
+      if (ad?.plan && ['10-day', '20-day', '30-day'].includes(ad.plan)) {
+        const k = ad.plan as '10-day' | '20-day' | '30-day';
+        return { hasActive: true, tierKey: k, tierName: tierKeyToName(k), days: tierKeyToDays(k), inferredFrom: 'entitlement+payment' };
+      }
+    }
+    // try description
+    const d = String(success.description || '');
+    if (d.includes('30-Day Advert')) {
+      const k = '30-day' as const;
+      return { hasActive: true, tierKey: k, tierName: tierKeyToName(k), days: tierKeyToDays(k), inferredFrom: 'entitlement+payment' };
+    }
+    if (d.includes('20-Day Advert')) {
+      const k = '20-day' as const;
+      return { hasActive: true, tierKey: k, tierName: tierKeyToName(k), days: tierKeyToDays(k), inferredFrom: 'entitlement+payment' };
+    }
+    if (d.includes('10-Day Advert')) {
+      const k = '10-day' as const;
+      return { hasActive: true, tierKey: k, tierName: tierKeyToName(k), days: tierKeyToDays(k), inferredFrom: 'entitlement+payment' };
+    }
+  }
+  // 2) latest paid ad
+  const { data: ads } = await supabase
+    .from('advertisements')
+    .select('plan, created_at')
+    .eq('owner_id', userId)
+    .eq('payment_confirmed', true)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (ads && ads[0]?.plan && ['10-day', '20-day', '30-day'].includes(ads[0].plan)) {
+    const k = ads[0].plan as '10-day' | '20-day' | '30-day';
+    return { hasActive: true, tierKey: k, tierName: tierKeyToName(k), days: tierKeyToDays(k), inferredFrom: 'entitlement+ad' };
+  }
+  return { hasActive: true, tierKey: null, tierName: null, days: null, inferredFrom: 'entitlement' };
+}
+
 // ─── Weekly Bid Counter ─────────────────────────────────────────────────────
 
 export async function getWeeklyBidCount(userId: string): Promise<number> {
