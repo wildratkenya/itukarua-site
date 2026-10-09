@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award } from 'lucide-react';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search } from 'lucide-react';
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
@@ -94,6 +94,8 @@ const notifRef = useRef<HTMLDivElement>(null);
   const [dbJobCategories, setDbJobCategories] = useState<string[]>([]);
   const [matchingJobs, setMatchingJobs] = useState<DbJob[]>([]);
   const [categoryFormSaved, setCategoryFormSaved] = useState(false);
+  const [profileRolesByUser, setProfileRolesByUser] = useState<Record<string, any[]>>({});
+  const [searchTerm, setSearchTerm] = useState('');
 
   const isAdmin = user.role === 'admin' || user.role === 'super_admin';
   const isJobseeker = selectedRole === 'jobseeker';
@@ -1042,11 +1044,38 @@ const notifRef = useRef<HTMLDivElement>(null);
 
         {activeTab === 'jobs' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{isAdmin ? 'All Jobs' : 'My Posted Jobs'}</h3>
-              <button onClick={() => onNavigate('post-job')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">Post New Job</button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold text-gray-900">{isAdmin ? 'Settings Summary — Jobs' : 'My Posted Jobs'}</h3>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search jobs by title, owner, category, county..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                )}
+                <button onClick={() => onNavigate('post-job')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap">Post New Job</button>
+              </div>
             </div>
-            {jobs.length > 0 ? jobs.map(job => {
+            {jobs.length > 0 ? jobs.filter((j) => {
+              if (!isAdmin) return true;
+              const term = searchTerm.toLowerCase();
+              if (!term) return true;
+              const owner = profiles.find((p) => p.id === j.posted_by);
+              return (
+                j.title?.toLowerCase().includes(term) ||
+                j.category?.toLowerCase().includes(term) ||
+                j.location?.toLowerCase().includes(term) ||
+                j.county?.toLowerCase().includes(term) ||
+                owner?.full_name?.toLowerCase().includes(term) ||
+                owner?.email?.toLowerCase().includes(term) ||
+                j.status?.toLowerCase().includes(term)
+              );
+            }).map(job => {
               const st = jobStateBadge(job);
               const canEnable = st.key === 'disabled' || st.key === 'retired';
               return (
@@ -1556,23 +1585,71 @@ const notifRef = useRef<HTMLDivElement>(null);
 
         {activeTab === 'users' && isAdmin && (
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-900">Registered Users ({profiles.length})</h3>
-            {profiles.map((p, idx) => (
-              <div key={p.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                <img src={p.profile_image || IMAGES.workers[idx % IMAGES.workers.length]} alt={p.full_name} className="w-12 h-12 rounded-full object-cover" />
-                <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{p.full_name || p.email}</h4>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                    <span className="capitalize">{p.role}</span>
-                    <span>{p.location || 'No location'}</span>
-                    <span>{p.email}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {p.verified && <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Verified</span>}
-                </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold text-gray-900">Settings Summary — Users</h3>
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search users by name, email, role, county..."
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
               </div>
-            ))}
+            </div>
+            <div className="space-y-3">
+              {profiles
+                .filter((p) => {
+                  const term = searchTerm.toLowerCase();
+                  if (!term) return true;
+                  const roles = (profileRolesByUser[p.id] || []).map((r: any) => r.role).join(' ');
+                  return (
+                    p.full_name?.toLowerCase().includes(term) ||
+                    p.email?.toLowerCase().includes(term) ||
+                    p.phone?.toLowerCase().includes(term) ||
+                    p.county?.toLowerCase().includes(term) ||
+                    p.subcounty?.toLowerCase().includes(term) ||
+                    p.location?.toLowerCase().includes(term) ||
+                    roles.includes(term) ||
+                    p.role?.toLowerCase().includes(term)
+                  );
+                })
+                .map((p) => {
+                  const allRoles: any[] = [];
+                  if (p.role) allRoles.push({ role: p.role, primary: true, paid: p.registration_paid ?? false, subscription_expires_at: p.subscription_expires_at });
+                  const pr = (profileRolesByUser[p.id] || []).map((r: any) => ({ ...r, primary: false }));
+                  const merged = [...allRoles, ...pr];
+                  return (
+                    <div key={p.id} className="bg-white rounded-xl p-4 border border-gray-100 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{p.full_name || p.email}</h4>
+                          <p className="text-xs text-gray-500">{p.email} • {p.phone || '—'} • {p.county || p.location || '—'}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {merged.map((r: any, i: number) => {
+                            const expired = r.expires_at ? new Date(r.expires_at).getTime() < Date.now() : false;
+                            const active = r.paid && !expired;
+                            return (
+                              <span key={`${p.id}-${r.role}-${i}`} className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${active ? 'bg-green-100 text-green-700' : expired ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {r.role}{r.primary ? ' (primary)' : ''}{active ? ' · active' : expired ? ' · expired' : r.paid ? ' · paid' : ' · unpaid'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
+                        <span>Verified: {p.verified ? 'Yes' : 'No'}</span>
+                        <span>Featured: {p.is_featured ? 'Yes' : (p as any).featured ? 'Yes' : 'No'}</span>
+                        <span>Contact visible: {p.allow_contact_display ? 'Yes' : (p as any).contact_visible ? 'Yes' : 'No'}</span>
+                        <span>Rating: {p.rating ?? 0}</span>
+                        <span>Views: {p.profile_views ?? 0}</span>
+                        <span>Joined: {new Date(p.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         )}
 
