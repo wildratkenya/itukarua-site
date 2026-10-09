@@ -1282,7 +1282,58 @@ const notifRef = useRef<HTMLDivElement>(null);
 
         {activeTab === 'payments' && (
           <div className="space-y-4">
-            {isJobseeker ? (<>
+            {isAdmin && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-semibold text-gray-900">Settings Summary — Payments</h3>
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search payments by ref, type, user, desc..."
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+            )}
+            {isAdmin && (
+              <div className="space-y-3">
+                {payments
+                  .filter((pmt) => {
+                    const term = searchTerm.toLowerCase();
+                    if (!term) return true;
+                    const user = profiles.find((prf) => prf.id === pmt.user_id);
+                    return (
+                      pmt.id.toLowerCase().includes(term) ||
+                      (pmt.mpesa_ref || '')?.toLowerCase().includes(term) ||
+                      pmt.payment_type?.toLowerCase().includes(term) ||
+                      pmt.status?.toLowerCase().includes(term) ||
+                      pmt.description?.toLowerCase().includes(term) ||
+                      user?.full_name?.toLowerCase().includes(term) ||
+                      user?.email?.toLowerCase().includes(term)
+                    );
+                  })
+                  .map((pmt) => {
+                    const user = profiles.find((prf) => prf.id === pmt.user_id);
+                    return (
+                      <div key={pmt.id} className="bg-white rounded-xl p-4 border border-gray-100 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <p className="font-medium">{pmt.payment_type} — KES {pmt.amount.toLocaleString()}</p>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{pmt.status}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">User: {user?.full_name || user?.email || '—'} • Ref: {pmt.mpesa_ref || '—'}</p>
+                        <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
+                          <span>Job: {pmt.related_job_id || '—'}</span>
+                          <span>Ad: {pmt.related_ad_id || '—'}</span>
+                          <span>Created: {new Date(pmt.created_at).toLocaleDateString()}</span>
+                          {pmt.description && <span className="truncate max-w-xs">{pmt.description}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+            {!isAdmin && isJobseeker ? (<>
               <div>
                 <h3 className="font-semibold text-gray-900">Subscription & Registration</h3>
                 <p className="text-sm text-gray-500 mt-1">Your registration fee and subscription payments. A valid subscription lets employers find and contact you.</p>
@@ -1537,11 +1588,38 @@ const notifRef = useRef<HTMLDivElement>(null);
 
         {activeTab === 'adverts' && !isAdvertiser && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{isAdmin ? 'All Adverts' : 'My Adverts'}</h3>
-              <button onClick={() => onNavigate('post-advert')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">Post New Advert</button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold text-gray-900">{isAdmin ? 'Settings Summary — Adverts/Services' : 'My Adverts'}</h3>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search adverts by business, owner, plan, category..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                )}
+                <button onClick={() => onNavigate('post-advert')} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap">Post New Advert</button>
+              </div>
             </div>
-            {ads.length > 0 ? ads.map(ad => {
+            {ads.length > 0 ? (isAdmin ? ads.filter((ad: any) => {
+              const term = searchTerm.toLowerCase();
+              if (!term) return true;
+              const owner = profiles.find((p) => p.id === ad.owner_id);
+              return (
+                (ad.business_name || ad.title)?.toLowerCase().includes(term) ||
+                ad.category?.toLowerCase().includes(term) ||
+                ad.location?.toLowerCase().includes(term) ||
+                ad.county?.toLowerCase().includes(term) ||
+                ad.plan?.toLowerCase().includes(term) ||
+                ad.status?.toLowerCase().includes(term) ||
+                owner?.full_name?.toLowerCase().includes(term) ||
+                owner?.email?.toLowerCase().includes(term)
+              );
+            }) : ads).map(ad => {
               const isBoosted = ad.featured && ad.boost_until && new Date(ad.boost_until) > new Date();
               const boostDaysLeft = isBoosted ? Math.ceil((new Date(ad.boost_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
               return (
