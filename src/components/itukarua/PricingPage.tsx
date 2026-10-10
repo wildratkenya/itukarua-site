@@ -6,13 +6,21 @@ import BoostProductModal from './BoostProductModal';
 import type { MpesaHandler } from '@/lib/mpesa';
 import { hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
 
+interface PricingUser {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  profile?: { registration_paid?: boolean; subscription_expires_at?: string | null } | null;
+}
+
 interface PricingPageProps {
   onOpenMpesa: MpesaHandler;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onNavigate?: (page: string) => void;
   onOpenAuth?: (tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
   onStayAfterLogin?: () => void;
-  user?: { id: string; name?: string; email?: string; role?: string } | null;
+  user?: PricingUser | null;
 }
 
 const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPayment, onNavigate, onOpenAuth, onStayAfterLogin, user }) => {
@@ -21,6 +29,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
   const [boostOpen, setBoostOpen] = useState(false);
   const isJobseeker = user?.role === 'jobseeker';
   const isRegisteredEmployer = user?.role === 'employer';
+
+  const jobseekerExpiry = user?.profile?.subscription_expires_at
+    ? new Date(user.profile.subscription_expires_at)
+    : null;
+  const premiumActive = !!isJobseeker && !!jobseekerExpiry && jobseekerExpiry.getTime() > Date.now();
+  const premiumExpired = !!isJobseeker && !!jobseekerExpiry && jobseekerExpiry.getTime() <= Date.now();
 
   const handleEmployerCta = (action: 'post-job' | 'subscribe') => {
     if (isRegisteredEmployer) {
@@ -32,6 +46,34 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
       onOpenEmployerPayment?.();
     }
   };
+
+  // Premium subscribe must not jump straight into the STK prompt: an anonymous
+  // visitor is sent through sign-up first (staying on this page), a free
+  // jobseeker is sent to upgrade for the first time, and an expired premium
+  // account is asked to renew.
+  const handlePremiumSubscribe = () => {
+    if (!user) {
+      onStayAfterLogin?.();
+      onOpenAuth?.('signup', 'jobseeker');
+      return;
+    }
+    onOpenMpesa(
+      PRICING_PLANS.jobseekerPremium.price,
+      premiumExpired || premiumActive ? 'Jobseeker Premium Renewal' : 'Jobseeker Premium Subscription',
+      'PREM-NEW',
+      'registration',
+      undefined, undefined, undefined, undefined, false, false, null, 'jobseeker',
+    );
+  };
+
+  const premiumLabel = !user
+    ? 'Subscribe with M-Pesa'
+    : user.role !== 'jobseeker'
+      ? 'Subscribe with M-Pesa'
+      : premiumActive || premiumExpired
+        ? 'Renew Premium'
+        : 'Upgrade to Premium';
+  const showPremiumPhoneIcon = !user || user.role !== 'jobseeker';
 
   useEffect(() => {
     if (user && pendingPlan) {
@@ -160,16 +202,16 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   ))}
                 </ul>
                 <button
-                  onClick={() => onOpenMpesa(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')}
+                  onClick={handlePremiumSubscribe}
                   className="w-full py-4 bg-white hover:bg-green-50 text-green-700 font-bold text-base rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/10 group-hover:scale-[1.02]"
                 >
-                  {isJobseeker ? (
-                    'Upgrade'
-                  ) : (
+                  {showPremiumPhoneIcon ? (
                     <>
                       <Phone className="w-4 h-4" />
-                      Subscribe with M-Pesa
+                      {premiumLabel}
                     </>
+                  ) : (
+                    premiumLabel
                   )}
                 </button>
               </div>
