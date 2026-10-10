@@ -77,6 +77,8 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     if (!formData.category) errs.category = 'Select a category';
     if (!formData.description.trim()) errs.description = 'Description is required';
     if (!formData.location) errs.location = 'Select a location';
+    if (!formData.county) errs.county = 'Select a county';
+    if (!formData.subcounty.trim()) errs.subcounty = 'Select a subcounty';
     if (!formData.budgetMin) errs.budgetMin = 'Enter minimum budget';
     if (!formData.budgetMax) errs.budgetMax = 'Enter maximum budget';
     if (!formData.deadline) errs.deadline = 'Set a deadline';
@@ -135,8 +137,8 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
         title: formData.title,
         description: formData.description,
         location: formData.location,
-        county: formData.county || undefined,
-        subcounty: formData.subcounty || undefined,
+        county: formData.county,
+        subcounty: formData.subcounty,
         budget_min: parseInt(formData.budgetMin),
         budget_max: parseInt(formData.budgetMax),
         deadline: formData.deadline,
@@ -248,8 +250,8 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
         title: formData.title,
         description: formData.description,
         location: formData.location,
-        county: formData.county || undefined,
-        subcounty: formData.subcounty || undefined,
+        county: formData.county,
+        subcounty: formData.subcounty,
         budget_min: parseInt(formData.budgetMin),
         budget_max: parseInt(formData.budgetMax),
         deadline: formData.deadline,
@@ -530,22 +532,24 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
-                <select value={formData.county} onChange={e => setFormData({ ...formData, county: e.target.value, subcounty: '' })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                <label className="block text-sm font-medium text-gray-700 mb-1">County *</label>
+                <select value={formData.county} onChange={e => setFormData({ ...formData, county: e.target.value, subcounty: '' })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.county ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
                   <option value="">Select county</option>
                   {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {errors.county && <p className="text-red-500 text-xs mt-1">{errors.county}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subcounty *</label>
                 {formData.county && getSubcounties(formData.county).length > 0 ? (
-                  <select value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none">
+                  <select value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.subcounty ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}>
                     <option value="">Select subcounty</option>
                     {getSubcounties(formData.county).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 ) : (
-                  <input type="text" value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" placeholder="e.g. Kikuyu" />
+                  <input type="text" value={formData.subcounty} onChange={e => setFormData({ ...formData, subcounty: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.subcounty ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} placeholder="e.g. Kikuyu" />
                 )}
+                {errors.subcounty && <p className="text-red-500 text-xs mt-1">{errors.subcounty}</p>}
               </div>
             </div>
             <div>
