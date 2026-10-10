@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield, Phone, Zap, Briefcase } from 'lucide-react';
-import { KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement, employerReactivateJob, JOB_LISTING_PLANS } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
@@ -368,7 +368,12 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
                 </div>
                 <span className="font-bold text-gray-900">KES 100</span>
               </div>
-              <button onClick={() => payListing(100, 1, '1-Day Job Token')} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+              <ul className="text-xs text-gray-500 mt-2 space-y-1">
+                {PRICING_PLANS.singleJobPost.features.map((f, j) => (
+                  <li key={j}>• {f}</li>
+                ))}
+              </ul>
+              <button onClick={() => payListing(100, 1, '1-Day Job Token')} className="mt-3 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
                 <Phone className="w-4 h-4" /> Pay KES 100
               </button>
             </div>
@@ -380,6 +385,11 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
                 </div>
                 <span className="font-bold text-gray-900">KES 200</span>
               </div>
+              <ul className="text-xs text-gray-500 mt-2 space-y-1">
+                {PRICING_PLANS.employerSubscription.features.map((f, j) => (
+                  <li key={j}>• {f}</li>
+                ))}
+              </ul>
               <button
                 onClick={() => {
                   if (!user) return;

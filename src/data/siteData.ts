@@ -132,6 +132,7 @@ export const PRICING_PLANS = {
     name: 'Employer Access',
     price: 200,
     period: '/week',
+    tagline: 'Post unlimited jobs & access all jobseekers in your category',
     features: [
       'See all active jobseekers in your category',
       'Full contact details — phone, email, WhatsApp',
@@ -145,6 +146,7 @@ export const PRICING_PLANS = {
     name: 'Single Job Access',
     price: 100,
     period: '/1 day',
+    tagline: 'One day of access — unlock contacts for a single job for 24 hours',
     features: [
       'Unlock contacts for ONE job for 24 hours',
       'See all bids on that job',

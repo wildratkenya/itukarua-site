@@ -97,6 +97,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   const loginFromWorkerPopup = useRef(false);
   const loginFromBoost = useRef(false);
   const skipTopScroll = useRef(false);
+  const skipAutoPaymentOnRegister = useRef(false);
   const [subNotice, setSubNotice] = useState<SubscriptionNotice | null>(null);
   const [subNoticeDismissed, setSubNoticeDismissed] = useState(false);
   const [expiredLock, setExpiredLock] = useState(false);
@@ -403,8 +404,11 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     }
   };
 
-  const handleAuthComplete = useCallback(() => {
+  const handleAuthComplete = useCallback((role?: 'advertiser' | 'employer' | 'jobseeker') => {
     loginJustHappened.current = true;
+    // A fresh account created through AuthModal shows its own plan chooser, so
+    // suppress the auto-opened payment prompt that would otherwise stack on top.
+    skipAutoPaymentOnRegister.current = role === 'employer' || role === 'jobseeker';
   }, []);
 
   // Free role grants (advertiser access) are written client-side and skip the
@@ -495,7 +499,10 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
   const promptLoginSubscriptionCheck = useCallback((p: any) => {
     applySubscriptionState(p);
     const notice = evaluateSubscriptionNotice(p);
-    if (notice?.status === 'expired') {
+    // Fresh sign-ups through AuthModal already landed on a plan chooser there.
+    const skippedAutoPrompt = skipAutoPaymentOnRegister.current;
+    skipAutoPaymentOnRegister.current = false;
+    if (notice?.status === 'expired' && !skippedAutoPrompt) {
       setSubNoticeDismissed(false);
       const spec = rolePaymentSpec(notice.role);
       const roleEntitlement = notice.role as EntitlementRole;
@@ -820,6 +827,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         initialTab={authTab}
         initialRole={authRole}
         onAuth={handleAuthComplete}
+        onNavigate={handleNavigate}
         onOpenMpesa={(amount, description, accountRef, paymentType) => handleOpenMpesa(amount, description, accountRef, paymentType)}
       />
 
