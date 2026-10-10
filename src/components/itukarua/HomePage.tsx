@@ -9,6 +9,7 @@ import WorkerSearchModal from './WorkerSearchModal';
 import TopRatedWorkersModal from './TopRatedWorkersModal';
 import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import { isPremiumOrFeatured } from '@/lib/utils';
 
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
 import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, getSocialLinks, SOCIAL_PLATFORMS, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult, type SocialLinks } from '@/lib/database';
@@ -365,7 +366,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                 )}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-bold text-gray-900 truncate">{selectedWorker.full_name}</h3>
-                  {selectedWorker.is_featured && <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded"><Zap className="w-3 h-3" />Featured</span>}
+                  {isPremiumOrFeatured(selectedWorker) && <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded"><Zap className="w-3 h-3" />Featured</span>}
                   <p className="text-sm text-gray-500">
                     {(() => { const s = typeof selectedWorker.skills === 'string' ? selectedWorker.skills.split(',')[0]?.trim() : selectedWorker.skills?.[0]; return s || "Worker"; })()}
                   </p>
@@ -701,7 +702,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                         </div>
                       )}
                       <h4 className="font-semibold text-gray-900 text-sm mb-0.5 line-clamp-1">{worker.full_name}</h4>
-                      {worker.is_featured && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded mb-1"><Zap className="w-2.5 h-2.5" />Featured</span>}
+                      {isPremiumOrFeatured(worker) && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded mb-1"><Zap className="w-2.5 h-2.5" />Featured</span>}
                       <p className="text-xs text-gray-500 mb-2">{firstSkill || "Worker"}</p>
                       <div className="flex items-center justify-center gap-1">
                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />

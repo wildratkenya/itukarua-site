@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -209,6 +209,15 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       alert('Please select a rating');
       return;
     }
+    try {
+      if (!(await getProfileRatingsFlag(selectedBidderForRating))) {
+        alert('This worker has ratings & reviews turned off. Ratings are available to Premium workers.');
+        return;
+      }
+    } catch {
+      alert('Could not verify this worker\'s rating settings. Please try again.');
+      return;
+    }
     setRatingSubmitting(true);
     try {
       await createRating({
@@ -232,7 +241,16 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
     }
   };
 
-  const openRatingModal = (bidderId: string, bidderName: string) => {
+  const openRatingModal = async (bidderId: string, bidderName: string) => {
+    if (!bidderId) { alert('No winning worker selected yet.'); return; }
+    try {
+      if (!(await getProfileRatingsFlag(bidderId))) {
+        alert(`${bidderName || 'This worker'} has ratings & reviews turned off. Ratings are available to Premium workers.`);
+        return;
+      }
+    } catch {
+      // Fall back to opening the modal; the submit path re-checks and blocks.
+    }
     setSelectedBidderForRating(bidderId);
     setSelectedBidderName(bidderName);
     setShowRatingModal(true);

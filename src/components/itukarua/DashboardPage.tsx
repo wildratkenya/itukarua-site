@@ -14,6 +14,7 @@ import ProfileViewsChart from './ProfileViewsChart';
 import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
+import { isPremiumOrFeatured } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import CertificateViewer from './CertificateViewer';
 import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
@@ -787,7 +788,9 @@ const notifRef = useRef<HTMLDivElement>(null);
                         { label: 'Total Bids', value: bids.length.toString(), icon: Briefcase, color: 'bg-green-100 text-green-600', tab: 'bids' },
                         { label: 'Payments', value: payments.length.toString(), icon: CreditCard, color: 'bg-amber-100 text-amber-600', tab: 'payments' },
                         { label: 'Rating', value: user.profile?.rating?.toString() || '0', icon: Star, color: 'bg-purple-100 text-purple-600', tab: 'profile' },
-                        { label: 'Profile Views', value: (user.profile?.profile_views || 0).toString(), icon: Users, color: 'bg-indigo-100 text-indigo-600', tab: 'profile' },
+                        ...(subscriptionActive
+                          ? [{ label: 'Profile Views', value: (user.profile?.profile_views || 0).toString(), icon: Users, color: 'bg-indigo-100 text-indigo-600', tab: 'profile' }]
+                          : []),
                       ].map((stat, i) => (
                         <div key={i} onClick={() => setActiveTab(stat.tab)} className="bg-white rounded-xl p-4 border border-gray-100 cursor-pointer hover:border-green-200 hover:shadow-sm transition-all">
                           <div className={`w-9 h-9 ${stat.color} rounded-lg flex items-center justify-center mb-2`}><stat.icon className="w-4 h-4" /></div>
@@ -978,7 +981,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                       </>
                     )}
                   </div>
-                  {userRanking && (
+                  {subscriptionActive && userRanking && (
                     <div className="bg-white rounded-xl p-5 border border-gray-100">
                       <UserRanking rank={userRanking.rank} total={userRanking.total} reviewsCount={userRanking.reviews_count} rating={userRanking.rating} />
                     </div>
@@ -1034,7 +1037,7 @@ const notifRef = useRef<HTMLDivElement>(null);
               {!isAdmin && !isJobseeker && !isAdvertiser && jobViewHistory.length > 0 && (
                 <JobViewsChart data={jobViewHistory} total={totalJobViews} />
               )}
-              {profileViewHistory.length > 0 && (
+              {(isJobseeker ? subscriptionActive : true) && profileViewHistory.length > 0 && (
                 <ProfileViewsChart data={profileViewHistory} total={user.profile?.profile_views || 0} />
               )}
               {siteTraffic.length > 0 && <SiteTrafficChart data={siteTraffic} />}
@@ -1718,7 +1721,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                       </div>
                       <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
                         <span>Verified: {p.verified ? 'Yes' : 'No'}</span>
-                        <span>Featured: {p.is_featured ? 'Yes' : (p as any).featured ? 'Yes' : 'No'}</span>
+                        <span>Featured: {isPremiumOrFeatured(p) ? 'Yes' : 'No'}</span>
                         <span>Contact visible: {p.allow_contact_display ? 'Yes' : (p as any).contact_visible ? 'Yes' : 'No'}</span>
                         <span>Rating: {p.rating ?? 0}</span>
                         <span>Views: {p.profile_views ?? 0}</span>

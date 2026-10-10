@@ -239,7 +239,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   </thead>
                   <tbody>
                     {[
-                      { feature: 'Job bids per week', free: '10 in category', premium: 'Unlimited' },
+                      { feature: 'Job bids per week', free: '10', premium: 'Unlimited' },
                       { feature: 'Profile visibility', free: 'Basic', premium: 'Priority' },
                       { feature: 'Job notifications', free: true, premium: true },
                       { feature: 'Direct messaging', free: false, premium: true },

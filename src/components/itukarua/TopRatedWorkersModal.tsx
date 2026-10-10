@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, X, Star, Loader2, Shield, Zap, ThumbsUp, ThumbsDown, Users } from 'lucide-react';
 import { getProfiles, getCustomCategories } from '@/lib/database';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
+import { isPremiumOrFeatured } from '@/lib/utils';
 
 interface TopRatedWorkersModalProps {
   isOpen: boolean;
@@ -145,7 +146,7 @@ const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onC
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <h4 className="font-semibold text-gray-900 text-sm truncate">{worker.full_name}</h4>
-                            {worker.is_featured && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded flex items-center gap-0.5 flex-shrink-0"><Zap className="w-2.5 h-2.5" />Featured</span>}
+                            {isPremiumOrFeatured(worker) && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded flex items-center gap-0.5 flex-shrink-0"><Zap className="w-2.5 h-2.5" />Featured</span>}
                             {worker.verified && <Shield className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
                           </div>
                           {skills.length > 0 && (
