@@ -68,6 +68,10 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
         const [j, b] = await Promise.all([getJobById(jobId), getBidsForJob(jobId)]);
         setJob(j);
         setBids(b);
+        if (j?.awarded_bidder_id) {
+          const winningBid = b.find(bid => bid.bidder_id === j.awarded_bidder_id);
+          if (winningBid) setWinnerId(winningBid.id);
+        }
         if (j && j.posted_by !== user?.id) {
           trackJobView(jobId);
         }
@@ -187,8 +191,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       return;
     }
     try {
-      await updateJob(job.id, { status: 'in-progress' });
-      setJob({ ...job, status: 'in-progress' });
+      await updateJob(job.id, { status: 'in-progress', awarded_bidder_id: bid.bidder_id });
+      setJob({ ...job, status: 'in-progress', awarded_bidder_id: bid.bidder_id });
       setSelectedBid(bid.id);
       setWinnerId(bid.id);
       alert(`Bid accepted for ${bid.bidder_name || 'this bidder'}! Job is now in progress. Contact will be shared after payment.`);
@@ -311,6 +315,12 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
   const viewingBid = viewingBidder ? bids.find(b => b.bidder_id === viewingBidder.id) : null;
   const viewingWinner = viewingBid ? viewingBid.id === winnerId : false;
+  // Exact location and the poster's identity are private until a bid is accepted.
+  const isPoster = !!user && user.id === job.posted_by;
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isSuccessfulBidder = !!user && !!job.awarded_bidder_id && user.id === job.awarded_bidder_id;
+  const canSeePrivateDetails = isPoster || isAdmin || isSuccessfulBidder;
+  const publicArea = [job.county, job.subcounty].filter(Boolean).join(', ');
   // Either a live employer subscription, or a per-contact purchase on the
   // winning bidder whose window is still open.
   const canViewContact = contactUnlocked && (hasJobAccess || viewingWinner);
@@ -331,7 +341,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
             description: job.description || '',
             datePosted: job.created_at,
             hiringOrganization: job.company,
-            jobLocation: job.location,
+            jobLocation: [job.subcounty, job.county].filter(Boolean).join(', '),
             county: job.county,
             subcounty: job.subcounty,
             employmentType: job.type,
@@ -363,7 +373,10 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
           </div>
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">{job.title}</h1>
           <div className="flex flex-wrap gap-4 text-sm text-green-100">
-            <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
+            <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {publicArea || 'Location hidden'}</span>
+            {canSeePrivateDetails && job.location && (
+              <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
+            )}
             <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {bids.length} bids</span>
             <CorporateBadge accountId={job.corporate_account_id} />
           </div>
@@ -403,7 +416,9 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
               <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100">
                 <div><p className="text-xs text-gray-400">Budget Range</p><p className="font-bold text-green-700">KES {job.budget_min.toLocaleString()} - {job.budget_max.toLocaleString()}</p></div>
                 <div><p className="text-xs text-gray-400">Deadline</p><p className="font-semibold text-gray-900">{new Date(job.deadline).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}{applicationsClosed && <span className="ml-2 text-xs font-medium text-amber-600">(Application closed)</span>}</p></div>
-                <div><p className="text-xs text-gray-400">Posted By</p><p className="font-semibold text-gray-400">{job.posted_by_name}</p></div>
+                {canSeePrivateDetails && (
+                  <div><p className="text-xs text-gray-400">Posted By</p><p className="font-semibold text-gray-400">{job.posted_by_name}</p></div>
+                )}
                 <div><p className="text-xs text-gray-400">Posted Date</p><p className="font-semibold text-gray-900">{new Date(job.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
               </div>
             </div>

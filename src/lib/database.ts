@@ -58,6 +58,7 @@ export interface DbJob {
   valid_until?: string | null;
   retired_at?: string | null;
   retired_by?: 'employer' | 'system' | null;
+  awarded_bidder_id?: string | null;
   images?: string[];
   created_at: string;
   updated_at: string;
