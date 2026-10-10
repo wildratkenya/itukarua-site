@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import CertificateViewer from './CertificateViewer';
 import type { MpesaHandler } from '@/lib/mpesa';
 
@@ -541,7 +541,12 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
               <Crown className="w-6 h-6 text-indigo-600" />
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Subscribe or Unlock This Worker</h3>
-            <p className="text-sm text-gray-600 mb-1 text-center">Subscribe for <span className="font-bold text-indigo-600">KES 200/week</span> (or <span className="font-bold text-blue-600">KES 100</span> for 1 day) to access jobseeker contacts in your category.</p>
+            <p className="text-sm text-gray-600 mb-2 text-center">Subscribe to <span className="font-bold text-gray-800">{PRICING_PLANS.employerSubscription.name}</span> — <span className="font-bold text-indigo-600">KES {PRICING_PLANS.employerSubscription.price}/week</span> (or <span className="font-bold text-blue-600">KES {PRICING_PLANS.singleJobPost.price}</span> for 1 day) to access jobseeker contacts in your category.</p>
+            <ul className="text-xs text-gray-500 mb-4 space-y-1 text-center">
+              {PRICING_PLANS.employerSubscription.features.map((f, j) => (
+                <li key={j}>• {f}</li>
+              ))}
+            </ul>
             <p className="text-sm text-gray-500 mb-5 text-center">Prefer just this one? Unlock a single contact for <span className="font-bold text-green-700">KES {contactFee}</span> for {contactWindowHours} hours instead.</p>
             <div className="space-y-3">
               {contactTarget && (

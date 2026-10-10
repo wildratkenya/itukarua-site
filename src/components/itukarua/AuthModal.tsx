@@ -1,7 +1,9 @@
 ﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera, CheckCircle } from 'lucide-react';
+import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera, CheckCircle, Crown, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { KENYA_COUNTIES } from '@/data/siteData';
+import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
+import { setPendingScrollTarget } from '@/lib/pricingScroll';
+import type { Page } from './Header';
 import { compressImage } from '@/lib/imageUtils';
 import { subscribeNewsletter, updateProfile, getCustomCategories } from '@/lib/database';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
@@ -11,11 +13,12 @@ interface AuthModalProps {
   onClose: () => void;
   initialTab?: 'login' | 'signup';
   initialRole?: 'advertiser' | 'employer' | 'jobseeker';
-  onAuth: () => void;
+  onAuth: (role?: 'advertiser' | 'employer' | 'jobseeker') => void;
+  onNavigate?: (page: Page) => void;
   onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', initialRole, onAuth, onOpenMpesa }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', initialRole, onAuth, onNavigate, onOpenMpesa }) => {
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<'advertiser' | 'employer' | 'jobseeker'>(initialRole ?? 'employer');
@@ -102,7 +105,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       if (tab === 'signup') {
         // Set the auth-complete flag BEFORE the async call so the SIGNED_IN
         // listener in AppLayout sees it when the event fires.
-        onAuth();
+        onAuth(role);
         const signupPromise = supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -207,6 +210,9 @@ data: {
             // No email confirmation required — account is live now.
             // Jobseekers choose their subscription plan (Free / Premium) right here.
             if (role === 'jobseeker') {
+              setChosenRole(role);
+              setShowPlanChoice(true);
+            } else if (role === 'employer') {
               setChosenRole(role);
               setShowPlanChoice(true);
             } else {
@@ -371,6 +377,72 @@ data: {
                 </div>
               </div>
               <p className="text-[10px] text-gray-400 text-center">You can upgrade or switch plans anytime from your dashboard.</p>
+            </div>
+          ) : showPlanChoice && chosenRole === 'employer' ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Briefcase className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Account Created!</h3>
+                <p className="text-sm text-gray-500">Welcome to Itukarua. Choose how you'd like to access employer features.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border-2 border-green-500 bg-green-50 rounded-xl p-5 relative">
+                  <span className="absolute -top-2.5 left-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-3xl font-extrabold text-green-700">KES {PRICING_PLANS.employerSubscription.price}</span>
+                    <Crown className="w-6 h-6 text-green-600" />
+                  </div>
+                  <p className="font-bold text-gray-900">{PRICING_PLANS.employerSubscription.name}</p>
+                  <p className="text-xs text-gray-500">{PRICING_PLANS.employerSubscription.tagline}</p>
+                  <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
+                    {PRICING_PLANS.employerSubscription.features.map((f, j) => (
+                      <li key={j}>• {f}</li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlanChoice(false);
+                      setChosenRole(null);
+                      onClose();
+                      onOpenMpesa?.(PRICING_PLANS.employerSubscription.price, 'Employer Weekly Access', 'EMP-WK', 'registration');
+                    }}
+                    className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Pay KES {PRICING_PLANS.employerSubscription.price} via M-Pesa
+                  </button>
+                </div>
+                <div className="border-2 rounded-xl p-5 border-blue-300 bg-blue-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-3xl font-extrabold text-blue-700">KES {PRICING_PLANS.singleJobPost.price}</span>
+                    <Zap className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <p className="font-bold text-gray-900">{PRICING_PLANS.singleJobPost.name}</p>
+                  <p className="text-xs text-gray-500">{PRICING_PLANS.singleJobPost.tagline}</p>
+                  <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
+                    {PRICING_PLANS.singleJobPost.features.map((f, j) => (
+                      <li key={j}>• {f}</li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlanChoice(false);
+                      setChosenRole(null);
+                      onClose();
+                      onOpenMpesa?.(PRICING_PLANS.singleJobPost.price, 'Worker Day Access', 'EMP-DAY', 'employer_day_access');
+                    }}
+                    className="mt-4 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Pay KES {PRICING_PLANS.singleJobPost.price} via M-Pesa
+                  </button>
+                </div>
+              </div>
+              <button type="button" onClick={() => { setShowPlanChoice(false); setChosenRole(null); onClose(); }} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                Decide Later
+              </button>
             </div>
           ) : (
             <>
@@ -789,7 +861,18 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
 
 {!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
-              Jobseeker membership is <span className="font-semibold text-green-700">KES 100/mo</span> — a 30-day subscription. Pay now to start bidding on jobs and connecting with employers.
+              Jobseeker membership is <span className="font-semibold text-green-700">FREE</span>, Premium Membership is <span className="font-semibold text-green-700">KES 100/mo</span> — a 30-day subscription. Register now to start bidding on jobs and connecting with employers.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  setPendingScrollTarget('jobseekers');
+                  onNavigate?.('pricing');
+                }}
+                className="font-semibold text-green-700 underline hover:text-green-800"
+              >
+                Find Your Dream Job →
+              </button>
             </p>
           )}
             </>

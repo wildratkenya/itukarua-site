@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2, Info } from 'lucide-react';
 import { supabaseUrl } from '@/lib/supabase';
+import { PRICING_PLANS } from '@/data/siteData';
 
 interface MpesaModalProps {
   isOpen: boolean;
@@ -294,12 +295,12 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                   <span className="text-3xl font-extrabold text-green-700">KES 200</span>
                   <Crown className="w-6 h-6 text-green-600" />
                 </div>
-                <p className="text-sm font-semibold text-gray-900">Weekly Unlimited</p>
-                <p className="text-xs text-gray-500 mt-0.5">7 days access</p>
+                <p className="text-sm font-semibold text-gray-900">{PRICING_PLANS.employerSubscription.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{PRICING_PLANS.employerSubscription.tagline}</p>
                 <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
-                  <li>• All jobseeker contacts in your category</li>
-                  <li>• Unlimited job posts & bids</li>
-                  <li>• No per-job fees</li>
+                  {PRICING_PLANS.employerSubscription.features.map((f, j) => (
+                    <li key={j}>• {f}</li>
+                  ))}
                 </ul>
                 <button
                   onClick={() => { setSelectedPlan('weekly'); setStep('instructions'); }}
@@ -314,21 +315,12 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                   <span className="text-3xl font-extrabold text-blue-700">KES 100</span>
                   <Zap className="w-6 h-6 text-blue-600" />
                 </div>
-                <p className="text-sm font-semibold text-gray-900">Single Job Token</p>
-                <p className="text-xs text-gray-500 mt-0.5">1 day access</p>
+                <p className="text-sm font-semibold text-gray-900">{PRICING_PLANS.singleJobPost.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{PRICING_PLANS.singleJobPost.tagline}</p>
                 <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
-                  {relatedJobId ? (
-                    <>
-                      <li>• Unlock contacts for ONE job for 24 hours</li>
-                      <li>• See all bids on that job</li>
-                    </>
-                  ) : (
-                    <>
-                      <li>• Unlock worker contacts for 24 hours</li>
-                      <li>• View contact details in search results</li>
-                    </>
-                  )}
-                  <li>• No weekly commitment</li>
+                  {PRICING_PLANS.singleJobPost.features.map((f, j) => (
+                    <li key={j}>• {f}</li>
+                  ))}
                 </ul>
                 <button
                   onClick={() => { setSelectedPlan('day'); setStep('instructions'); }}
