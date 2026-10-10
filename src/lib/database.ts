@@ -209,6 +209,18 @@ export async function updateProfile(userId: string, updates: Partial<DbProfile>)
 // is active. See migration 20261003120000_lock_down_profile_reads.
 const WORKER_DIRECTORY = 'public_worker_directory';
 
+// Card-safe ratings opt-in lookup for non-owners. Reading a foreign profile row
+// would be blocked by profiles_select_own, so this goes through the directory
+// view that everyone authenticated may read.
+export async function getProfileRatingsFlag(profileId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from(WORKER_DIRECTORY)
+    .select('ratings_enabled')
+    .eq('id', profileId)
+    .maybeSingle();
+  return data?.ratings_enabled === true;
+}
+
 export async function getWorkers(limit = 20): Promise<DbProfile[]> {
   const { data, error } = await supabase
     .from(WORKER_DIRECTORY)
@@ -1691,8 +1703,7 @@ export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
   const { data: jobseekers } = await supabase
     .from(WORKER_DIRECTORY)
     .select('id, skills, county')
-    .eq('role', 'jobseeker')
-    .not('subscription_expires_at', 'is', null);
+    .eq('role', 'jobseeker');
 
   if (!jobseekers?.length) return;
 

@@ -3,6 +3,7 @@ import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, S
 import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
+import { isPremiumOrFeatured } from '@/lib/utils';
 import CertificateViewer from './CertificateViewer';
 import type { MpesaHandler } from '@/lib/mpesa';
 
@@ -395,7 +396,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <h4 className="font-semibold text-gray-900 text-sm truncate">{worker.full_name}</h4>
-                            {worker.is_featured && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded flex items-center gap-0.5"><Zap className="w-2.5 h-2.5" />Featured</span>}
+                            {isPremiumOrFeatured(worker) && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded flex items-center gap-0.5"><Zap className="w-2.5 h-2.5" />Featured</span>}
                             <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-medium rounded">Jobseeker</span>
                             {worker.verified && <Shield className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
                           </div>

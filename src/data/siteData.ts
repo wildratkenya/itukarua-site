@@ -107,7 +107,7 @@ export const PRICING_PLANS = {
     price: 0,
     features: [
       'Create a professional jobseeker profile',
-      '10 job bids per week in your category',
+      '10 job bids per week',
       'Basic visibility in employer searches',
       'Receive in-app job notifications',
       'View open job listings',
@@ -119,7 +119,7 @@ export const PRICING_PLANS = {
     price: 100,
     period: '/month',
     features: [
-      'Unlimited job bids in your category',
+      'Unlimited job bids',
       'Direct messaging with employers',
       'Priority visibility in employer searches',
       'Ratings & recommendations from employers',
