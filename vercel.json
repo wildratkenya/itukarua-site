@@ -1,4 +1,6 @@
 {
+  "buildCommand": "npm run build && cd docs && npm ci --include=dev && npm run build && cd .. && node -e \"require('fs').cpSync('docs/build','dist/docs',{recursive:true})\"",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/img/a/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/adverts/:match*" },
     { "source": "/img/:bucket/:match*", "destination": "https://xahaxtbudiubelemewna.supabase.co/storage/v1/object/public/:bucket/:match*" },
