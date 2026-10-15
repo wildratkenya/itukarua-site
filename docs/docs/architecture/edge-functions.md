@@ -25,7 +25,7 @@ shared helper `supabase/functions/_shared/`.
 | `corporateWelcome.ts` | Corporate-welcome email template. |
 
 :::info Why correct payment ids matter
-The M-Pesa callback arrives at `/mpesa/callback` and every paid feature routes through
+The M-Pesa callback arrives at `/payments/confirm` and every paid feature routes through
 `paymentEffects.ts`. It exists so a retried or duplicated callback can never double-grant a
 subscription — grants are conditional on the payment row's current status.
 :::

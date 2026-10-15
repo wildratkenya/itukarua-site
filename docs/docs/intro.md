@@ -32,7 +32,7 @@ Commits to `main` are auto-deployed to Vercel.
 - **Frontend:** React 18 + TypeScript + Vite, React Router, TanStack Query, Tailwind CSS, shadcn/ui, Recharts.
 - **Backend:** Supabase (Postgres, Auth, Storage) with Deno **Edge Functions** for payments, OTPs, email, corporate billing and cron jobs.
 - **Payments:** Safaricom **M-Pesa STK push** via the `mpesa-stk-push` Edge Function, fulfilled idempotently by `payment-effects`.
-- **Hosting:** Vercel (static SPA) with same-origin `/supabase`, `/img` and `/mpesa/callback` rewrites.
+- **Hosting:** Vercel (static SPA) with same-origin `/supabase`, `/img` and `/payments/confirm` rewrites.
 
 ## Where the interesting logic lives
 

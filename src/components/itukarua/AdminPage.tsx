@@ -201,6 +201,7 @@ const AdminPage: React.FC = () => {
   const [addJobDays, setAddJobDays] = useState<Record<string, number>>({});
   const [addAdvertDays, setAddAdvertDays] = useState<Record<string, number>>({});
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [mpesaTest, setMpesaTest] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [customJobCats, setCustomJobCats] = useState<string[]>([]);
@@ -838,6 +839,11 @@ const AdminPage: React.FC = () => {
     setJobs(data || []);
   };
 
+  const loadPayments = async () => {
+    const data = await proxyRequest('/rest/v1/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
+    setPayments(Array.isArray(data) ? data : []);
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -856,7 +862,7 @@ const AdminPage: React.FC = () => {
         }),
         loadJobs(),
         loadAds(),
-        proxyRequest('/rest/v1/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setPayments(Array.isArray(data) ? data : [])),
+        loadPayments(),
         proxyRequest('/rest/v1/messages?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setMessages(Array.isArray(data) ? data : [])),
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
@@ -3144,6 +3150,11 @@ const AdminPage: React.FC = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {currentRole === 'super_admin' && (
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setMpesaTest(true)}>
+                        <Zap className="w-4 h-4" /> Test M-Pesa
+                      </Button>
+                    )}
                     {(['all', 'pending', 'completed', 'failed', 'refunded'] as const).map(f => (
                       <button key={f} onClick={() => setPaymentStatusFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${paymentStatusFilter === f ? f === 'pending' ? 'bg-amber-100 text-amber-700' : f === 'completed' ? 'bg-green-100 text-green-700' : f === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                         {f === 'all' ? `All (${payments.length})` : f === 'pending' ? `Pending (${payments.filter(p => p.status === 'pending').length})` : f === 'completed' ? `Completed (${payments.filter(p => p.status === 'completed').length})` : f === 'failed' ? `Failed (${payments.filter(p => p.status === 'failed').length})` : `Refunded (${payments.filter(p => p.status === 'refunded').length})`}
@@ -3173,7 +3184,12 @@ const AdminPage: React.FC = () => {
                     {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter) && (!searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell>KSh {payment.amount}</TableCell>
-                        <TableCell>{payment.payment_type}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <span>{payment.payment_type}</span>
+                            {payment.payment_type === 'mpesa_test' && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Test</Badge>}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant={
                             payment.status === 'completed' ? 'default' :
@@ -5166,6 +5182,19 @@ const AdminPage: React.FC = () => {
           defaultPhone={adPayment.phone}
           payingOnBehalfOf={adPayment.ad.business_name}
           onPaymentComplete={() => { setAdPayment(null); loadAds(); }}
+        />
+      )}
+
+      {mpesaTest && (
+        <MpesaModal
+          isOpen={mpesaTest}
+          onClose={() => setMpesaTest(false)}
+          amount={1}
+          description="M-Pesa connection test"
+          accountRef="TEST"
+          paymentType="mpesa_test"
+          metadata={{ kind: 'test' }}
+          onPaymentComplete={loadPayments}
         />
       )}
 

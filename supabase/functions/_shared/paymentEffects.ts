@@ -545,6 +545,12 @@ export async function runPaymentEffects(supabase: any, payment: PaymentRow): Pro
       break
     }
 
+    case 'mpesa_test':
+      // Connectivity test fired from /admin. Recorded only — never grants an
+      // entitlement, extends a subscription or touches pricing.
+      done.push('test')
+      break
+
     default:
       // job_posting, job_payment, single_job_post: the payment
       // itself is the entitlement, nothing further to write.
@@ -666,6 +672,7 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   employer_day_access: 'Employer Day Access',
   job_listing: 'Job Listing',
   corporate: 'Corporate Subscription Renewal',
+  mpesa_test: 'M-Pesa Test',
 }
 
 export function paymentLabel(paymentType: string): string {

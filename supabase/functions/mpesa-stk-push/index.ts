@@ -36,14 +36,12 @@ const QUERY_AFTER_MS = 20_000
 const SIMULATE_AFTER_MS = 15_000
 
 function getTimestamp(): string {
-  const now = new Date()
-  const y = now.getFullYear().toString()
-  const m = (now.getMonth() + 1).toString().padStart(2, '0')
-  const d = now.getDate().toString().padStart(2, '0')
-  const h = now.getHours().toString().padStart(2, '0')
-  const min = now.getMinutes().toString().padStart(2, '0')
-  const s = now.getSeconds().toString().padStart(2, '0')
-  return `${y}${m}${d}${h}${min}${s}`
+  const eat = new Date(Date.now() + 3 * 60 * 60 * 1000)
+  const p = (n: number) => n.toString().padStart(2, '0')
+  return (
+    `${eat.getUTCFullYear()}${p(eat.getUTCMonth() + 1)}${p(eat.getUTCDate())}` +
+    `${p(eat.getUTCHours())}${p(eat.getUTCMinutes())}${p(eat.getUTCSeconds())}`
+  )
 }
 
 function formatPhone(phone: string): string {
