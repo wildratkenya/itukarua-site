@@ -28,7 +28,7 @@ All external calls are made **same-origin** to avoid ad-blockers (which drop URL
 | `/img/:bucket/:match*` | Supabase storage `${bucket}` bucket |
 | `/supabase-storage/:match*` | Supabase storage generic public bucket |
 | `/supabase/:match*` | `https://xahaxtbudiubelemewna.supabase.co/:match*` (all REST/Auth through the proxy) |
-| `/mpesa/callback` | `.../functions/v1/mpesa-stk-push/callback` (Safaricom webhook) |
+| `/payments/confirm` | `.../functions/v1/mpesa-stk-push/callback` (Safaricom webhook) |
 | `/:match*` (fallback) | `/index.html` (SPA fallback for the Router) |
 
 Storage images also get `Cache-Control: public, max-age=31536000, immutable`.
@@ -83,4 +83,4 @@ npm run build     # → docs/build
 - `https://itukarua.co.ke/docs/` renders after the domain is attached.
 - A storage image loads via `/img/...`.
 - Login works (auth through `/supabase`).
-- An M-Pesa callback reaches `/mpesa/callback`.
+- An M-Pesa callback reaches `/payments/confirm`.

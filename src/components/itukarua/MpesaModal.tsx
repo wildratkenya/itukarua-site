@@ -11,7 +11,7 @@ interface MpesaModalProps {
   accountRef: string;
   user?: { id: string; name: string; email: string; role: string } | null;
   onPaymentComplete?: () => void;
-  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'advert_upgrade' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing';
+  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'advert_upgrade' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing' | 'mpesa_test';
   relatedJobId?: string;
   relatedAdId?: string;
   relatedProfileId?: string;
