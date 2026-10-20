@@ -20,10 +20,23 @@ Deno.serve(async (req) => {
 
     const supabase = createServiceClient()
 
-    // Reject if an auth user already exists for this email.
-    const { data: existing } = await supabase.auth.admin.getUserByEmail(email)
-    if (existing?.user) {
-      throw new Error('An account already exists for this email. Please sign in instead.')
+    // Reject if an auth user already exists for this email. supabase-js has no
+    // auth.admin.getUserByEmail, so ask GoTrue's admin users endpoint directly
+    // (its `filter` matches on email) and compare exactly.
+    const authKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const authUrl = `${Deno.env.get('SUPABASE_URL')}/auth/v1/admin/users?filter=${encodeURIComponent(email.toLowerCase())}`
+    const authRes = await fetch(authUrl, {
+      headers: { apikey: authKey, Authorization: `Bearer ${authKey}` },
+    })
+    if (!authRes.ok) {
+      console.error('[send-corporate-otp] admin user lookup failed:', authRes.status, await authRes.text())
+    } else {
+      const { users } = await authRes.json().catch(() => ({ users: [] as any[] }))
+      const taken = Array.isArray(users) &&
+        users.some((u: any) => String(u?.email || '').toLowerCase() === email.toLowerCase())
+      if (taken) {
+        throw new Error('An account already exists for this email. Please sign in instead.')
+      }
     }
 
     // Rate limit: max 3 OTPs per address per 15 minutes
