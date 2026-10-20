@@ -253,8 +253,12 @@ Deno.serve(async (req) => {
 
           if (darajaCode !== '0' && darajaCode !== 0) {
             console.error('[STK Push] Daraja error code:', darajaCode, 'desc:', darajaDesc)
-            // Mark the row failed so it does not sit pending forever.
-            await supabase.from('payments').update({ status: 'failed' }).eq('id', paymentData?.id)
+            // Mark the row failed so it does not sit pending forever, and keep
+            // the reason so the admin list can show why.
+            await supabase
+              .from('payments')
+              .update({ status: 'failed', mpesa_ref: darajaDesc || null, updated_at: new Date().toISOString() })
+              .eq('id', paymentData?.id)
             return json({ error: `Daraja: ${darajaDesc}`, daraja: stkData }, 400)
           }
 
@@ -339,7 +343,7 @@ Deno.serve(async (req) => {
       } else {
         await supabase
           .from('payments')
-          .update({ status: 'failed', mpesa_ref: mpesaRef || ResultDesc || null })
+          .update({ status: 'failed', mpesa_ref: mpesaRef || ResultDesc || null, updated_at: new Date().toISOString() })
           .eq('id', payment.id)
         console.error('[STK Callback] payment failed:', ResultCode, ResultDesc)
       }
@@ -393,7 +397,7 @@ Deno.serve(async (req) => {
             } else if (queried && queried.resultCode !== 0) {
               await supabase
                 .from('payments')
-                .update({ status: 'failed', mpesa_ref: payment.mpesa_ref })
+                .update({ status: 'failed', mpesa_ref: payment.mpesa_ref, updated_at: new Date().toISOString() })
                 .eq('id', payment.id)
                 .eq('status', 'pending')
               payment = { ...payment, status: 'failed' }
