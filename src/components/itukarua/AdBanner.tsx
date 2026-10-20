@@ -1,13 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, X, ArrowRight } from 'lucide-react';
 import { incrementAdClick, incrementAdDisplay, getAdBannerSettings, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS } from '@/lib/database';
 import { getAdsForDelivery, logImpression } from '@/lib/adDelivery';
 import { proxyImageUrl } from '@/lib/supabase';
+import type { Page } from './Header';
 
 const DESKTOP_VISIBLE = 5;
 const MOBILE_VISIBLE = 1;
 const DESKTOP_GAP = 12;
 const MOBILE_GAP = 8;
+
+/**
+ * House promos that fill the tiles a strip cannot cover with real ads.
+ *
+ * The marquee renders its list twice and travels -50%, while the window is
+ * `DESKTOP_VISIBLE` tiles wide. With fewer eligible ads than tiles, the same
+ * banner sits in view more than once — a fresh boost made this obvious because
+ * the strip is hidden entirely at zero boosted ads. Padding the half-list up to
+ * the window width keeps every tile in view distinct, and two identical halves
+ * are exactly what the -50% keyframe needs to loop seamlessly.
+ *
+ * Promos are house content: they never count as an ad impression or click.
+ */
+const PROMOS: { id: string; title: string; sub: string; page: Page; from: string; to: string }[] = [
+  { id: 'promo-advertise', title: 'Advertise on Itukarua', sub: 'Reach customers across Kenya', page: 'advertise', from: 'from-green-600', to: 'to-emerald-700' },
+  { id: 'promo-jobs', title: 'Find Local Jobs', sub: 'Fresh work posted every day', page: 'jobs', from: 'from-blue-600', to: 'to-indigo-700' },
+  { id: 'promo-post-job', title: 'Post a Job in Minutes', sub: 'Hire trusted local talent', page: 'post-job', from: 'from-amber-500', to: 'to-orange-600' },
+  { id: 'promo-services', title: 'Hire Local Services', sub: 'Verified workers near you', page: 'services', from: 'from-violet-600', to: 'to-purple-700' },
+  { id: 'promo-pricing', title: 'Simple M-Pesa Pricing', sub: 'Pay only for what you use', page: 'pricing', from: 'from-rose-500', to: 'to-pink-600' },
+];
 
 function useMobile() {
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
@@ -21,7 +42,11 @@ function useMobile() {
   return mobile;
 }
 
-const AdBanner: React.FC = () => {
+interface AdBannerProps {
+  onNavigate?: (page: Page) => void;
+}
+
+const AdBanner: React.FC<AdBannerProps> = ({ onNavigate }) => {
   const [affiliateAds, setAffiliateAds] = useState<any[]>([]);
   const [settings, setSettings] = useState<AdBannerSettings>(DEFAULT_AD_BANNER_SETTINGS);
   const [isHovered, setIsHovered] = useState(false);
@@ -93,7 +118,11 @@ const AdBanner: React.FC = () => {
   if (affiliateAds.length === 0) return null;
 
   const loopSeconds = Math.max(5, Math.round(settings.horizontalLoopSeconds));
-  const track = [...affiliateAds, ...affiliateAds];
+  // Pad the half-list to at least the window width so a real banner can never
+  // sit twice in one viewport, then duplicate that half for the seamless loop.
+  const pad = Math.max(0, visible - affiliateAds.length);
+  const half = [...affiliateAds, ...Array.from({ length: pad }, (_, i) => PROMOS[i % PROMOS.length])];
+  const track = [...half, ...half];
 
   return (
     <section>
@@ -112,28 +141,52 @@ const AdBanner: React.FC = () => {
               animationPlayState: isHovered ? 'paused' : 'running',
             }}
           >
-            {track.map((ad, i) => (
-              <button
-                key={`${ad.id}-${i}`}
-                onClick={() => setModalAd(ad)}
-                style={{ width: tileWidth, marginRight: gap, height: '100%' }}
-                className="group/item relative shrink-0 rounded-lg overflow-hidden bg-gray-200 cursor-pointer"
-              >
-                <img
-                  src={proxyImageUrl(ad.image_url)}
-                  alt={ad.title}
-                  className="absolute inset-0 w-full h-full object-cover group-hover/item:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                  decoding="async"
-                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover/item:bg-black/25 transition-colors" />
-                <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity">
-                  <p className="text-white text-[10px] sm:text-xs font-medium truncate">{ad.title}</p>
-                </div>
-                <span className="absolute top-1 left-1 px-1 py-0.5 bg-amber-500/80 text-white text-[8px] font-bold rounded uppercase">Ad</span>
-              </button>
-            ))}
+            {track.map((tile, i) => {
+              const promo = PROMOS.find(p => p.id === tile.id);
+              if (promo) {
+                return (
+                  <button
+                    key={`${promo.id}-${i}`}
+                    onClick={() => onNavigate?.(promo.page)}
+                    style={{ width: tileWidth, marginRight: gap, height: '100%' }}
+                    className={`group/item relative shrink-0 rounded-lg overflow-hidden bg-gradient-to-br ${promo.from} ${promo.to} cursor-pointer`}
+                  >
+                    <div className="absolute inset-0 flex flex-col justify-between p-2 sm:p-3 text-left">
+                      <span className="self-start px-1.5 py-0.5 bg-white/20 text-white text-[8px] font-bold rounded uppercase tracking-wide">Itukarua</span>
+                      <div className="min-w-0">
+                        <p className="text-white text-xs sm:text-sm font-bold leading-tight truncate">{promo.title}</p>
+                        <p className="text-white/80 text-[10px] leading-tight mt-0.5 truncate">{promo.sub}</p>
+                        <span className="inline-flex items-center gap-1 mt-1 text-white text-[10px] font-semibold opacity-90">
+                          Explore <ArrowRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={`${tile.id}-${i}`}
+                  onClick={() => setModalAd(tile)}
+                  style={{ width: tileWidth, marginRight: gap, height: '100%' }}
+                  className="group/item relative shrink-0 rounded-lg overflow-hidden bg-gray-200 cursor-pointer"
+                >
+                  <img
+                    src={proxyImageUrl(tile.image_url)}
+                    alt={tile.title}
+                    className="absolute inset-0 w-full h-full object-cover group-hover/item:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover/item:bg-black/25 transition-colors" />
+                  <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity">
+                    <p className="text-white text-[10px] sm:text-xs font-medium truncate">{tile.title}</p>
+                  </div>
+                  <span className="absolute top-1 left-1 px-1 py-0.5 bg-amber-500/80 text-white text-[8px] font-bold rounded uppercase">Ad</span>
+                </button>
+              );
+            })}
           </div>
           )}
         </div>

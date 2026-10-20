@@ -345,7 +345,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         </div>
       )}
       <HeroSection onNavigate={onNavigate} onSearch={onSearch} onOpenWorkerSearch={() => setShowWorkerSearch(true)} stats={stats} />
-      <AdBanner />
+      <AdBanner onNavigate={onNavigate} />
 
 
       {/* Worker Detail Popup */}
