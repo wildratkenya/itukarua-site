@@ -21,13 +21,28 @@ const MOBILE_GAP = 8;
  * are exactly what the -50% keyframe needs to loop seamlessly.
  *
  * Promos are house content: they never count as an ad impression or click.
+ *
+ * Each one is a branded card rather than a flat swatch: a three-stop gradient
+ * in the section's colour, a soft glow, a dot texture, the Itukarua logo in a
+ * white chip (the logo art is navy-on-transparent, so it needs a light plate)
+ * and a business-name eyebrow, so a filler tile reads as house content at a
+ * glance instead of looking like a broken ad.
  */
-const PROMOS: { id: string; title: string; sub: string; page: Page; from: string; to: string }[] = [
-  { id: 'promo-advertise', title: 'Advertise on Itukarua', sub: 'Reach customers across Kenya', page: 'advertise', from: 'from-green-600', to: 'to-emerald-700' },
-  { id: 'promo-jobs', title: 'Find Local Jobs', sub: 'Fresh work posted every day', page: 'jobs', from: 'from-blue-600', to: 'to-indigo-700' },
-  { id: 'promo-post-job', title: 'Post a Job in Minutes', sub: 'Hire trusted local talent', page: 'post-job', from: 'from-amber-500', to: 'to-orange-600' },
-  { id: 'promo-services', title: 'Hire Local Services', sub: 'Verified workers near you', page: 'services', from: 'from-violet-600', to: 'to-purple-700' },
-  { id: 'promo-pricing', title: 'Simple M-Pesa Pricing', sub: 'Pay only for what you use', page: 'pricing', from: 'from-rose-500', to: 'to-pink-600' },
+const PROMOS: {
+  id: string;
+  title: string;
+  sub: string;
+  page: Page;
+  eyebrow: string;
+  from: string;
+  via: string;
+  to: string;
+}[] = [
+  { id: 'promo-advertise', title: 'Advertise on Itukarua', sub: 'Put your business in front of every county.', page: 'advertise', eyebrow: 'Advertise', from: 'from-[#063a2b]', via: 'via-[#0e7a55]', to: 'to-emerald-400' },
+  { id: 'promo-jobs', title: 'Find Local Jobs', sub: 'Fresh work posted across Kenya every day.', page: 'jobs', eyebrow: 'Jobs', from: 'from-[#081236]', via: 'via-[#12467e]', to: 'to-sky-400' },
+  { id: 'promo-post-job', title: 'Post a Job in Minutes', sub: 'Reach vetted local talent before lunch.', page: 'post-job', eyebrow: 'Hiring', from: 'from-[#4a2606]', via: 'via-[#b45309]', to: 'to-amber-300' },
+  { id: 'promo-services', title: 'Hire Verified Services', sub: 'Plumbers, electricians, drivers and more.', page: 'services', eyebrow: 'Services', from: 'from-[#31104f]', via: 'via-[#6d28d9]', to: 'to-fuchsia-400' },
+  { id: 'promo-pricing', title: 'Simple M-Pesa Pricing', sub: 'Pay as you go. No hidden charges.', page: 'pricing', eyebrow: 'Pricing', from: 'from-[#081236]', via: 'via-[#0f766e]', to: 'to-teal-300' },
 ];
 
 function useMobile() {
@@ -149,15 +164,36 @@ const AdBanner: React.FC<AdBannerProps> = ({ onNavigate }) => {
                     key={`${promo.id}-${i}`}
                     onClick={() => onNavigate?.(promo.page)}
                     style={{ width: tileWidth, marginRight: gap, height: '100%' }}
-                    className={`group/item relative shrink-0 rounded-lg overflow-hidden bg-gradient-to-br ${promo.from} ${promo.to} cursor-pointer`}
+                    className="group/item relative shrink-0 rounded-lg overflow-hidden cursor-pointer text-left ring-1 ring-inset ring-white/25"
                   >
-                    <div className="absolute inset-0 flex flex-col justify-between p-2 sm:p-3 text-left">
-                      <span className="self-start px-1.5 py-0.5 bg-white/20 text-white text-[8px] font-bold rounded uppercase tracking-wide">Itukarua</span>
-                      <div className="min-w-0">
-                        <p className="text-white text-xs sm:text-sm font-bold leading-tight truncate">{promo.title}</p>
-                        <p className="text-white/80 text-[10px] leading-tight mt-0.5 truncate">{promo.sub}</p>
-                        <span className="inline-flex items-center gap-1 mt-1 text-white text-[10px] font-semibold opacity-90">
-                          Explore <ArrowRight className="w-3 h-3" />
+                    <div className={`absolute inset-0 bg-gradient-to-br ${promo.from} ${promo.via} ${promo.to} transition-transform duration-700 group-hover/item:scale-110`} />
+                    <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/30 blur-2xl" />
+                    <div className="absolute -left-10 -bottom-12 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+                    <div
+                      className="absolute inset-0 opacity-30"
+                      style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.7) 1px, transparent 1px)', backgroundSize: '12px 12px' }}
+                    />
+                    <div className="absolute inset-x-0 top-0 h-px bg-white/40" />
+                    <div className="relative flex h-full flex-col justify-between p-3 text-left">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="inline-flex rounded-lg bg-white px-2 py-1.5 shadow-lg shadow-black/25">
+                          <img
+                            src="/images/logo.png"
+                            alt="Itukarua"
+                            className="h-8 w-auto object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        </span>
+                        <span className="rounded-full border border-white/40 bg-white/15 px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-white">
+                          {promo.eyebrow}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-[15px] font-extrabold leading-tight text-white drop-shadow-sm">{promo.title}</p>
+                        <p className="mt-1 text-[11px] leading-snug text-white/85">{promo.sub}</p>
+                        <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-gray-900 shadow-md shadow-black/25">
+                          Explore on Itukarua
+                          <ArrowRight className="h-3 w-3 transition-transform group-hover/item:translate-x-0.5" />
                         </span>
                       </div>
                     </div>
