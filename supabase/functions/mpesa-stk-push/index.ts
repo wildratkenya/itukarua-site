@@ -129,14 +129,16 @@ function extractCallbackRef(callbackData: any): string {
   return ''
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
-}
-
 Deno.serve(async (req) => {
   const url = new URL(req.url)
   const path = url.pathname.replace(/^\/mpesa-stk-push/, '') || '/'
   const corsHeaders = corsHeadersFor(req)
+
+  // Every response needs the CORS headers, not just the OPTIONS preflight:
+  // without them the browser reports a plain network failure ("Failed to
+  // fetch") and the JSON body — including the 400s — never reaches the app.
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
