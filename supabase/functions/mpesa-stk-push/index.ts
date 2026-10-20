@@ -25,6 +25,11 @@ const CONSUMER_KEY = Deno.env.get('MPESA_CONSUMER_KEY')!
 const CONSUMER_SECRET = Deno.env.get('MPESA_CONSUMER_SECRET')!
 const PASSKEY = Deno.env.get('MPESA_PASSKEY') || ''
 const SHORTCODE = Deno.env.get('MPESA_SHORTCODE') || ''
+// Buy Goods (till) needs two different numbers in the Daraja request, and
+// Safaricom pairs them against the outlet's agent/store records. MPESA_SHORTCODE
+// keys the password and goes in BusinessShortCode; MPESA_PARTY_B is the second
+// number (falls back to MPESA_SHORTCODE for a Paybill, which uses one number).
+const PARTY_B = Deno.env.get('MPESA_PARTY_B') || SHORTCODE
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SIMULATE = Deno.env.get('MPESA_SIMULATE') === 'true'
@@ -234,7 +239,7 @@ Deno.serve(async (req) => {
               TransactionType: Deno.env.get('MPESA_TXN_TYPE') || 'CustomerBuyGoodsOnline',
               Amount: Math.round(amount),
               PartyA: formattedPhone,
-              PartyB: SHORTCODE,
+              PartyB: PARTY_B,
               PhoneNumber: formattedPhone,
               CallBackURL: Deno.env.get('MPESA_CALLBACK_URL') || `${SUPABASE_URL}/functions/v1/mpesa-stk-push/callback`,
               AccountReference: accountRef || 'ITUKARUA',
