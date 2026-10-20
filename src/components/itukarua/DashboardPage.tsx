@@ -1324,13 +1324,19 @@ const notifRef = useRef<HTMLDivElement>(null);
                           <p className="font-medium">{pmt.payment_type} — KES {pmt.amount.toLocaleString()}</p>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{pmt.status}</span>
                         </div>
-                        <p className="text-xs text-gray-500">User: {user?.full_name || user?.email || '—'} • Ref: {pmt.mpesa_ref || '—'}</p>
+                        <p className="text-xs text-gray-500">User: {user?.full_name || user?.email || '—'} • Txn: {pmt.checkout_request_id || '—'}</p>
                         <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
                           <span>Job: {pmt.related_job_id || '—'}</span>
                           <span>Ad: {pmt.related_ad_id || '—'}</span>
-                          <span>Created: {new Date(pmt.created_at).toLocaleDateString()}</span>
+                          <span>Created: {new Date(pmt.created_at).toLocaleString()}</span>
+                          {pmt.mpesa_ref && pmt.status !== 'failed' && <span className="font-mono">Ref: {pmt.mpesa_ref}</span>}
                           {pmt.description && <span className="truncate max-w-xs">{pmt.description}</span>}
                         </div>
+                        {pmt.status === 'failed' && (
+                          <p className="text-xs text-red-600">
+                            Failed {new Date(pmt.updated_at || pmt.created_at).toLocaleString()} — {pmt.mpesa_ref || 'No failure reason recorded'}
+                          </p>
+                        )}
                       </div>
                     );
                   })}

@@ -7,6 +7,7 @@ interface Transaction {
   status: string;
   payment_type: string;
   mpesa_ref?: string;
+  checkout_request_id?: string | null;
   description?: string;
   created_at: string;
 }
@@ -43,6 +44,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transactions, o
               <p className="text-sm font-medium text-gray-900 truncate">{typeLabel(tx.payment_type)}</p>
               <p className="text-[11px] text-gray-400">
                 {new Date(tx.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {tx.checkout_request_id && <span className="ml-2 font-mono" title={tx.checkout_request_id}>Txn: {tx.checkout_request_id}</span>}
                 {tx.mpesa_ref && <span className="ml-2 font-mono">Ref: {tx.mpesa_ref}</span>}
               </p>
             </div>

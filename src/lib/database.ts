@@ -149,6 +149,7 @@ export interface DbPayment {
   related_bid_id: string | null;
   related_profile_id: string | null;
   token: string | null;
+  checkout_request_id: string | null;
   created_at: string;
   updated_at: string;
 }
