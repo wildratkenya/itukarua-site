@@ -2,6 +2,7 @@ import React from 'react';
 import { MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 /**
  * The per-row "More" affordance used across /admin.
@@ -15,6 +16,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/compon
  * The label is deliberately visible rather than an icon-only dot: on the
  * homepage-banner tab this pattern was already in use and the text made it
  * obvious that the row had hidden actions.
+ *
+ * Tall menus (the corporate-account radio list grows with each account) are
+ * capped to the viewport's available height and scroll vertically, so the
+ * first item — e.g. the Boost action — stays reachable on rows near the bottom
+ * where the panel flips upward.
  */
 export const RowMoreMenu: React.FC<{
   children: React.ReactNode;
@@ -31,7 +37,11 @@ export const RowMoreMenu: React.FC<{
         {label}
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align={align} className={width}>
+    <DropdownMenuContent
+      align={align}
+      collisionPadding={8}
+      className={cn(width, 'max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto')}
+    >
       {children}
     </DropdownMenuContent>
   </DropdownMenu>
