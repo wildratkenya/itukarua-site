@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 import { corsHeadersFor as sharedCorsHeadersFor } from '../_shared/cors.ts'
+import { authenticateStaff } from '../_shared/cronAuth.ts'
 
 function pickImage(item: any): string {
   let images = item.images
@@ -196,6 +197,17 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers })
 
   try {
+    // This function mails every subscriber, and accepts caller-supplied HTML,
+    // so it must never be open to the internet: only a cron caller or a
+    // signed-in administrator may trigger it.
+    const identity = await authenticateStaff(req)
+    if (!identity) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      })
+    }
+
     let body: any = {}
     try { body = await req.json() } catch { body = {} }
 
@@ -249,6 +261,22 @@ Deno.serve(async (req) => {
       const validBanners = banners || []
       html = buildNewsletterHtml(jobs || [], ads || [], validBanners, dateStr, subject, 'This month\u2019s updated Banners, Jobs and Businesses around you')
       textPlain = `Itukarua Monthly Digest - ${dateStr}\n\n${validBanners.length} banners, ${(jobs || []).length} available jobs, ${(ads || []).length} businesses around you.\n\nView online: ${SITE_URL}`
+    }
+
+    if (body?.dryRun) {
+      // Preview mode: build everything, send nothing. Lets an administrator
+      // check the content without mailing every subscriber.
+      return new Response(JSON.stringify({
+        sent: 0,
+        failed: 0,
+        total: subscribers.length,
+        dryRun: true,
+        subject,
+        textLength: textPlain.length,
+        htmlLength: html.length,
+      }), {
+        headers: { ...headers, 'Content-Type': 'application/json' },
+      })
     }
 
     const smtp = await loadSmtpConfig(supabase)

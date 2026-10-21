@@ -953,9 +953,10 @@ const AdminPage: React.FC = () => {
     setSendingNewsletter(true);
     setSubscriberMsg('');
     try {
+      const staffToken = await ensureValidToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/send-weekly-newsletter`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${staffToken}` },
         body: JSON.stringify({ subject, html, text }),
       });
       const data = await res.json();
@@ -3689,9 +3690,10 @@ const AdminPage: React.FC = () => {
                     setSendingNewsletter(true);
                     setSubscriberMsg('');
                     try {
+                      const staffToken = await ensureValidToken();
                       const res = await fetch(`${supabaseUrl}/functions/v1/send-weekly-newsletter`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${staffToken}` },
                       });
                       const data = await res.json();
                       if (data.error) throw new Error(data.error);
