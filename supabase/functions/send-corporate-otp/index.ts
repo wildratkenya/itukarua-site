@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
     // Generate 6-digit OTP
     const otp_code = String(Math.floor(100000 + Math.random() * 900000))
-    const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    const expires_at = new Date(Date.now() + 3 * 60 * 1000).toISOString()
 
     // Store signup payload with the code
     const { error: insertError } = await supabase.from('corporate_signups').insert({
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     <div style="background:#f3f4f6;border-radius:12px;padding:20px;margin:16px 0">
       <p style="font-size:32px;font-weight:700;color:#111827;letter-spacing:8px;margin:0">${otp_code}</p>
     </div>
-    <p style="color:#6b7280;font-size:13px;margin:16px 0 0">This code expires in <strong>10 minutes</strong>.</p>
+    <p style="color:#6b7280;font-size:13px;margin:16px 0 0">This code expires in <strong>3 minutes</strong>.</p>
     <p style="color:#9ca3af;font-size:12px;margin:8px 0 0">If you didn't request this, you can safely ignore this email.</p>
   </td></tr>
   <tr><td style="background:#f3f4f6;padding:20px 24px;text-align:center">
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
 
 Your verification code: ${otp_code}
 
-This code expires in 10 minutes.
+This code expires in 3 minutes.
 If you didn't request this, you can safely ignore this email.
 
 — Itukarua Classifieds`
