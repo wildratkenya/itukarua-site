@@ -150,7 +150,10 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
         body: JSON.stringify({ email, otp_code: code }),
       });
       const result = await res.json().catch(() => ({}));
-      if (!res.ok || result?.error) throw new Error(result?.error || 'Verification failed');
+      if (!res.ok) {
+        throw new Error(result?.error || result?.message || 'Verification failed');
+      }
+      if (result?.error) throw new Error(result.error);
       if (!result?.success) throw new Error('Verification failed');
 
       // Auto sign-in with the one-time temporary password.
