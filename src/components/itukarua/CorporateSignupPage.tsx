@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Mail, Shield, Building2, Crown, Phone, User } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { CORPORATE_PACKAGES, CORPORATE_TIER_ANCHOR_KES } from '@/data/siteData';
 import type { Page } from './Header';
 
@@ -38,6 +38,17 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpResendTimer, setOtpResendTimer] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const serverErrorRef = useRef<HTMLDivElement | null>(null);
+  const otpErrorRef = useRef<HTMLDivElement | null>(null);
+
+  // Bring the error message into view so it is never hidden below the fold
+  useEffect(() => {
+    if (serverError) serverErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [serverError]);
+
+  useEffect(() => {
+    if (otpError) otpErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [otpError]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem('corporate_signup_tier') as Tier | null;
@@ -72,15 +83,20 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     setServerError('');
     try {
       const email = form.email.trim().toLowerCase();
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-corporate-otp`, {
+      const { data: { session } } = await supabase.auth.getSession();
+      const baseUrl = supabaseUrl;
+      const anonKey = supabaseKey;
+      if (!baseUrl) throw new Error('Supabase URL not configured');
+      if (!anonKey) throw new Error('Supabase anon key not configured');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+      };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      else headers.Authorization = `Bearer ${anonKey}`;
+      const res = await fetch(`${baseUrl}/functions/v1/send-corporate-otp`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
+        headers,
         body: JSON.stringify({
           email,
           tier,
@@ -93,7 +109,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
       });
       const otpResult = await res.json().catch(() => ({}));
       if (!res.ok || otpResult?.error) {
-        throw new Error(otpResult?.error || 'Failed to send verification code');
+        throw new Error(otpResult?.error || otpResult?.message || 'Failed to send verification code');
       }
       setOtpCode(['', '', '', '', '', '']);
       setOtpError('');
@@ -138,15 +154,20 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     setOtpError('');
     try {
       const email = form.email.trim().toLowerCase();
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const res = await fetch(`${supabaseUrl}/functions/v1/verify-corporate-otp`, {
+      const { data: { session } } = await supabase.auth.getSession();
+      const baseUrl = supabaseUrl;
+      const anonKey = supabaseKey;
+      if (!baseUrl) throw new Error('Supabase URL not configured');
+      if (!anonKey) throw new Error('Supabase anon key not configured');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+      };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      else headers.Authorization = `Bearer ${anonKey}`;
+      const res = await fetch(`${baseUrl}/functions/v1/verify-corporate-otp`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
+        headers,
         body: JSON.stringify({ email, otp_code: code }),
       });
       const result = await res.json().catch(() => ({}));
@@ -185,14 +206,15 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     try {
       const email = form.email.trim().toLowerCase();
       const { data: { session } } = await supabase.auth.getSession();
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const baseUrl = supabaseUrl;
+      const anonKey = supabaseKey;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         apikey: anonKey,
       };
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-corporate-otp`, {
+      else if (anonKey) headers.Authorization = `Bearer ${anonKey}`;
+      const res = await fetch(`${baseUrl}/functions/v1/send-corporate-otp`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -287,7 +309,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
               <span className="font-medium text-gray-700">{form.email}</span>
             </p>
 
-            {otpError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{otpError}</div>}
+            {otpError && <div ref={otpErrorRef} className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{otpError}</div>}
 
             <div className="flex justify-center gap-2 mb-6">
               {otpCode.map((digit, idx) => (
@@ -388,7 +410,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
             <form onSubmit={handleSendOtp} className="bg-white rounded-2xl border border-gray-100 p-6">
               <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">2 · Your details</h2>
 
-              {serverError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{serverError}</div>}
+              {serverError && <div ref={serverErrorRef} className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{serverError}</div>}
 
               <div className="space-y-4">
                 <div>
