@@ -12,5 +12,6 @@ jobs:
         run: |
           curl -sS -f -w "\nHTTP %{http_code}\n" -X POST https://xahaxtbudiubelemewna.supabase.co/functions/v1/payments-reconcile \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
