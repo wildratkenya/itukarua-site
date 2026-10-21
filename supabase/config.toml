@@ -37,3 +37,6 @@ verify_jwt = false
 
 [functions.corporate-monthly-billing]
 verify_jwt = false
+
+[functions.send-weekly-newsletter]
+verify_jwt = false

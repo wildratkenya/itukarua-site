@@ -208,19 +208,27 @@ Deno.serve(async (req) => {
     }
 
     // Reminder emails were already sent by the cron; the digest reaches admins every run.
+    // A flaky mail server must not undo the invoicing that already happened, so a
+    // failed digest is reported instead of thrown — the next run tries again.
     const recipients = await adminEmails(supabase)
-    await sendDigest(supabase, recipients, [
-      { title: 'Overdue — payments running behind (>7 days)', tone: 'danger', rows: overdueStale },
-      { title: 'Suspended — need manual revival', tone: 'danger', rows: suspended },
-      { title: 'Awaiting payment — invoice issued, not yet settled', tone: 'amber', rows: awaitingPayment },
-      { title: 'Due within 7 days', tone: 'amber', rows: dueSoon },
-    ])
+    let digestError: string | null = null
+    try {
+      await sendDigest(supabase, recipients, [
+        { title: 'Overdue — payments running behind (>7 days)', tone: 'danger', rows: overdueStale },
+        { title: 'Suspended — need manual revival', tone: 'danger', rows: suspended },
+        { title: 'Awaiting payment — invoice issued, not yet settled', tone: 'amber', rows: awaitingPayment },
+        { title: 'Due within 7 days', tone: 'amber', rows: dueSoon },
+      ])
+    } catch (e: any) {
+      digestError = e?.message || 'digest not sent'
+    }
 
     return json({
       ok: true,
       run: new Date().toISOString(),
       invoiced,
       errors,
+      digestError,
       counts: {
         invoiced: invoiced.length,
         errors: errors.length,
