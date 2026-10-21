@@ -1232,23 +1232,31 @@ const AdminPage: React.FC = () => {
     setWeeklyBidCounts(Object.fromEntries(entries));
   };
 
+  const patchProfileDeletedAt = async (userId: string, deletedAt: string | null) => {
+    const token = await ensureValidToken();
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseKey,
+        Authorization: `Bearer ${token}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ deleted_at: deletedAt }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Request failed (${res.status})`);
+    }
+    const rows = await res.json().catch(() => [] as any[]);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error('No profile row matched this user');
+    }
+  };
+
   const trashUser = async (userId: string) => {
     try {
-      const token = await ensureValidToken();
-      const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: supabaseKey,
-          Authorization: `Bearer ${token}`,
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || `Failed to trash user (${res.status})`);
-      }
+      await patchProfileDeletedAt(userId, new Date().toISOString());
       await reloadUsers();
       toast({ title: 'Success', description: 'User moved to trash' });
     } catch (e: any) {
@@ -1258,9 +1266,14 @@ const AdminPage: React.FC = () => {
   };
 
   const restoreUser = async (userId: string) => {
-    await proxyTable('profiles').update({ deleted_at: null }, 'id', userId);
-    await reloadUsers();
-    toast({ title: 'Success', description: 'User restored from trash' });
+    try {
+      await patchProfileDeletedAt(userId, null);
+      await reloadUsers();
+      toast({ title: 'Success', description: 'User restored from trash' });
+    } catch (e: any) {
+      console.error('[restoreUser] error', e);
+      toast({ title: 'Error', description: e?.message || 'Failed to restore user', variant: 'destructive' });
+    }
   };
 
   const deleteUser = async (userId?: string) => {
@@ -1290,24 +1303,38 @@ const AdminPage: React.FC = () => {
     const ids = [...selectedUsers];
     if (ids.length === 0) return;
     if (!confirm(`Move ${ids.length} user(s) to trash?`)) return;
+    let failed = 0;
     for (const id of ids) {
-      await proxyTable('profiles').update({ deleted_at: new Date().toISOString() }, 'id', id);
+      try {
+        await patchProfileDeletedAt(id, new Date().toISOString());
+      } catch (e: any) {
+        console.error('[bulkTrashUsers] failed for', id, e);
+        failed++;
+      }
     }
     setSelectedUsers(new Set());
     await loadData();
-    toast({ title: 'Success', description: `${ids.length} user(s) moved to trash` });
+    if (failed === 0) toast({ title: 'Success', description: `${ids.length} user(s) moved to trash` });
+    else toast({ title: 'Partial success', description: `${ids.length - failed} moved, ${failed} failed`, variant: 'destructive' });
   };
 
   const bulkRestoreUsers = async () => {
     const ids = [...selectedUsers];
     if (ids.length === 0) return;
     if (!confirm(`Restore ${ids.length} user(s) from trash?`)) return;
+    let failed = 0;
     for (const id of ids) {
-      await proxyTable('profiles').update({ deleted_at: null }, 'id', id);
+      try {
+        await patchProfileDeletedAt(id, null);
+      } catch (e: any) {
+        console.error('[bulkRestoreUsers] failed for', id, e);
+        failed++;
+      }
     }
     setSelectedUsers(new Set());
     await loadData();
-    toast({ title: 'Success', description: `${ids.length} user(s) restored` });
+    if (failed === 0) toast({ title: 'Success', description: `${ids.length} user(s) restored` });
+    else toast({ title: 'Partial success', description: `${ids.length - failed} restored, ${failed} failed`, variant: 'destructive' });
   };
 
   const bulkDeletePermanently = async () => {
@@ -1315,6 +1342,7 @@ const AdminPage: React.FC = () => {
     if (ids.length === 0) return;
     if (!confirm(`Permanently delete ${ids.length} user(s)? This cannot be undone.`)) return;
     let failed = 0;
+    const failures: string[] = [];
     try {
       const token = await ensureValidToken();
       for (const id of ids) {
@@ -1325,12 +1353,14 @@ const AdminPage: React.FC = () => {
             body: JSON.stringify({ user_id: id }),
           });
           if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
+            const err = await res.json().catch(() => ({} as any));
             console.error('[bulkDeletePermanently] failed for', id, res.status, err);
+            failures.push(`${id.slice(0, 8)}: ${err?.error || res.status}`);
             failed++;
           }
         } catch (e) {
           console.error('[bulkDeletePermanently] error for', id, e);
+          failures.push(`${id.slice(0, 8)}: ${(e as Error)?.message || 'request failed'}`);
           failed++;
         }
       }
@@ -1342,7 +1372,7 @@ const AdminPage: React.FC = () => {
     setSelectedUsers(new Set());
     await loadData();
     if (failed === 0) toast({ title: 'Success', description: `${ids.length} user(s) permanently deleted` });
-    else toast({ title: 'Partial success', description: `${ids.length - failed} deleted, ${failed} failed`, variant: 'destructive' });
+    else toast({ title: 'Partial success', description: `${ids.length - failed} deleted, ${failed} failed — ${failures.join('; ')}`, variant: 'destructive' });
   };
 
   const editProfile = async (e: React.FormEvent<HTMLFormElement>) => {
