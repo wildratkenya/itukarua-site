@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield, Phone, Zap, B
 import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
 import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement, employerReactivateJob, JOB_LISTING_PLANS } from '@/lib/database';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
@@ -18,8 +18,6 @@ interface PostJobPageProps {
 }
 
 const MAX_IMAGES = 3;
-const SUPABASE_URL = 'https://xahaxtbudiubelemewna.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhaGF4dGJ1ZGl1YmVsZW1ld25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjE5MDYsImV4cCI6MjA5MDY5NzkwNn0.jF-4s0Sv8O0PDrO9XeYU4w4W8kFpJ7lY3xQ5b2r0Z6E';
 
 type Step = 'form' | 'otp' | 'payment' | 'success';
 
@@ -152,10 +150,10 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       const { data: { session } } = await supabase.auth.getSession();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON,
+        apikey: supabaseKey,
       };
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-job-otp`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-job-otp`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ user_id: user.id, email: user.email, job_data: jobData }),
@@ -210,10 +208,10 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       const { data: { session } } = await supabase.auth.getSession();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON,
+        apikey: supabaseKey,
       };
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-job-otp`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/verify-job-otp`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ user_id: user?.id, otp_code: code }),
