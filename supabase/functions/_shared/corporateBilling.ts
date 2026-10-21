@@ -1,4 +1,4 @@
-import { escapeHtml, SITE_URL } from './smtp.ts'
+import { escapeHtml, SITE_URL, loadSmtpConfig, createFreshTransport } from './smtp.ts'
 
 // ─── Tier pricing (mirrors src/data/siteData.ts anchors) ────────────────────
 
@@ -390,11 +390,21 @@ export async function renewCorporate(
   const base = baseRaw.getTime() > today.getTime() ? baseRaw : today
   const next = addDays(base, days)
   const nextIso = next.toISOString().slice(0, 10)
+  const paidAt = (opts.paidAt || new Date()).toISOString()
 
-  await supabase
+  // The payment settles the account: it flips to paid and every placement on it
+  // is allowed to serve. Both writes are the server's, never the member's.
+  const { error: accErr } = await supabase
     .from('corporate_accounts')
-    .update({ next_billing_date: nextIso })
+    .update({ next_billing_date: nextIso, payment_status: 'paid', paid_at: paidAt })
     .eq('id', accountId)
+  if (accErr) throw new Error('renewCorporate account update: ' + accErr.message)
+
+  const { error: confErr } = await supabase
+    .from('advertisements')
+    .update({ payment_confirmed: true })
+    .eq('corporate_account_id', accountId)
+  if (confErr) throw new Error('renewCorporate payment_confirmed: ' + confErr.message)
 
   const { error: extErr } = await supabase.rpc('extend_corporate_ads', { p_account_id: accountId, p_days: days })
   if (extErr) throw new Error('extend_corporate_ads failed: ' + extErr.message)
@@ -418,13 +428,13 @@ export interface MonthlyInvoiceResult {
 export async function composeCorporateMonthlyInvoice(
   supabase: any,
   account: any,
-  opts: { includeReport?: boolean; note?: string; defaultNote?: string } = {},
+  opts: { includeReport?: boolean; note?: string; defaultNote?: string; periodStart?: Date; periodEnd?: Date } = {},
 ): Promise<MonthlyInvoiceResult> {
   const amount = corporateMonthlyAmount(account)
   const today = new Date()
   const periodStartRaw = account.next_billing_date ? new Date(`${account.next_billing_date}T00:00:00Z`) : today
-  const periodStart = periodStartRaw.getTime() > today.getTime() ? periodStartRaw : today
-  const periodEnd = addDays(periodStart, CORPORATE_PERIOD_DAYS - 1)
+  const periodStart = opts.periodStart ?? (periodStartRaw.getTime() > today.getTime() ? periodStartRaw : today)
+  const periodEnd = opts.periodEnd ?? addDays(periodStart, CORPORATE_PERIOD_DAYS - 1)
   const y = periodStart.getFullYear()
   const mm = String(periodStart.getMonth() + 1).padStart(2, '0')
   const rand = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0').toUpperCase()
@@ -484,5 +494,198 @@ export async function composeCorporateMonthlyInvoice(
     subject: corporateInvoiceSubject(account.company_name),
     html: buildCorporateInvoiceHtml(renderOpts),
     text: buildCorporateInvoiceText(renderOpts),
+  }
+}
+
+// ─── Invoice persistence + delivery (shared by signup, cron and renewal) ────
+
+export interface CorporateInvoiceRow {
+  id: string
+  invoice_no: string
+  amount: number
+  status: string
+  period_start: string
+  period_end: string
+  due_date: string | null
+  recipient: string | null
+  sent_at: string | null
+}
+
+const INVOICE_COLUMNS = 'id, invoice_no, amount, status, period_start, period_end, due_date, sent_to, sent_at'
+
+/**
+ * Record the invoice for a period, or return the one already recorded for it.
+ *
+ * corporate_invoices is unique on (account_id, period_start), so a re-run of the
+ * signup or of the cron must not create a second invoice for the same period —
+ * the customer would then be asked to pay twice.
+ */
+export async function issueCorporateInvoice(
+  supabase: any,
+  account: any,
+  inv: MonthlyInvoiceResult,
+  opts: { recipient?: string | null } = {},
+): Promise<CorporateInvoiceRow> {
+  const periodStart = inv.periodStart.slice(0, 10)
+  const periodEnd = inv.periodEnd.slice(0, 10)
+  const recipient = opts.recipient ?? inv.recipient ?? null
+  const nowIso = new Date().toISOString()
+
+  const { data: existing } = await supabase
+    .from('corporate_invoices')
+    .select(INVOICE_COLUMNS)
+    .eq('account_id', account.id)
+    .eq('period_start', periodStart)
+    .maybeSingle()
+
+  if (existing) {
+    if (existing.status === 'issued' || existing.status === 'overdue') {
+      await supabase
+        .from('corporate_invoices')
+        .update({ due_date: existing.due_date ?? periodEnd, sent_to: existing.sent_to ?? recipient })
+        .eq('id', existing.id)
+    }
+    return {
+      id: existing.id,
+      invoice_no: existing.invoice_no,
+      amount: Number(existing.amount || 0),
+      status: existing.status,
+      period_start: existing.period_start,
+      period_end: existing.period_end,
+      due_date: existing.due_date ?? periodEnd,
+      recipient: existing.sent_to ?? recipient,
+      sent_at: existing.sent_at ?? null,
+    }
+  }
+
+  const { data: row, error } = await supabase
+    .from('corporate_invoices')
+    .insert({
+      account_id: account.id,
+      invoice_no: inv.invoiceNo,
+      period_start: periodStart,
+      period_end: periodEnd,
+      amount: inv.amount,
+      currency: 'KES',
+      status: 'issued',
+      purpose: 'monthly',
+      due_date: periodEnd,
+      issued_at: nowIso,
+      sent_to: recipient,
+    })
+    .select(INVOICE_COLUMNS)
+    .single()
+  if (error) throw new Error(`issueCorporateInvoice: ${error.message}`)
+
+  await supabase.from('corporate_accounts').update({ last_invoice_at: nowIso }).eq('id', account.id)
+
+  return {
+    id: row.id,
+    invoice_no: row.invoice_no,
+    amount: Number(row.amount || 0),
+    status: row.status,
+    period_start: row.period_start,
+    period_end: row.period_end,
+    due_date: row.due_date ?? periodEnd,
+    recipient: row.sent_to ?? recipient,
+    sent_at: row.sent_at ?? null,
+  }
+}
+
+/**
+ * Email the invoice and log it, once per invoice.
+ *
+ * The invoice row carries sent_at, so a re-run of the signup or of the cron
+ * finds the invoice already delivered and does not mail the customer twice. The
+ * billing notification is written before the mail goes out and only flipped to
+ * 'sent' afterwards, so a failed send stays visible and is retried on the next
+ * run instead of being silently recorded as delivered.
+ */
+export async function ensureCorporateInvoiceEmail(
+  supabase: any,
+  account: any,
+  inv: MonthlyInvoiceResult,
+  opts: { invoiceId?: string | null; force?: boolean } = {},
+): Promise<{ sent: boolean; reason?: string; invoiceNo?: string }> {
+  const recipient = inv.recipient || account.billing_email || account.contact_email
+  if (!recipient) return { sent: false, reason: 'no-billing-email' }
+
+  if (opts.invoiceId && !opts.force) {
+    const { data: row } = await supabase
+      .from('corporate_invoices')
+      .select('sent_at, status, invoice_no')
+      .eq('id', opts.invoiceId)
+      .maybeSingle()
+    if (row?.sent_at) return { sent: false, reason: 'already-sent', invoiceNo: row.invoice_no }
+  }
+
+  const { data: notice } = await supabase
+    .from('billing_notifications')
+    .insert({
+      item_type: 'corporate',
+      item_id: account.id,
+      business_name: account.company_name,
+      recipient_email: recipient,
+      subject: inv.subject,
+      amount: inv.amount || null,
+      due_date: inv.periodEnd.slice(0, 10),
+      status: 'pending',
+    })
+    .select('id')
+    .single()
+
+  try {
+    const smtp = await loadSmtpConfig(supabase)
+    const transport = createFreshTransport(smtp)
+    await transport.sendMail({
+      from: smtp.from,
+      to: recipient,
+      subject: inv.subject,
+      html: inv.html,
+      text: inv.text,
+    })
+  } catch (err: any) {
+    console.error('[corporateBilling] invoice email failed:', err?.message)
+    if (notice) {
+      await supabase
+        .from('billing_notifications')
+        .update({ status: 'failed', error: String(err?.message || err).slice(0, 500) })
+        .eq('id', notice.id)
+    }
+    return { sent: false, reason: 'send-failed' }
+  }
+
+  const nowIso = new Date().toISOString()
+  if (notice) {
+    await supabase.from('billing_notifications').update({ status: 'sent' }).eq('id', notice.id)
+  }
+  if (opts.invoiceId) {
+    await supabase.from('corporate_invoices').update({ sent_at: nowIso, sent_to: recipient }).eq('id', opts.invoiceId)
+  }
+
+  return { sent: true, invoiceNo: inv.invoiceNo }
+}
+
+/** True when the account still has an invoice that has not been paid. */
+export async function outstandingCorporateInvoice(supabase: any, accountId: string): Promise<CorporateInvoiceRow | null> {
+  const { data } = await supabase
+    .from('corporate_invoices')
+    .select(INVOICE_COLUMNS)
+    .eq('account_id', accountId)
+    .in('status', ['issued', 'overdue'])
+    .order('period_start', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  return {
+    id: data.id,
+    invoice_no: data.invoice_no,
+    amount: Number(data.amount || 0),
+    status: data.status,
+    period_start: data.period_start,
+    period_end: data.period_end,
+    due_date: data.due_date ?? null,
+    recipient: data.sent_to ?? null,
+    sent_at: data.sent_at ?? null,
   }
 }

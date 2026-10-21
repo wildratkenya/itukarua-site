@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Mail, Shield, Building2, Crown, Phone, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Mail, Shield, Building2, Crown, Phone, User, Zap } from 'lucide-react';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { CORPORATE_PACKAGES, CORPORATE_TIER_ANCHOR_KES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -8,14 +8,22 @@ interface CorporateSignupPageProps {
   onNavigate: (page: Page) => void;
   onOpenAuth: (tab: 'login' | 'signup') => void;
   onAuthComplete: () => void;
+  onOpenMpesa: (...args: any[]) => void;
 }
 
-type Step = 'details' | 'otp' | 'success';
+type Step = 'details' | 'otp' | 'payment' | 'success';
 
 const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold'] as const;
 type Tier = typeof SELF_SERVE_TIERS[number];
 
-const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, onOpenAuth, onAuthComplete }) => {
+interface PendingInvoice {
+  id: string | null;
+  amount: number;
+  dueDate: string | null;
+  periodEnd: string | null;
+}
+
+const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, onOpenAuth, onAuthComplete, onOpenMpesa }) => {
   const [tier, setTier] = useState<Tier>('bronze');
   const [step, setStep] = useState<Step>('details');
   const [form, setForm] = useState({
@@ -31,6 +39,9 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [invoice, setInvoice] = useState<PendingInvoice | null>(null);
+  const [paying, setPaying] = useState(false);
 
   // OTP state
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
@@ -186,9 +197,23 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
         setStep('success');
         return;
       }
-      // The SIGNED_IN listener routes corporate users to the panel; this is a
-      // fallback in case profile refresh is slow.
-      window.setTimeout(() => onNavigate('corporate'), 2500);
+
+      // The account exists and the first invoice has been issued and emailed.
+      // The panel is only reachable from here, so the customer is asked to pay
+      // before their placements can be created.
+      setAccountId(result.account_id || null);
+      setInvoice(
+        result.invoice_id
+          ? {
+              id: result.invoice_id,
+              amount: Number(result.invoice_amount || 0),
+              dueDate: result.invoice_due_date || null,
+              periodEnd: result.period_end || null,
+            }
+          : null,
+      );
+      setFinalizing(false);
+      setStep('payment');
     } catch (err: any) {
       setFinalizing(false);
       setOtpError(err.message || 'Invalid code. Please try again.');
@@ -240,6 +265,93 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
       setOtpLoading(false);
     }
   };
+
+  // ── PAYMENT SCREEN ───────────────────────────────────────────────
+  if (step === 'payment') {
+    const amount = invoice?.amount || anchor;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-gradient-to-r from-green-700 to-green-800 py-10">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-white">Your account is ready</h1>
+            <p className="text-green-100 mt-1">One step left — pay your first invoice to activate your placements</p>
+          </div>
+        </div>
+
+        <div className="max-w-md mx-auto px-4 py-12">
+          <div className="bg-white rounded-xl p-8 border border-gray-100 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{form.company_name} is verified</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Your <span className="capitalize font-medium text-gray-700">{tier}</span> tier account is open. Pay the
+              invoice below and your placements start serving right away.
+            </p>
+
+            {invoice ? (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mb-5 text-left">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">Amount due</span>
+                  <span className="text-xl font-bold text-gray-900">KES {amount.toLocaleString()}</span>
+                </div>
+                {invoice.dueDate && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">Due</span>
+                    <span className="text-sm font-medium text-gray-700">
+                      {new Date(invoice.dueDate + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-500 mt-2">A copy of this invoice was emailed to {form.billing_email || form.email}.</p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-5 text-left">
+                <p className="text-sm text-amber-800">
+                  Your invoice is being prepared and will be emailed to {form.billing_email || form.email}. You can pay it
+                  from the Billing tab of your panel.
+                </p>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                if (!invoice?.id || !accountId) return;
+                setPaying(true);
+                onOpenMpesa(
+                  amount,
+                  `Corporate Payment — ${form.company_name}`,
+                  'ITK-CORP',
+                  'corporate',
+                  undefined,
+                  undefined,
+                  undefined,
+                  () => onNavigate('corporate'),
+                  false,
+                  false,
+                  undefined,
+                  '',
+                  accountId,
+                  invoice.id,
+                );
+                window.setTimeout(() => setPaying(false), 1500);
+              }}
+              disabled={!invoice?.id || paying}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 mb-3"
+            >
+              {paying ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Zap className="w-4 h-4" /> Pay KES {amount.toLocaleString()} via M-Pesa</>}
+            </button>
+            <button onClick={() => onNavigate('corporate')} className="w-full py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+              Continue to your panel (pay later)
+            </button>
+            <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+              Placements can be created once the invoice is paid. You can settle it at any time from the Billing tab.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── SUCCESS SCREEN ────────────────────────────────────────────────
   if (step === 'success') {
@@ -516,9 +628,22 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
                 {!loading && <ArrowRight className="w-4 h-4" />}
               </button>
 
+              {/* Payment is unlocked by the email verification: the invoice is
+                  only issued once the account exists. */}
+              <div className="mt-3">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3 bg-gray-100 text-gray-400 font-semibold rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4" /> Pay KES {anchor.toLocaleString()} via M-Pesa
+                </button>
+                <p className="text-[11px] text-gray-400 mt-2 text-center">Verify your email to unlock payment</p>
+              </div>
+
               <p className="text-[11px] text-gray-400 mt-3 text-center">
-                Your <span className="capitalize">{tier}</span> plan starts at KES {anchor.toLocaleString()}/mo. Placement
-                billing and invoicing happen from your corporate panel.
+                Your <span className="capitalize">{tier}</span> plan starts at KES {anchor.toLocaleString()}/mo. Your first
+                invoice is issued as soon as your email is verified.
               </p>
             </form>
           </div>

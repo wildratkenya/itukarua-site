@@ -58,7 +58,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Admin privileges required' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const { email, password, company_name, tier, contact_person, contact_phone, contact_email, billing_email, notes } = await req.json()
+    // The request body can only be read once — a second `await req.json()`
+    // throws "Body has already been consumed" and turns every admin account
+    // creation into a 500.
+    const reqBody = await req.json()
+    const { email, password, company_name, tier, contact_person, contact_phone, contact_email, billing_email, notes } = reqBody
 
     if (!email || !password || !company_name || !tier) {
       return new Response(JSON.stringify({ error: 'email, password, company_name and tier are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
@@ -68,7 +72,6 @@ Deno.serve(async (req) => {
     }
 
     // Custom bundles: validate the ticked feature ids against the catalog.
-    const reqBody = await req.json()
     const features = Array.isArray(reqBody.features) ? reqBody.features : null
     const cleanFeatures = features === null ? null : cleanFeatureIds(features)
     if (tier === 'custom' && cleanFeatures !== null && cleanFeatures.size === 0) {

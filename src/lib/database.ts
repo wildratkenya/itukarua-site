@@ -748,40 +748,6 @@ export async function getPayments(filters?: {
   return data || [];
 }
 
-export async function createPayment(payment: {
-  user_id: string;
-  payment_type: DbPayment['payment_type'];
-  amount: number;
-  mpesa_ref?: string;
-  mpesa_phone?: string;
-  description?: string;
-  related_job_id?: string;
-  related_ad_id?: string;
-  related_bid_id?: string;
-  related_profile_id?: string;
-}): Promise<DbPayment> {
-  const { data, error } = await supabase
-    .from('payments')
-    .insert({ ...payment, status: 'pending' })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as DbPayment;
-}
-
-export async function updatePaymentStatus(paymentId: string, status: DbPayment['status'], mpesaRef?: string) {
-  const updates: any = { status };
-  if (mpesaRef) updates.mpesa_ref = mpesaRef;
-  const { data, error } = await supabase
-    .from('payments')
-    .update(updates)
-    .eq('id', paymentId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as DbPayment;
-}
-
 // ─── Messages ───────────────────────────────────────────────────────────────
 
 export async function getMessages(filters?: {
@@ -2117,6 +2083,8 @@ export interface DbAdvertisement {
   expected_impressions?: number;
   corporate_tier?: string | null;
   corporate_account_id?: string | null;
+  /** Server-owned: a corporate placement only serves once its invoice is paid. */
+  payment_confirmed?: boolean | null;
   created_at: string;
 }
 
@@ -2345,6 +2313,13 @@ export interface DbCorporateAccount {
   monthly_price?: number | null;
   custom_amount?: number | null;
   next_billing_date?: string | null;
+  billing_period?: 'monthly' | 'weekly' | null;
+  /** Server-owned payment state: no placement can be created until this is 'paid'. */
+  payment_status?: 'unpaid' | 'paid' | 'overdue';
+  verified_at?: string | null;
+  paid_at?: string | null;
+  last_invoice_at?: string | null;
+  last_report_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -2355,8 +2330,8 @@ export interface DbCorporateInvoice {
   period_start: string;
   period_end: string;
   amount: number;
-  status: 'draft' | 'issued' | 'paid' | 'overdue' | 'void';
-  payment_type: string | null;
+  status: 'issued' | 'paid' | 'overdue' | 'void';
+  purpose: 'monthly' | 'topup' | 'other' | null;
   due_date: string | null;
   issued_at: string | null;
   created_at: string;

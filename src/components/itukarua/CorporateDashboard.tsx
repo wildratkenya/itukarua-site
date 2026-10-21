@@ -58,6 +58,10 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
 
   const tierFeatures = effectiveFeaturesFor(account || { tier: 'bronze' });
   const isOwner = !!members.find(m => m.profile_id === user.id && m.member_role === 'owner');
+  // The account's payment state is owned by the server: a placement can only be
+  // created and served once the invoice for the current period is settled.
+  const isPaid = (account?.payment_status || 'unpaid') === 'paid';
+  const outstandingInvoice = invoices.find(inv => inv.status === 'issued' || inv.status === 'overdue') || null;
 
   const loadAccount = useCallback(async () => {
     try {
@@ -95,7 +99,9 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   useEffect(() => { if (account) loadAds(); }, [account, loadAds]);
   useEffect(() => { if (account) loadMembers(); }, [account, loadMembers]);
   useEffect(() => { if (account && activeTab === 'analytics') loadAnalytics(); }, [account, activeTab, loadAnalytics]);
-  useEffect(() => { if (account && activeTab === 'billing') loadInvoices(); }, [account, activeTab, loadInvoices]);
+  // Invoices are needed outside the billing tab too: the unpaid banner shows
+  // the outstanding amount and the Pay now button needs the invoice id.
+  useEffect(() => { if (account) loadInvoices(); }, [account, loadInvoices]);
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
     const urls: string[] = [];
@@ -125,8 +131,19 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     finally { setAdUploading(false); }
   };
 
+  const requirePayment = (): boolean => {
+    if (isPaid) return true;
+    toast({
+      title: 'Payment required',
+      description: 'Pay the outstanding corporate invoice before creating or activating placements.',
+    });
+    setActiveTab('billing');
+    return false;
+  };
+
   const handleCreateAd = async (files: File[]) => {
     if (!account || !createForm.slot) return;
+    if (!requirePayment()) return;
     setCreatingAd(true);
     try {
       const imageUrls = files.length > 0 ? await uploadImages(files) : [];
@@ -149,8 +166,9 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   };
 
   const handleToggleActive = async (ad: any) => {
+    const turningOn = !ad.active;
+    if (turningOn && !requirePayment()) return;
     try {
-      const turningOn = !ad.active;
       if (turningOn && ad.billing_end && new Date(ad.billing_end).getTime() <= Date.now()) {
         alert('This advert has expired. Renew billing before activating it.');
         return;
@@ -273,20 +291,47 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* ── PAYMENT BANNER ── */}
+        {!isPaid && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">Payment required to activate your placements</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {outstandingInvoice ? (
+                  <>
+                    Invoice {outstandingInvoice.invoice_no || ''} — KES {Number(outstandingInvoice.amount || 0).toLocaleString()}
+                    {outstandingInvoice.due_date ? ` due ${new Date(outstandingInvoice.due_date + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}. Pay it to start serving.
+                  </>
+                ) : (
+                  <>Your invoice is being prepared. It will be emailed to {account?.billing_email || account?.contact_email || 'your email'}.</>
+                )}
+              </p>
+            </div>
+            {outstandingInvoice && (
+              <button
+                onClick={() => onOpenMpesa(Number(outstandingInvoice.amount), `Corporate Payment — ${account?.company_name}`, 'ITK-CORP', 'corporate', undefined, undefined, undefined, () => { loadInvoices(); loadAccount(); loadAds(); }, false, false, undefined, '', account?.id, outstandingInvoice.id)}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                <Zap className="w-4 h-4" /> Pay KES {Number(outstandingInvoice.amount || 0).toLocaleString()} now
+              </button>
+            )}
+          </div>
+        )}
+
         {/* ── PLACEMENTS TAB ── */}
         {activeTab === 'placements' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500">{ads.length} placement{ads.length !== 1 ? 's' : ''} · {tierFeatures.maxPlacements < 99 ? `max ${tierFeatures.maxPlacements}` : 'unlimited'} · slots: {tierFeatures.slots.map(s => SLOT_LABELS[s] || s).join(', ')}</p>
               {ads.length < tierFeatures.maxPlacements && (
-                <button onClick={() => setShowCreateAd(true)} className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"><Plus className="w-4 h-4" /> New Placement</button>
+                <button onClick={() => { if (requirePayment()) setShowCreateAd(true); }} className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"><Plus className="w-4 h-4" /> New Placement</button>
               )}
             </div>
             {ads.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
                 <LayoutDashboard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                 <p className="text-sm text-gray-400 mb-4">No placements yet. Create your first one to get started.</p>
-                <button onClick={() => setShowCreateAd(true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">Create Placement</button>
+                <button onClick={() => { if (requirePayment()) setShowCreateAd(true); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">Create Placement</button>
               </div>
             ) : (
               <div className="space-y-3">

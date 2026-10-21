@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
-import { composeCorporateMonthlyInvoice, renewCorporate } from '../_shared/corporateBilling.ts'
+import { createServiceClient } from '../_shared/smtp.ts'
+import { composeCorporateMonthlyInvoice, ensureCorporateInvoiceEmail, issueCorporateInvoice, renewCorporate } from '../_shared/corporateBilling.ts'
 import { corsHeadersFor } from '../_shared/cors.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -24,59 +24,10 @@ async function getCaller(token: string): Promise<{ userId: string | null; isAdmi
 }
 
 async function resolveAccounts(supabase: any, accountIds?: string[]): Promise<any[]> {
-  const { data } = accountIds && accountIds.length
-    ? await supabase.from('corporate_accounts').select('*').in('id', accountIds)
-    : await supabase.from('corporate_accounts').select('*').order('company_name', { ascending: true })
+  // Fail closed: an empty/missing list must never widen to "every account".
+  if (!accountIds || accountIds.length === 0) return []
+  const { data } = await supabase.from('corporate_accounts').select('*').in('id', accountIds)
   return (data || []) as any[]
-}
-
-async function logNotification(supabase: any, account: any, invNo: string, recipient: string, subject: string, amount: number, periodEnd: string) {
-  await supabase.from('billing_notifications').insert({
-    item_type: 'corporate',
-    item_id: account.id,
-    business_name: account.company_name,
-    recipient_email: recipient,
-    subject,
-    amount: amount || null,
-    due_date: periodEnd.slice(0, 10),
-    status: 'sent',
-  })
-}
-
-async function persistInvoice(supabase: any, account: any, inv: any) {
-  // One invoice per account per period (unique account_id + period_start).
-  // Reuse an existing issued invoice for the same period so re-sends don't churn.
-  const { data: existing } = await supabase
-    .from('corporate_invoices')
-    .select('id, invoice_no')
-    .eq('account_id', account.id)
-    .eq('period_start', inv.periodStart.slice(0, 10))
-    .maybeSingle()
-  if (existing) {
-    await supabase.from('corporate_invoices').update({ sent_at: new Date().toISOString(), sent_to: inv.recipient }).eq('id', existing.id)
-    return existing.invoice_no
-  }
-  const { data: row } = await supabase.from('corporate_invoices').insert({
-    account_id: account.id,
-    invoice_no: inv.invoiceNo,
-    period_start: inv.periodStart.slice(0, 10),
-    period_end: inv.periodEnd.slice(0, 10),
-    amount: inv.amount,
-    currency: 'KES',
-    status: 'issued',
-    purpose: 'monthly',
-    sent_to: inv.recipient,
-    sent_at: new Date().toISOString(),
-  }).select('invoice_no').single()
-  await supabase.from('corporate_accounts').update({ last_invoice_at: new Date().toISOString() }).eq('id', account.id)
-  return row?.invoice_no || inv.invoiceNo
-}
-
-async function sendTo(recipient: string, subject: string, html: string, text: string) {
-  const supabase = createServiceClient()
-  const smtp = await loadSmtpConfig(supabase)
-  const transport = createFreshTransport(smtp)
-  await transport.sendMail({ from: smtp.from, to: recipient, subject, html, text })
 }
 
 Deno.serve(async (req) => {
@@ -85,7 +36,20 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { action, account_ids, include_report, note, invoice_id, mpesa_ref } = body
+    // The client historically sent camelCase while this function read
+    // snake_case, so `account_ids` silently arrived as undefined and the
+    // request fell through to "invoice every account". Accept both spellings.
+    const action = body.action
+    const accountIds: string[] = Array.isArray(body.account_ids)
+      ? body.account_ids
+      : Array.isArray(body.accountIds)
+        ? body.accountIds
+        : body.account_id ? [body.account_id]
+          : body.accountId ? [body.accountId] : []
+    const includeReport = body.include_report ?? body.includeReport
+    const note = body.note
+    const invoiceId = body.invoice_id ?? body.invoiceId ?? null
+    const mpesaRef = body.mpesa_ref ?? body.mpesaRef ?? null
     const auth = req.headers.get('Authorization') || ''
     const token = auth.replace(/^Bearer\s+/i, '')
 
@@ -97,13 +61,22 @@ Deno.serve(async (req) => {
 
     if (action === 'mark_paid') {
       if (!caller.isAdmin) return json({ error: 'Admins only' }, 403, cors)
-      const accountId = body.account_id
-      if (!accountId) return json({ error: 'account_id required' }, 400, cors)
-      const result = await renewCorporate(adminSupabase, accountId, { invoiceId: invoice_id || null, mpesaRef: mpesa_ref || null })
+      let accountId = accountIds[0] || null
+      // The client sends only the invoice id, so resolve its account here.
+      if (!accountId && invoiceId) {
+        const { data: invRow } = await adminSupabase
+          .from('corporate_invoices')
+          .select('account_id')
+          .eq('id', invoiceId)
+          .maybeSingle()
+        accountId = invRow?.account_id || null
+      }
+      if (!accountId) return json({ error: 'account_id or invoice_id required' }, 400, cors)
+      const result = await renewCorporate(adminSupabase, accountId, { invoiceId, mpesaRef })
       return json({ ok: true, ...result }, 200, cors)
     }
 
-    const accounts = await resolveAccounts(adminSupabase, account_ids)
+    const accounts = await resolveAccounts(adminSupabase, accountIds)
     if (!accounts.length) return json({ error: 'No matching corporate accounts' }, 404, cors)
 
     if (action === 'all' && !caller.isAdmin) {
@@ -127,7 +100,7 @@ Deno.serve(async (req) => {
 
     for (const account of accounts) {
       const inv = await composeCorporateMonthlyInvoice(adminSupabase, account, {
-        includeReport: include_report ?? true,
+        includeReport: includeReport ?? true,
         note: note || undefined,
       })
       if (!inv.recipient && action !== 'preview') {
@@ -153,11 +126,15 @@ Deno.serve(async (req) => {
         continue
       }
       try {
-        await sendTo(inv.recipient, inv.subject, inv.html, inv.text)
-        const invoiceNo = await persistInvoice(adminSupabase, account, inv)
-        await logNotification(adminSupabase, account, invoiceNo, inv.recipient, inv.subject, inv.amount, inv.periodEnd)
+        const row = await issueCorporateInvoice(adminSupabase, account, inv, { recipient: inv.recipient })
+        const email = await ensureCorporateInvoiceEmail(adminSupabase, account, inv, { invoiceId: row.id, force: true })
+        if (!email.sent) {
+          skipped++
+          results.push({ account_id: account.id, company_name: account.company_name, ok: false, error: email.reason || 'invoice email not delivered' })
+          continue
+        }
         sent++
-        results.push({ account_id: account.id, company_name: account.company_name, ok: true, invoice_no: invoiceNo, sent_to: inv.recipient })
+        results.push({ account_id: account.id, company_name: account.company_name, ok: true, invoice_no: row.invoice_no, sent_to: inv.recipient })
       } catch (e: any) {
         skipped++
         results.push({ account_id: account.id, company_name: account.company_name, ok: false, error: e.message })

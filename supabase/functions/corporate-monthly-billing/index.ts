@@ -1,5 +1,10 @@
 import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
-import { composeCorporateMonthlyInvoice } from '../_shared/corporateBilling.ts'
+import {
+  composeCorporateMonthlyInvoice,
+  ensureCorporateInvoiceEmail,
+  issueCorporateInvoice,
+  outstandingCorporateInvoice,
+} from '../_shared/corporateBilling.ts'
 import { authenticateCron } from '../_shared/cronAuth.ts'
 import { corsHeadersFor as baseCorsHeadersFor } from '../_shared/cors.ts'
 
@@ -30,71 +35,10 @@ async function adminEmails(supabase: any): Promise<string[]> {
 }
 
 async function persistInvoice(supabase: any, account: any, inv: any): Promise<boolean> {
-  const { data: existing } = await supabase
-    .from('corporate_invoices')
-    .select('id')
-    .eq('account_id', account.id)
-    .eq('period_start', inv.periodStart.slice(0, 10))
-    .maybeSingle()
-  if (existing) return false // already issued this period
-
-  const { data: row } = await supabase.from('corporate_invoices').insert({
-    account_id: account.id,
-    invoice_no: inv.invoiceNo,
-    period_start: inv.periodStart.slice(0, 10),
-    period_end: inv.periodEnd.slice(0, 10),
-    amount: inv.amount,
-    currency: 'KES',
-    status: 'issued',
-    purpose: 'monthly',
-    sent_to: inv.recipient,
-    sent_at: new Date().toISOString(),
-  }).select('id').single()
-  if (!row) return false
-
-  await supabase.from('corporate_accounts').update({ last_invoice_at: new Date().toISOString() }).eq('id', account.id)
-  // Inserted as 'pending' — the digest is only flipped to 'sent' once the mail
-  // is actually away, so a SMTP outage is retried on the next daily run instead
-  // of being silently recorded as delivered.
-  await supabase.from('billing_notifications').insert({
-    item_type: 'corporate',
-    item_id: account.id,
-    business_name: account.company_name,
-    recipient_email: inv.recipient,
-    subject: inv.subject,
-    amount: inv.amount || null,
-    due_date: inv.periodEnd.slice(0, 10),
-    status: 'pending',
-  })
-  return true
-}
-
-// Sends the invoice email for a corporate account's current period, marking the
-// billing_notifications row delivered only after the message actually goes out.
-async function ensureInvoiceEmail(supabase: any, account: any, inv: any): Promise<{ sent: boolean; skip?: boolean; reason?: string }> {
-  const { data: notice } = await supabase
-    .from('billing_notifications')
-    .select('id,status')
-    .eq('item_type', 'corporate')
-    .eq('item_id', account.id)
-    .eq('due_date', inv.periodEnd.slice(0, 10))
-    .maybeSingle()
-  if (notice?.status === 'sent') return { sent: false, skip: true }
-
-  try {
-    const smtp = await loadSmtpConfig(supabase)
-    const transport = createFreshTransport(smtp)
-    await transport.sendMail({ from: smtp.from, to: inv.recipient, subject: inv.subject, html: inv.html, text: inv.text })
-    if (notice) {
-      await supabase.from('billing_notifications').update({ status: 'sent' }).eq('id', notice.id)
-    }
-    return { sent: true }
-  } catch (e: any) {
-    if (notice) {
-      await supabase.from('billing_notifications').update({ status: 'failed' }).eq('id', notice.id)
-    }
-    return { sent: false, reason: e?.message || 'SMTP send failed' }
-  }
+  // One invoice per account per period (unique account_id + period_start), so
+  // a re-run of the cron must not create a second invoice for the same period.
+  const row = await issueCorporateInvoice(supabase, account, inv, { recipient: inv.recipient })
+  return !!row?.id
 }
 
 function fmtKES(n: number): string {
@@ -179,6 +123,7 @@ Deno.serve(async (req) => {
     const overdueStale: any[] = []
     const suspended: any[] = []
     const dueSoon: any[] = []
+    const awaitingPayment: any[] = []
 
     for (const account of list) {
       const nextMs = account.next_billing_date
@@ -191,6 +136,47 @@ Deno.serve(async (req) => {
         suspended.push({ company: account.company_name, tier: account.tier, date: account.next_billing_date || '—', amount: amount != null ? fmtKES(amount) : '—' })
         continue
       }
+
+      // An invoice that is still awaiting payment owns the account: never stack
+      // a second invoice on top of an unpaid one, and flag the account overdue
+      // once the due date has passed.
+      const outstanding = await outstandingCorporateInvoice(supabase, account.id)
+      if (outstanding) {
+        const dueMs = outstanding.due_date ? new Date(`${outstanding.due_date}T00:00:00Z`).getTime() : 0
+        if (dueMs > 0 && dueMs < nowMs) {
+          if (outstanding.status === 'issued') {
+            await supabase.from('corporate_invoices').update({ status: 'overdue' }).eq('id', outstanding.id).eq('status', 'issued')
+          }
+          if (account.payment_status !== 'overdue') {
+            await supabase.from('corporate_accounts').update({ payment_status: 'overdue' }).eq('id', account.id)
+          }
+        }
+        if (!outstanding.sent_at) {
+          // The invoice was recorded but the mail never went out (SMTP outage).
+          // Re-send it for the period it was issued for.
+          try {
+            const inv = await composeCorporateMonthlyInvoice(supabase, account, {
+              includeReport: false,
+              periodStart: new Date(`${outstanding.period_start}T00:00:00Z`),
+              periodEnd: new Date(`${outstanding.period_end}T00:00:00Z`),
+            })
+            const email = await ensureCorporateInvoiceEmail(supabase, account, inv, { invoiceId: outstanding.id })
+            if (!email.sent && email.reason !== 'already-sent') {
+              errors.push({ company: account.company_name, error: `invoice email not delivered: ${email.reason}` })
+            }
+          } catch (e: any) {
+            errors.push({ company: account.company_name, error: e.message })
+          }
+        }
+        awaitingPayment.push({
+          company: account.company_name,
+          tier: account.tier,
+          date: outstanding.due_date || outstanding.period_end,
+          amount: fmtKES(outstanding.amount),
+        })
+        continue
+      }
+
       if (nextMs > 0 && overdueMs > sevenDaysMs) {
         overdueStale.push({ company: account.company_name, tier: account.tier, date: account.next_billing_date || '—', amount: amount != null ? fmtKES(amount) : '—' })
         continue
@@ -204,10 +190,10 @@ Deno.serve(async (req) => {
             continue
           }
           const created = await persistInvoice(supabase, account, inv)
-          const email = await ensureInvoiceEmail(supabase, account, inv)
+          const email = await ensureCorporateInvoiceEmail(supabase, account, inv, { invoiceId: null })
           if (created && email.sent) {
             invoiced.push({ company: account.company_name, amount: inv.amount, invoice_no: inv.invoiceNo })
-          } else if (!email.skip) {
+          } else if (!email.sent && email.reason !== 'already-sent') {
             errors.push({ company: account.company_name, error: email.reason || 'invoice email not delivered' })
           }
         } catch (e: any) {
@@ -226,6 +212,7 @@ Deno.serve(async (req) => {
     await sendDigest(supabase, recipients, [
       { title: 'Overdue — payments running behind (>7 days)', tone: 'danger', rows: overdueStale },
       { title: 'Suspended — need manual revival', tone: 'danger', rows: suspended },
+      { title: 'Awaiting payment — invoice issued, not yet settled', tone: 'amber', rows: awaitingPayment },
       { title: 'Due within 7 days', tone: 'amber', rows: dueSoon },
     ])
 
@@ -239,6 +226,7 @@ Deno.serve(async (req) => {
         errors: errors.length,
         overdueStale: overdueStale.length,
         suspended: suspended.length,
+        awaitingPayment: awaitingPayment.length,
         dueSoon: dueSoon.length,
       },
       today: todayIso,
