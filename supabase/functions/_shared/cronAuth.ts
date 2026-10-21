@@ -67,6 +67,22 @@ async function hasProfileRole(token: string, roles: string[]): Promise<boolean> 
   }
 }
 
+/**
+ * True when the caller presented the project's service credential in the
+ * `apikey` header.
+ *
+ * The gateway refuses a bearer token that is not a JWT before the request ever
+ * reaches the function, so a secret key can only travel in this header. The
+ * public anon/publishable key that the browser sends is a different value and
+ * never matches.
+ */
+function presentedServiceKey(req: Request): boolean {
+  const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  if (!serviceRole) return false
+  const apikey = (req.headers.get('apikey') || '').trim()
+  return !!apikey && apikey === serviceRole
+}
+
 export type CronIdentity = 'service_role' | 'cron_secret' | 'super_admin'
 export type StaffIdentity = 'service_role' | 'cron_secret' | 'staff'
 
@@ -76,6 +92,7 @@ export async function authenticateCron(req: Request): Promise<CronIdentity | nul
 
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
   if (bearer && serviceRole && bearer === serviceRole) return 'service_role'
+  if (presentedServiceKey(req)) return 'service_role'
 
   const secret = Deno.env.get('CRON_SECRET') || ''
   const provided = (req.headers.get('x-cron-secret') || '').trim()
@@ -98,6 +115,7 @@ export async function authenticateStaff(req: Request): Promise<StaffIdentity | n
 
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
   if (bearer && serviceRole && bearer === serviceRole) return 'service_role'
+  if (presentedServiceKey(req)) return 'service_role'
 
   const secret = Deno.env.get('CRON_SECRET') || ''
   const provided = (req.headers.get('x-cron-secret') || '').trim()
