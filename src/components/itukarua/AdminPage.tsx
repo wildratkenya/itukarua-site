@@ -1295,15 +1295,29 @@ const AdminPage: React.FC = () => {
     if (ids.length === 0) return;
     if (!confirm(`Permanently delete ${ids.length} user(s)? This cannot be undone.`)) return;
     let failed = 0;
-    for (const id of ids) {
-      try {
-        const res = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
-          body: JSON.stringify({ user_id: id }),
-        });
-        if (!res.ok) failed++;
-      } catch { failed++; }
+    try {
+      const token = await ensureValidToken();
+      for (const id of ids) {
+        try {
+          const res = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ user_id: id }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            console.error('[bulkDeletePermanently] failed for', id, res.status, err);
+            failed++;
+          }
+        } catch (e) {
+          console.error('[bulkDeletePermanently] error for', id, e);
+          failed++;
+        }
+      }
+    } catch (e: any) {
+      console.error('[bulkDeletePermanently] token error', e);
+      toast({ title: 'Error', description: e?.message || 'Failed to get auth token', variant: 'destructive' });
+      return;
     }
     setSelectedUsers(new Set());
     await loadData();
