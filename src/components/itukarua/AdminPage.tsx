@@ -1274,13 +1274,14 @@ const AdminPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ user_id: id }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to delete user');
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `Failed to delete user (${response.status})`);
       toast({ title: 'Success', description: `User permanently deleted` });
       setIsDeleteDialogOpen(false);
       setDeletingUser(null);
       await loadData();
     } catch (error: any) {
+      console.error('[deleteUser] error', error);
       toast({ title: 'Error', description: error.message || 'Failed', variant: 'destructive' });
     }
   };
