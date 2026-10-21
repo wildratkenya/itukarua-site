@@ -149,14 +149,23 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
         images: imageUrls.length > 0 ? imageUrls : undefined,
       };
 
-      const { data: otpResult, error: otpError } = await supabase.functions.invoke('send-job-otp', {
-        body: { user_id: user.id, email: user.email, job_data: jobData },
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON,
+      };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-job-otp`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ user_id: user.id, email: user.email, job_data: jobData }),
       });
+      const otpResult = await res.json().catch(() => ({}));
+      if (!res.ok || otpResult?.error) {
+        throw new Error(otpResult?.error || otpResult?.message || 'Failed to send verification code');
+      }
 
-      if (otpError) throw new Error(otpError.message || 'Failed to send verification code');
-      if (otpResult?.error) throw new Error(otpResult.error);
-
-      setOtpExpiry(new Date(otpResult.expires_at));
+      setOtpExpiry(otpResult.expires_at ? new Date(otpResult.expires_at) : null);
       setOtpResendTimer(60);
       setStep('otp');
       // Auto-focus first OTP input
@@ -198,11 +207,21 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     setOtpLoading(true);
     setOtpError('');
     try {
-      const { data: result, error: verifyError } = await supabase.functions.invoke('verify-job-otp', {
-        body: { user_id: user?.id, otp_code: code },
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON,
+      };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-job-otp`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ user_id: user?.id, otp_code: code }),
       });
-
-      if (verifyError) throw new Error(verifyError.message || 'Verification failed');
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(result?.error || result?.message || 'Verification failed');
+      }
       if (result?.error) throw new Error(result.error);
       if (!result?.valid) throw new Error('Invalid verification code');
 
