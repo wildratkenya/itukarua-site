@@ -1233,9 +1233,28 @@ const AdminPage: React.FC = () => {
   };
 
   const trashUser = async (userId: string) => {
-    await proxyTable('profiles').update({ deleted_at: new Date().toISOString() }, 'id', userId);
-    await reloadUsers();
-    toast({ title: 'Success', description: 'User moved to trash' });
+    try {
+      const token = await ensureValidToken();
+      const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseKey,
+          Authorization: `Bearer ${token}`,
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Failed to trash user (${res.status})`);
+      }
+      await reloadUsers();
+      toast({ title: 'Success', description: 'User moved to trash' });
+    } catch (e: any) {
+      console.error('[trashUser] error', e);
+      toast({ title: 'Error', description: e?.message || 'Failed to move user to trash', variant: 'destructive' });
+    }
   };
 
   const restoreUser = async (userId: string) => {
