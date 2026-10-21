@@ -188,12 +188,60 @@ Deno.serve(async (req) => {
       const localCheckoutId = `WS${Date.now()}`
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+      // Corporate placements are paid against an invoice, so the server decides
+      // what is due and who is paying: the browser's amount and user id are not
+      // trusted for this flow. Every other payment type is unchanged.
+      let effectiveAmount = Math.round(amount)
+      let effectiveUserId = user_id || null
+
+      if (payment_type === 'corporate' || related_account_id || related_invoice_id) {
+        if (!related_account_id || !related_invoice_id) {
+          return json({ error: 'A corporate payment needs both the corporate account and the invoice' }, 400)
+        }
+
+        const { data: invoice } = await supabase
+          .from('corporate_invoices')
+          .select('id, account_id, amount, status, invoice_no')
+          .eq('id', related_invoice_id)
+          .maybeSingle()
+        if (!invoice) return json({ error: 'Corporate invoice not found' }, 404)
+        if (invoice.account_id !== related_account_id) {
+          return json({ error: 'That invoice does not belong to this corporate account' }, 403)
+        }
+        if (invoice.status === 'paid') {
+          return json({ error: 'This invoice has already been paid' }, 400)
+        }
+        if (invoice.status !== 'issued' && invoice.status !== 'overdue') {
+          return json({ error: 'This invoice is not awaiting payment' }, 400)
+        }
+
+        const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
+        if (!bearer) return json({ error: 'Sign in to pay a corporate invoice' }, 401)
+        const { data: userData, error: userErr } = await supabase.auth.getUser(bearer)
+        if (userErr || !userData?.user) return json({ error: 'Sign in to pay a corporate invoice' }, 401)
+        const uid = userData.user.id
+
+        const { data: member } = await supabase
+          .from('corporate_members')
+          .select('id, member_role')
+          .eq('account_id', related_account_id)
+          .eq('profile_id', uid)
+          .maybeSingle()
+        if (!member) {
+          return json({ error: 'Only a member of this corporate account can pay its invoice' }, 403)
+        }
+
+        effectiveAmount = Math.round(Number(invoice.amount))
+        effectiveUserId = uid
+        console.log(`[STK Push] corporate payment for invoice ${invoice.invoice_no} (${effectiveAmount}) by ${uid}`)
+      }
+
       const { data: paymentData, error: insertErr } = await supabase
         .from('payments')
         .insert({
-          user_id,
+          user_id: effectiveUserId,
           payment_type: payment_type || 'registration',
-          amount: Math.round(amount),
+          amount: effectiveAmount,
           mpesa_phone: formattedPhone,
           status: 'pending',
           description: description || accountRef || 'Payment',
@@ -237,7 +285,7 @@ Deno.serve(async (req) => {
               Password: password,
               Timestamp: timestamp,
               TransactionType: Deno.env.get('MPESA_TXN_TYPE') || 'CustomerBuyGoodsOnline',
-              Amount: Math.round(amount),
+              Amount: effectiveAmount,
               PartyA: formattedPhone,
               PartyB: PARTY_B,
               PhoneNumber: formattedPhone,

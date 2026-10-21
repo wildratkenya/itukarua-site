@@ -445,26 +445,67 @@ export async function fulfilFeaturedBoost(supabase: any, payment: PaymentRow): P
 
 // ─── Corporate renewal ──────────────────────────────────────────────────────
 
-/** Validates against the latest issued invoice, then renews the whole account. */
+/**
+ * Settle a corporate payment.
+ *
+ * The invoice is the authority: it decides how much was due and which period
+ * the payment buys. A payment that does not name an invoice, or that names an
+ * invoice belonging to another account, or that underpays the invoice, is
+ * refused rather than quietly renewing the account.
+ */
 export async function fulfilCorporate(supabase: any, payment: PaymentRow): Promise<void> {
-  if (!payment.related_account_id) return
-  const { data: inv } = await supabase
-    .from('corporate_invoices')
-    .select('id, amount, status')
-    .eq('account_id', payment.related_account_id)
-    .in('status', ['issued', 'overdue'])
-    .order('period_start', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  if (!payment.related_account_id) {
+    throw new Error(`Corporate payment ${payment.id} has no corporate account attached.`)
+  }
 
-  if (inv && Number(payment.amount) < Number(inv.amount)) {
+  let inv: { id: string; amount: number; status: string; account_id: string } | null = null
+
+  if (payment.related_invoice_id) {
+    const { data } = await supabase
+      .from('corporate_invoices')
+      .select('id, amount, status, account_id')
+      .eq('id', payment.related_invoice_id)
+      .maybeSingle()
+    if (!data) {
+      throw new Error(`Corporate payment ${payment.id} references invoice ${payment.related_invoice_id}, which does not exist.`)
+    }
+    if (data.account_id !== payment.related_account_id) {
+      throw new Error(
+        `Corporate payment ${payment.id} references invoice ${data.id} of another account. Renewal withheld for manual review.`,
+      )
+    }
+    inv = data as any
+  } else {
+    const { data } = await supabase
+      .from('corporate_invoices')
+      .select('id, amount, status, account_id')
+      .eq('account_id', payment.related_account_id)
+      .in('status', ['issued', 'overdue'])
+      .order('period_start', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    inv = (data as any) ?? null
+  }
+
+  if (!inv) {
+    throw new Error(`Corporate payment ${payment.id} has no invoice to settle. Renewal withheld for manual review.`)
+  }
+
+  if (Number(payment.amount) < Number(inv.amount)) {
     throw new Error(
       `Corporate renewal underpays: invoice ${inv.amount}, received ${payment.amount}. Renewal withheld for manual review.`,
     )
   }
 
+  if (inv.status === 'paid') {
+    // The invoice was already settled (a second push for the same invoice).
+    // The account is renewed once, not twice.
+    console.log(`[fulfilment] corporate invoice ${inv.id} already paid — renewal skipped for payment ${payment.id}`)
+    return
+  }
+
   await renewCorporate(supabase, payment.related_account_id, {
-    invoiceId: payment.related_invoice_id || inv?.id || null,
+    invoiceId: inv.id,
     mpesaRef: payment.mpesa_ref || null,
   })
 }

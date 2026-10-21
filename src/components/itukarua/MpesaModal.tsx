@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2, Info } from 'lucide-react';
-import { supabaseUrl } from '@/lib/supabase';
+import { supabase, supabaseUrl } from '@/lib/supabase';
 import { PRICING_PLANS } from '@/data/siteData';
 
 interface MpesaModalProps {
@@ -194,9 +194,17 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           : {}
 
     try {
+      // Corporate payments are authorised on the server: the edge function
+      // checks that the signed-in user is a member of the corporate account and
+      // that the invoice belongs to it, so the session token travels with the
+      // request. Other flows ignore the header.
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+
       const res = await fetch(`${supabaseUrl}/functions/v1/mpesa-stk-push`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           phone,
           amount: payAmount,

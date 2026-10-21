@@ -1,6 +1,11 @@
 import { createServiceClient } from '../_shared/smtp.ts'
 import { sendCorporateWelcomeEmail } from '../_shared/corporateWelcome.ts'
-import { CORPORATE_TIER_ANCHOR_KES } from '../_shared/corporateBilling.ts'
+import {
+  CORPORATE_TIER_ANCHOR_KES,
+  composeCorporateMonthlyInvoice,
+  ensureCorporateInvoiceEmail,
+  issueCorporateInvoice,
+} from '../_shared/corporateBilling.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,8 +79,9 @@ Deno.serve(async (req) => {
     if (rpcError) { console.error('Profile RPC error:', rpcError); throw new Error('Profile creation failed: ' + rpcError.message) }
 
     // 3. Create corporate account (self-serve tiers bill at their anchor price)
-    const firstDue = new Date()
-    firstDue.setDate(firstDue.getDate() + 30)
+    //    The account starts verified but UNPAID: the first invoice is issued
+    //    below and the placements only start serving once it is settled.
+    const todayIso = new Date().toISOString().slice(0, 10)
     const { data: account, error: accountErr } = await supabase
       .from('corporate_accounts')
       .insert({
@@ -87,9 +93,11 @@ Deno.serve(async (req) => {
         contact_email: data.contact_email || data.email,
         billing_email: data.billing_email || null,
         monthly_price: CORPORATE_TIER_ANCHOR_KES[tier] || null,
-        next_billing_date: firstDue.toISOString().slice(0, 10),
+        next_billing_date: todayIso,
+        payment_status: 'unpaid',
+        verified_at: new Date().toISOString(),
       })
-      .select('id')
+      .select('*')
       .single()
     if (accountErr) throw new Error('Account creation failed: ' + accountErr.message)
 
@@ -99,14 +107,50 @@ Deno.serve(async (req) => {
       .insert({ account_id: account.id, profile_id: userId, member_role: 'owner' })
     if (memberErr) throw new Error('Member creation failed: ' + memberErr.message)
 
-    // 5. Welcome email with the temporary password (fire and forget)
+    // 5. Issue and email the first invoice. A failure here must not lose the
+    //    account: it stays unpaid and the billing cron issues the invoice later.
+    let invoice: { id: string; amount: number; due_date: string | null; period_start: string; period_end: string } | null = null
+    let emailed = false
+    try {
+      const inv = await composeCorporateMonthlyInvoice(supabase, account, {
+        includeReport: false,
+        note:
+          `Your Itukarua corporate account is ready. Pay the invoice below to activate your ` +
+          `placements for the first period. Your placements start serving as soon as the payment is confirmed.`,
+      })
+      const row = await issueCorporateInvoice(supabase, account, inv, { recipient: data.billing_email || data.contact_email || data.email })
+      invoice = {
+        id: row.id,
+        amount: row.amount,
+        due_date: row.due_date,
+        period_start: row.period_start,
+        period_end: row.period_end,
+      }
+      const sent = await ensureCorporateInvoiceEmail(supabase, account, inv, { invoiceId: row.id })
+      emailed = sent.sent
+    } catch (err: any) {
+      console.error('First corporate invoice failed:', err?.message || err)
+    }
+
+    // 6. Welcome email with the temporary password (fire and forget)
     sendCorporateWelcomeEmail(supabase, data.email, companyName, tier, tempPassword).catch((err: any) => {
       console.error('Corporate welcome email failed:', err?.message || err)
     })
 
-    return new Response(JSON.stringify({ success: true, account_id: account.id, temp_password: tempPassword }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({
+        success: true,
+        account_id: account.id,
+        temp_password: tempPassword,
+        invoice_id: invoice?.id ?? null,
+        invoice_amount: invoice?.amount ?? null,
+        invoice_due_date: invoice?.due_date ?? null,
+        period_start: invoice?.period_start ?? null,
+        period_end: invoice?.period_end ?? null,
+        invoice_emailed: emailed,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,

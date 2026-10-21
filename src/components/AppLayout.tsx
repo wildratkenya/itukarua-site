@@ -39,6 +39,16 @@ export interface UserState {
 
 const PAYABLE_ROLES = ['jobseeker', 'employer', 'advertiser'];
 
+// Roles a browser may claim for itself when the profile is created from the
+// auth metadata. Administrative roles are never self-assignable — the database
+// rejects them too (profiles_guard_privileges), this keeps the request honest.
+const SELF_ASSIGNABLE_ROLES = ['jobseeker', 'employer', 'corporate'];
+
+const safeSelfAssignedRole = (role: unknown): string => {
+  const value = String(role || '').toLowerCase();
+  return SELF_ASSIGNABLE_ROLES.includes(value) ? value : 'employer';
+};
+
 interface SubscriptionNotice {
   role: string;
   status: 'active' | 'expired';
@@ -153,7 +163,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
               full_name: meta.full_name || session.user.email?.split('@')[0] || '',
               email: session.user.email || '',
               phone: meta.phone || '',
-              role: meta.role || 'employer',
+              role: safeSelfAssignedRole(meta.role),
               location: meta.location || null,
               county: meta.county || null,
               subcounty: meta.subcounty || null,
@@ -591,7 +601,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           }
           return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} onOpenMpesa={handleOpenMpesa} />;
         case 'corporate-signup':
-          return <CorporateSignupPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onAuthComplete={handleAuthComplete} />;
+          return <CorporateSignupPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onAuthComplete={handleAuthComplete} onOpenMpesa={handleOpenMpesa} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
@@ -842,6 +852,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         relatedJobId={mpesaModal.relatedJobId}
         relatedJobTitle={mpesaModal.relatedJobTitle}
         relatedProfileId={mpesaModal.relatedProfileId}
+        relatedAccountId={mpesaModal.relatedAccountId}
+        relatedInvoiceId={mpesaModal.relatedInvoiceId}
         employerPlans={mpesaModal.employerPlans}
         employerExpired={mpesaModal.employerExpired}
         employerExpiredAt={mpesaModal.employerExpiredAt}

@@ -226,7 +226,16 @@ export async function getAdsForDelivery(
   // paid banner serves there like anywhere else.
   const rows: DbAdvertisement[] = (isCorporateOnlySlot(slot)
     ? ads.filter((a: DbAdvertisement) => a.corporate_account_id || a.corporate_tier)
-    : ads).filter((a: DbAdvertisement) => {
+    : ads)
+    .filter((a: DbAdvertisement) => {
+      // A corporate placement is paid for by invoice, and only a settled
+      // invoice starts the clock. The database refuses to show unpaid
+      // placements to the public, but a signed-in member of the account can
+      // still read their own row — so it is filtered out here as well.
+      if (!a.corporate_account_id) return true;
+      return a.payment_confirmed === true;
+    })
+    .filter((a: DbAdvertisement) => {
     const t = (a.title || '').toLowerCase();
     return !t.includes('ndeiya') && !t.includes('dairy') && !t.includes('partner');
   });
