@@ -72,8 +72,16 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     setServerError('');
     try {
       const email = form.email.trim().toLowerCase();
-      const { data: otpResult, error: otpError } = await supabase.functions.invoke('send-corporate-otp', {
-        body: {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-corporate-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
           email,
           tier,
           company_name: form.company_name.trim(),
@@ -81,10 +89,12 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
           contact_phone: form.contact_phone.trim() || undefined,
           contact_email: form.contact_email.trim() || undefined,
           billing_email: form.billing_email.trim() || undefined,
-        },
+        }),
       });
-      if (otpError) throw new Error(otpError.message || 'Failed to send verification code');
-      if (otpResult?.error) throw new Error(otpResult.error);
+      const otpResult = await res.json().catch(() => ({}));
+      if (!res.ok || otpResult?.error) {
+        throw new Error(otpResult?.error || 'Failed to send verification code');
+      }
       setOtpCode(['', '', '', '', '', '']);
       setOtpError('');
       setOtpResendTimer(60);
@@ -128,11 +138,19 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     setOtpError('');
     try {
       const email = form.email.trim().toLowerCase();
-      const { data: result, error: verifyError } = await supabase.functions.invoke('verify-corporate-otp', {
-        body: { email, otp_code: code },
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const res = await fetch(`${supabaseUrl}/functions/v1/verify-corporate-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ email, otp_code: code }),
       });
-      if (verifyError) throw new Error(verifyError.message || 'Verification failed');
-      if (result?.error) throw new Error(result.error);
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result?.error) throw new Error(result?.error || 'Verification failed');
       if (!result?.success) throw new Error('Verification failed');
 
       // Auto sign-in with the one-time temporary password.
@@ -163,8 +181,18 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     setOtpError('');
     try {
       const email = form.email.trim().toLowerCase();
-      const { data: otpResult, error: otpError } = await supabase.functions.invoke('send-corporate-otp', {
-        body: {
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+      };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-corporate-otp`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
           email,
           tier,
           company_name: form.company_name.trim(),
@@ -172,10 +200,12 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
           contact_phone: form.contact_phone.trim() || undefined,
           contact_email: form.contact_email.trim() || undefined,
           billing_email: form.billing_email.trim() || undefined,
-        },
+        }),
       });
-      if (otpError) throw new Error(otpError.message || 'Failed to resend');
-      if (otpResult?.error) throw new Error(otpResult.error);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.error) {
+        throw new Error(payload?.error || payload?.message || 'Failed to resend');
+      }
       setOtpResendTimer(60);
       setOtpCode(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
