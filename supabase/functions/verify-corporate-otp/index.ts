@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { email, otp_code } = body
+    const { email, otp_code, password: providedPassword } = body
 
     if (!email || !otp_code) throw new Error('Email and verification code are required')
 
@@ -61,7 +61,8 @@ Deno.serve(async (req) => {
       throw new Error('This signup is no longer valid. Please start over.')
     }
 
-    const tempPassword = generateTempPassword()
+    const chosenPassword = (providedPassword && String(providedPassword).length >= 6) ? String(providedPassword) : (data.password && String(data.password).length >= 6 ? String(data.password) : null)
+    const tempPassword = chosenPassword || generateTempPassword()
 
     // 1. Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({ email: data.email, password: tempPassword, email_confirm: true })
@@ -132,8 +133,8 @@ Deno.serve(async (req) => {
       console.error('First corporate invoice failed:', err?.message || err)
     }
 
-    // 6. Welcome email with the temporary password (fire and forget)
-    sendCorporateWelcomeEmail(supabase, data.email, companyName, tier, tempPassword).catch((err: any) => {
+    // 6. Welcome email with the temporary password (fire and forget) unless user set their own
+    sendCorporateWelcomeEmail(supabase, data.email, companyName, tier, chosenPassword ? null : tempPassword).catch((err: any) => {
       console.error('Corporate welcome email failed:', err?.message || err)
     })
 
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         account_id: account.id,
-        temp_password: tempPassword,
+        temp_password: chosenPassword ? undefined : tempPassword,
         invoice_id: invoice?.id ?? null,
         invoice_amount: invoice?.amount ?? null,
         invoice_due_date: invoice?.due_date ?? null,

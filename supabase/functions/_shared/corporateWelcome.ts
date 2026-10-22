@@ -8,7 +8,7 @@ export async function sendCorporateWelcomeEmail(
   email: string,
   company: string,
   tier: string,
-  tempPassword: string,
+  tempPassword?: string | null,
 ) {
   const tierLabel = TIER_LABELS[tier] || tier
   const slotInfo = TIER_SLOTS[tier] || 'Your placements'
@@ -28,11 +28,11 @@ export async function sendCorporateWelcomeEmail(
     <p style="margin:0 0 12px;color:#374151;font-size:14px">Your corporate account has been created for <strong>${escapeHtml(company)}</strong> at the <strong>${tierLabel}</strong> tier.</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
       <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600;width:120px">Login email</td><td style="padding:8px 12px">${escapeHtml(email)}</td></tr>
-      <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Password</td><td style="padding:8px 12px;font-family:monospace">${escapeHtml(tempPassword)}</td></tr>
+      ${tempPassword ? `<tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Password</td><td style="padding:8px 12px;font-family:monospace">${escapeHtml(tempPassword)}</td></tr>` : ''}
       <tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Placements</td><td style="padding:8px 12px">${slotInfo}</td></tr>
     </table>
     <a href="${SITE_URL}" style="display:inline-block;padding:10px 24px;background:#111827;color:#fbbf24;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Log in to your panel →</a>
-    <p style="margin:12px 0 0;color:#9ca3af;font-size:12px">For security, please change this password after your first login.</p>
+    ${tempPassword ? `<p style="margin:12px 0 0;color:#9ca3af;font-size:12px">For security, please change this password after your first login.</p>` : `<p style="margin:12px 0 0;color:#9ca3af;font-size:12px">You can sign in with the password you chose during registration.</p>`}
   </td></tr>
   <tr><td style="background:#f3f4f6;padding:20px 24px;text-align:center;border-top:1px solid #e5e7eb">
     <p style="color:#9ca3af;font-size:11px;margin:0"><a href="${SITE_URL}" style="color:#111827;text-decoration:none">Itukarua Classifieds</a></p>
@@ -42,5 +42,5 @@ export async function sendCorporateWelcomeEmail(
 </html>`
   const smtp = await loadSmtpConfig(supabase)
   const transport = createFreshTransport(smtp)
-  await transport.sendMail({ from: smtp.from, to: email, subject: `Welcome to Itukarua — ${company} (${tierLabel})`, text: `Your corporate account is ready. Email: ${email} / Password: ${tempPassword}. Visit ${SITE_URL} to log in.`, html })
+  await transport.sendMail({ from: smtp.from, to: email, subject: `Welcome to Itukarua — ${company} (${tierLabel})`, text: tempPassword ? `Your corporate account is ready. Email: ${email} / Password: ${tempPassword}. Visit ${SITE_URL} to log in.` : `Your corporate account is ready. Email: ${email}. Visit ${SITE_URL} to log in with the password you chose during registration.`, html })
 }
