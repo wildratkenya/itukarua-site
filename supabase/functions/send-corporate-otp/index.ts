@@ -12,11 +12,12 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { email, tier, company_name, contact_person, contact_phone, contact_email, billing_email } = body
+    const { email, tier, company_name, contact_person, contact_phone, contact_email, billing_email, password } = body
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('A valid email is required')
     if (!tier || !SELF_SERVE_TIERS.includes(tier)) throw new Error('Self-service signup is available for Bronze, Silver and Gold tiers only. Custom bundles are quoted.')
     if (!company_name || !String(company_name).trim()) throw new Error('Company name is required')
+    if (password !== undefined && password !== null && String(password).length < 6) throw new Error('Password must be at least 6 characters')
 
     const supabase = createServiceClient()
 
@@ -74,6 +75,7 @@ Deno.serve(async (req) => {
         contact_phone: contact_phone ? String(contact_phone).trim() : null,
         contact_email: contact_email ? String(contact_email).trim() : null,
         billing_email: billing_email ? String(billing_email).trim() : null,
+        password: password ? String(password) : null,
       },
       expires_at,
     })

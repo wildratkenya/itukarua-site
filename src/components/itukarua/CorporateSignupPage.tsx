@@ -33,6 +33,8 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     contact_phone: '',
     contact_email: '',
     billing_email: '',
+    password: '',
+    confirmPassword: '',
   });
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -82,6 +84,8 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     if (!form.company_name.trim()) errs.company_name = 'Company name is required';
     if (!form.email.trim()) errs.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Invalid email';
+    if (!form.password || form.password.length < 6) errs.password = 'Password must be at least 6 characters';
+    if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
     if (!termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -116,6 +120,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
           contact_phone: form.contact_phone.trim() || undefined,
           contact_email: form.contact_email.trim() || undefined,
           billing_email: form.billing_email.trim() || undefined,
+          password: form.password,
         }),
       });
       const otpResult = await res.json().catch(() => ({}));
@@ -179,7 +184,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
       const res = await fetch(`${baseUrl}/functions/v1/verify-corporate-otp`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ email, otp_code: code }),
+        body: JSON.stringify({ email, otp_code: code, password: form.password }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -188,10 +193,11 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
       if (result?.error) throw new Error(result.error);
       if (!result?.success) throw new Error('Verification failed');
 
-      // Auto sign-in with the one-time temporary password.
+      // Auto sign-in with the password chosen during registration (or temp if provided).
       onAuthComplete();
       setFinalizing(true);
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: result.temp_password });
+      const signInPassword = result.temp_password || form.password;
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: signInPassword });
       if (signInError) {
         setFinalizing(false);
         setStep('success');
@@ -250,6 +256,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
           contact_phone: form.contact_phone.trim() || undefined,
           contact_email: form.contact_email.trim() || undefined,
           billing_email: form.billing_email.trim() || undefined,
+          password: form.password,
         }),
       });
       const payload = await res.json().catch(() => ({}));
@@ -374,9 +381,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
               on the <span className="font-medium text-gray-700">Corporate &amp; Community Placements</span> plan.
             </p>
             <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-              Login details were sent to <span className="font-medium text-gray-600">{form.email}</span>. You can sign in
-              with that email and the temporary password from the email, then manage placements, team and billing from
-              your panel.
+              Your account is ready. Sign in with <span className="font-medium text-gray-600">{form.email}</span> and the password you chose during registration to manage placements, team and billing from your panel.
             </p>
             <div className="space-y-2">
               <button
@@ -548,8 +553,33 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
                     className={`w-full px-4 py-2.5 rounded-lg border ${errors.email ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none`}
                     placeholder="owner@company.com"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">We'll verify this email with a code and send your login details here.</p>
+                  <p className="text-[10px] text-gray-400 mt-1">We'll verify this email with a code.</p>
                   {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+                    <input
+                      type="password"
+                      value={form.password}
+                      onChange={e => setForm({ ...form, password: e.target.value })}
+                      className={`w-full px-4 py-2.5 rounded-lg border ${errors.password ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none`}
+                      placeholder="Min 6 characters"
+                    />
+                    {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password <span className="text-red-500">*</span></label>
+                    <input
+                      type="password"
+                      value={form.confirmPassword}
+                      onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
+                      className={`w-full px-4 py-2.5 rounded-lg border ${errors.confirmPassword ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none`}
+                      placeholder="Re-enter password"
+                    />
+                    {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
+                  </div>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
