@@ -209,11 +209,11 @@ const Footer: React.FC<FooterProps> = ({
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span className="text-sm text-gray-400">+254 721 219359</span>
+                <a href="tel:+254721219359" className="text-sm text-gray-400 hover:text-green-400 transition-colors">+254 721 219359</a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span className="text-sm text-gray-400">info@itukarua.co.ke</span>
+                <a href="mailto:info@itukarua.co.ke" className="text-sm text-gray-400 hover:text-green-400 transition-colors">info@itukarua.co.ke</a>
               </li>
             </ul>
             <div className="mt-4 p-3 bg-gray-800 rounded-lg">

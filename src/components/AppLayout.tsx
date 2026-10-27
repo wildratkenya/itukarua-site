@@ -102,6 +102,10 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
       if (pay === 'corporate' || role === 'corporate' || intent === 'corporate') return 'corporate';
       if (pay || intent || params.get('ad_id') || params.get('job_id') || params.get('invoice_id')) return 'dashboard';
     } catch {}
+    try {
+      const path = window.location.pathname;
+      if (path === '/dashboard') return 'dashboard';
+    } catch {}
     return 'home';
   });
   const [user, setUser] = useState<UserState | null>(null);
@@ -204,6 +208,14 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
             });
             promptLoginSubscriptionCheck(profile);
             if (profile?.role === 'corporate') setCurrentPage('corporate');
+            try {
+              const params = new URLSearchParams(window.location.search);
+              if ((params.get('pay') || params.get('payment') || params.get('type') || params.get('ad_id') || params.get('job_id') || params.get('invoice_id'))) {
+                setCurrentPage('dashboard');
+              } else if (window.location.pathname === '/dashboard') {
+                setCurrentPage('dashboard');
+              }
+            } catch {}
           }
         }
       } catch (err: any) {

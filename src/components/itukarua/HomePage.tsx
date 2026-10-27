@@ -158,10 +158,15 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
 
   const handleAdvertiseClick = () => {
     if (user) {
-      onNavigate('post-advert');
+      if (user.role === 'advertiser' || user.role === 'employer') {
+        onNavigate('post-advert');
+      } else {
+        pendingAdvertNav.current = true;
+        onOpenAuth('signup', 'advertiser');
+      }
     } else {
       pendingAdvertNav.current = true;
-      onOpenAuth('signup');
+      onOpenAuth('signup', 'advertiser');
     }
   };
 
@@ -738,8 +743,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
           <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">Ready to Connect Your Community?</h2>
           <p className="text-green-100 max-w-2xl mx-auto mb-8">Join thousands of Kenyans building stronger local economies through ITUKARUA Solutions.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
-            <button onClick={() => onOpenAuth('signup')} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
+            <button onClick={() => onOpenAuth('signup', 'employer')} className="px-8 py-4 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors shadow-lg">Post a Job</button>
+            <button onClick={() => { pendingAdvertNav.current = true; onOpenAuth('signup', 'advertiser'); }} className="px-8 py-4 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-500 transition-colors border border-green-500">Advertise your business →</button>
           </div>
           {visibleSocials.length > 0 && (
             <div className="mt-8 flex flex-wrap items-center justify-center gap-2 sm:gap-3 sm:absolute sm:top-6 sm:right-6 sm:mt-0 sm:justify-end">

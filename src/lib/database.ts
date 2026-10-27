@@ -366,12 +366,30 @@ export async function getJobs(filters?: {
     query = query.eq('featured', true);
   }
   if (filters?.search) {
-    const terms = filters.search.split(/\s+/).filter(Boolean);
-    if (terms.length > 1) {
-      const conditions = terms.map(t => `title.ilike.%${t}%,description.ilike.%${t}%,category.ilike.%${t}%`).join(',');
-      query = query.or(conditions);
+    const raw = filters.search.trim();
+    // Handle "near <location>" patterns
+    const nearMatch = raw.match(/near\s+([^\s,]+(?:\s+[^\s,]+)?)/i);
+    if (nearMatch) {
+      const locationTerm = nearMatch[1];
+      // Also search for remaining keywords
+      const keywords = raw.replace(/near\s+[^\s,]+(?:\s+[^\s,]+)?/i, '').trim();
+      if (keywords) {
+        const terms = keywords.split(/\s+/).filter(Boolean);
+        const keywordConditions = terms.length > 1
+          ? terms.map(t => `title.ilike.%${escapeIlikePattern(t)}%,description.ilike.%${escapeIlikePattern(t)}%,category.ilike.%${escapeIlikePattern(t)}%`).join(',')
+          : `title.ilike.%${escapeIlikePattern(keywords)}%,description.ilike.%${escapeIlikePattern(keywords)}%,category.ilike.%${escapeIlikePattern(keywords)}%`;
+        query = query.or(keywordConditions);
+      }
+      // Also apply location filter
+      query = applyListingLocationFilter(query, locationTerm);
     } else {
-      query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+      const terms = raw.split(/\s+/).filter(Boolean);
+      if (terms.length > 1) {
+        const conditions = terms.map(t => `title.ilike.%${escapeIlikePattern(t)}%,description.ilike.%${escapeIlikePattern(t)}%,category.ilike.%${escapeIlikePattern(t)}%,location.ilike.%${escapeIlikePattern(t)}%,county.ilike.%${escapeIlikePattern(t)}%`).join(',');
+        query = query.or(conditions);
+      } else {
+        query = query.or(`title.ilike.%${escapeIlikePattern(raw)}%,description.ilike.%${escapeIlikePattern(raw)}%,category.ilike.%${escapeIlikePattern(raw)}%,location.ilike.%${escapeIlikePattern(raw)}%,county.ilike.%${escapeIlikePattern(raw)}%`);
+      }
     }
   }
 
@@ -600,12 +618,28 @@ export async function getServiceAds(filters?: {
     query = query.eq('featured', true);
   }
   if (filters?.search) {
-    const terms = filters.search.split(/\s+/).filter(Boolean);
-    if (terms.length > 1) {
-      const conditions = terms.map(t => `business_name.ilike.%${t}%,description.ilike.%${t}%,category.ilike.%${t}%`).join(',');
-      query = query.or(conditions);
+    const raw = filters.search.trim();
+    // Handle "near <location>" patterns
+    const nearMatch = raw.match(/near\s+([^\s,]+(?:\s+[^\s,]+)?)/i);
+    if (nearMatch) {
+      const locationTerm = nearMatch[1];
+      const keywords = raw.replace(/near\s+[^\s,]+(?:\s+[^\s,]+)?/i, '').trim();
+      if (keywords) {
+        const terms = keywords.split(/\s+/).filter(Boolean);
+        const keywordConditions = terms.length > 1
+          ? terms.map(t => `business_name.ilike.%${escapeIlikePattern(t)}%,description.ilike.%${escapeIlikePattern(t)}%,category.ilike.%${escapeIlikePattern(t)}%`).join(',')
+          : `business_name.ilike.%${escapeIlikePattern(keywords)}%,description.ilike.%${escapeIlikePattern(keywords)}%,category.ilike.%${escapeIlikePattern(keywords)}%`;
+        query = query.or(keywordConditions);
+      }
+      query = applyListingLocationFilter(query, locationTerm);
     } else {
-      query = query.or(`business_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+      const terms = raw.split(/\s+/).filter(Boolean);
+      if (terms.length > 1) {
+        const conditions = terms.map(t => `business_name.ilike.%${escapeIlikePattern(t)}%,description.ilike.%${escapeIlikePattern(t)}%,category.ilike.%${escapeIlikePattern(t)}%,location.ilike.%${escapeIlikePattern(t)}%,county.ilike.%${escapeIlikePattern(t)}%`).join(',');
+        query = query.or(conditions);
+      } else {
+        query = query.or(`business_name.ilike.%${escapeIlikePattern(raw)}%,description.ilike.%${escapeIlikePattern(raw)}%,category.ilike.%${escapeIlikePattern(raw)}%,location.ilike.%${escapeIlikePattern(raw)}%,county.ilike.%${escapeIlikePattern(raw)}%`);
+      }
     }
   }
 

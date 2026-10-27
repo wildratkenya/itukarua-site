@@ -188,9 +188,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </div>
                 <div className="flex items-baseline gap-1 mt-4 mb-6">
                   <span className="text-5xl font-extrabold text-white">KES 100</span>
-                  <span className="text-green-100/80 font-medium">/month</span>
+                  <span className="text-green-100/80 font-medium">/week</span>
                 </div>
-                <p className="text-sm text-green-100/90 mb-6 -mt-2">Unlock your full potential</p>
+                <p className="text-sm text-green-100/90 mb-6 -mt-2">Weekly subscription for bidding &amp; messaging</p>
                 <ul className="space-y-3 mb-8 flex-1">
                   {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-white/95">
@@ -205,14 +205,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   onClick={handlePremiumSubscribe}
                   className="w-full py-4 bg-white hover:bg-green-50 text-green-700 font-bold text-base rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/10 group-hover:scale-[1.02]"
                 >
-                  {showPremiumPhoneIcon ? (
-                    <>
-                      <Phone className="w-4 h-4" />
-                      {premiumLabel}
-                    </>
-                  ) : (
-                    premiumLabel
-                  )}
+                  <Phone className="w-4 h-4" />
+                  {premiumLabel}
                 </button>
               </div>
             </div>
