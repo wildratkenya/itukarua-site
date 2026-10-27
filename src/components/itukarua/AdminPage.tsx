@@ -288,6 +288,8 @@ const AdminPage: React.FC = () => {
   const [advertsView, setAdvertsView] = useState<'all' | 'active' | 'expired'>('all');
   const [searchPayments, setSearchPayments] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed' | 'refunded'>('all');
+  const [verifyingPaymentId, setVerifyingPaymentId] = useState<string | null>(null);
+  const [paymentVerifyMsg, setPaymentVerifyMsg] = useState<{type:'ok'|'err', text:string}|null>(null);
   const [searchMessages, setSearchMessages] = useState('');
   const [searchCategories, setSearchCategories] = useState('');
   const [searchSubscribers, setSearchSubscribers] = useState('');
@@ -840,8 +842,73 @@ const AdminPage: React.FC = () => {
   };
 
   const loadPayments = async () => {
-    const data = await proxyRequest('/rest/v1/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
-    setPayments(Array.isArray(data) ? data : []);
+    try {
+      console.log('Loading payments...');
+      const { data, error } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
+      console.log('Payments result:', { data, error, count: data?.length });
+      if (error) {
+        console.error('Error loading payments:', error);
+        // Fallback to proxyRequest
+        const proxyData = await proxyRequest('/rest/v1/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
+        console.log('Proxy payments result:', proxyData);
+        setPayments(Array.isArray(proxyData) ? proxyData : []);
+        return;
+      }
+      setPayments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Error loading payments:', e);
+      try {
+        const proxyData = await proxyRequest('/rest/v1/payments?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' });
+        console.log('Proxy payments result (catch):', proxyData);
+        setPayments(Array.isArray(proxyData) ? proxyData : []);
+      } catch (e2) {
+        console.error('Proxy fallback also failed:', e2);
+        setPayments([]);
+      }
+    }
+  };
+
+  
+  const verifyManualPayment = async (payment: any) => {
+    if (!payment?.mpesa_ref) {
+      setPaymentVerifyMsg({ type: 'err', text: 'No M-Pesa transaction ID on this payment.' });
+      return;
+    }
+    const refNorm = payment.mpesa_ref.trim().toUpperCase();
+    setVerifyingPaymentId(payment.id);
+    setPaymentVerifyMsg(null);
+    try {
+      const { data: existing } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('status', 'completed')
+        .neq('id', payment.id)
+        .ilike('mpesa_ref', refNorm)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        setPaymentVerifyMsg({ type: 'err', text: 'This M-Pesa transaction ID has already been used and cannot be approved again.' });
+        setVerifyingPaymentId(null);
+        return;
+      }
+      const { error } = await supabase
+        .from('payments')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', payment.id);
+      if (error) {
+        if (error.code === '23505') {
+          setPaymentVerifyMsg({ type: 'err', text: 'This M-Pesa transaction ID has already been used and cannot be approved again.' });
+        } else {
+          setPaymentVerifyMsg({ type: 'err', text: error.message });
+        }
+        setVerifyingPaymentId(null);
+        return;
+      }
+      setPaymentVerifyMsg({ type: 'ok', text: 'Payment verified and marked as completed.' });
+      await loadData();
+    } catch (e: any) {
+      setPaymentVerifyMsg({ type: 'err', text: e?.message || 'Failed to verify payment' });
+    }
+    setVerifyingPaymentId(null);
   };
 
   const loadData = async () => {
@@ -3205,92 +3272,165 @@ const AdminPage: React.FC = () => {
           )}
 
           {activeTab === 'payments' && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <CardTitle>Payment Management (M-Pesa)</CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {payments.filter(p => p.status === 'pending').length} pending &middot; {payments.filter(p => p.status === 'completed').length} completed &middot; {payments.filter(p => p.status === 'failed').length} failed
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {currentRole === 'super_admin' && (
-                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setMpesaTest(true)}>
-                        <Zap className="w-4 h-4" /> Test M-Pesa
+            <div className="space-y-4">
+              {currentRole === 'super_admin' && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-base">M-Pesa STK Push Test - Troubleshooting Only</CardTitle>
+                        <p className="text-sm text-gray-500 mt-1">Use this to test M-Pesa communication if there are issues. Not for production use.</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setMpesaTest(!mpesaTest)}>
+                        {mpesaTest ? 'Hide Test' : 'Show Test'}
                       </Button>
-                    )}
-                    {(['all', 'pending', 'completed', 'failed', 'refunded'] as const).map(f => (
-                      <button key={f} onClick={() => setPaymentStatusFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${paymentStatusFilter === f ? f === 'pending' ? 'bg-amber-100 text-amber-700' : f === 'completed' ? 'bg-green-100 text-green-700' : f === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                        {f === 'all' ? `All (${payments.length})` : f === 'pending' ? `Pending (${payments.filter(p => p.status === 'pending').length})` : f === 'completed' ? `Completed (${payments.filter(p => p.status === 'completed').length})` : f === 'failed' ? `Failed (${payments.filter(p => p.status === 'failed').length})` : `Refunded (${payments.filter(p => p.status === 'refunded').length})`}
-                      </button>
-                    ))}
+                    </div>
+                  </CardHeader>
+                  {mpesaTest && (
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <Input placeholder="Phone (e.g. 2547...)" value={(document.getElementById('mpesaTestPhone') as HTMLInputElement)?.value || ''} onChange={(e) => {(document.getElementById('mpesaTestPhone') as HTMLInputElement).value = e.target.value;}} id="mpesaTestPhone" />
+                        <Input placeholder="Amount" type="number" id="mpesaTestAmount" />
+                        <Input placeholder="Account Ref" id="mpesaTestRef" />
+                        <Input placeholder="Description" id="mpesaTestDesc" />
+                      </div>
+                      <Button className="mt-3" onClick={async () => {
+                        const phone = (document.getElementById('mpesaTestPhone') as HTMLInputElement)?.value;
+                        const amount = (document.getElementById('mpesaTestAmount') as HTMLInputElement)?.value;
+                        const accountRef = (document.getElementById('mpesaTestRef') as HTMLInputElement)?.value || 'TEST';
+                        const description = (document.getElementById('mpesaTestDesc') as HTMLInputElement)?.value || 'Test payment';
+                        try {
+                          const token = await ensureValidToken();
+                          const res = await fetch(`${supabaseUrl}/functions/v1/mpesa-stk-push`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ phoneNumber: phone, amount: Number(amount), accountReference: accountRef, transactionDesc: description, paymentType: 'mpesa_test' })
+                          });
+                          const data = await res.json();
+                          toast({ title: res.ok ? 'STK Push Sent' : 'Error', description: data.message || data.error || JSON.stringify(data) });
+                        } catch (e: any) {
+                          toast({ title: 'Error', description: e.message, variant: 'destructive' });
+                        }
+                      }}>Initiate STK Push</Button>
+                    </CardContent>
+                  )}
+                </Card>
+              )}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                      <CardTitle>Payment Management (M-Pesa) - All Payment Logs</CardTitle>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {payments.filter(p => p.status === 'pending' || p.status === 'pending_verification').length} pending &middot; {payments.filter(p => p.status === 'completed').length} completed &middot; {payments.filter(p => p.status === 'failed').length} failed
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(['all', 'pending', 'completed', 'failed', 'refunded'] as const).map(f => (
+                        <button key={f} onClick={() => setPaymentStatusFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors capitalize ${paymentStatusFilter === f ? f === 'pending' ? 'bg-amber-100 text-amber-700' : f === 'completed' ? 'bg-green-100 text-green-700' : f === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                          {f === 'all' ? `All (${payments.length})` : f === 'pending' ? `Pending (${payments.filter(p => p.status === 'pending' || p.status === 'pending_verification').length})` : f === 'completed' ? `Completed (${payments.filter(p => p.status === 'completed').length})` : f === 'failed' ? `Failed (${payments.filter(p => p.status === 'failed').length})` : `Refunded (${payments.filter(p => p.status === 'refunded').length})`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" value={searchPayments} onChange={e => setSearchPayments(e.target.value)} placeholder="Search by type, M-Pesa ref or description..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>M-Pesa Ref</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter) && (!searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>KSh {payment.amount}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <span>{payment.payment_type}</span>
-                            {payment.payment_type === 'mpesa_test' && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Test</Badge>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            payment.status === 'completed' ? 'default' :
-                            payment.status === 'pending' ? 'secondary' : 'destructive'
-                          }>
-                            {payment.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{payment.mpesa_ref || 'N/A'}</TableCell>
-                        <TableCell>{payment.description}</TableCell>
-                        <TableCell>{new Date(payment.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={payment.status}
-                            onValueChange={(value) => updatePaymentStatus(payment.id, value)}
-                          >
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                              <SelectItem value="failed">Failed</SelectItem>
-                              <SelectItem value="refunded">Refunded</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter) && (!searchPayments || p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || p.description?.toLowerCase().includes(searchPayments.toLowerCase()))).length === 0 && (
-                  <p className="text-center text-gray-500 text-sm py-8">No payments match the current filter.</p>
-                )}
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input type="text" value={searchPayments} onChange={e => setSearchPayments(e.target.value)} placeholder="Search by type, M-Pesa ref, description, user..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>M-Pesa Ref</TableHead>
+                          <TableHead>Phone</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter || (paymentStatusFilter === 'pending' && (p.status === 'pending' || p.status === 'pending_verification'))) && (!searchPayments || 
+                          p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || 
+                          p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || 
+                          p.description?.toLowerCase().includes(searchPayments.toLowerCase()) ||
+                          p.mpesa_phone?.toLowerCase().includes(searchPayments.toLowerCase())
+                        )).map((payment) => {
+                          const user = users.find(u => u.id === payment.user_id);
+                          return (
+                            <TableRow key={payment.id}>
+                              <TableCell>
+                                <div className="text-sm">
+                                  <p className="font-medium">{user?.full_name || '—'}</p>
+                                  <p className="text-xs text-gray-500">{user?.email || payment.user_id?.slice(0,8)}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-semibold">KSh {payment.amount?.toLocaleString()}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="capitalize">{payment.payment_type?.replace('_', ' ')}</span>
+                                  {payment.payment_type === 'mpesa_test' && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Test</Badge>}
+                                  {payment.payment_type === 'manual_submission' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700">Manual</Badge>}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={
+                                  payment.status === 'completed' ? 'default' :
+                                  payment.status === 'pending' || payment.status === 'pending_verification' ? 'secondary' : 'destructive'
+                                }>
+                                  {payment.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">{payment.mpesa_ref || 'N/A'}</TableCell>
+                              <TableCell className="text-xs">{payment.mpesa_phone || '—'}</TableCell>
+                              <TableCell className="max-w-xs truncate text-xs">{payment.description || '—'}</TableCell>
+                              <TableCell className="text-xs">{new Date(payment.created_at).toLocaleString()}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {(payment.status === 'pending_verification' || (payment.payment_type === 'manual_submission' && payment.status === 'pending')) && (
+                                    <Button size="sm" onClick={() => verifyManualPayment(payment)} disabled={verifyingPaymentId === payment.id} className="bg-emerald-600 hover:bg-emerald-700 text-xs">
+                                      {verifyingPaymentId === payment.id ? 'Verifying...' : 'Verify & Approve'}
+                                    </Button>
+                                  )}
+                                  <Select
+                                    value={payment.status}
+                                    onValueChange={(value) => updatePaymentStatus(payment.id, value)}
+                                  >
+                                    <SelectTrigger className="w-32">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="pending_verification">Pending Verification</SelectItem>
+                                      <SelectItem value="completed">Completed</SelectItem>
+                                      <SelectItem value="failed">Failed</SelectItem>
+                                      <SelectItem value="refunded">Refunded</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {payments.filter(p => (paymentStatusFilter === 'all' || p.status === paymentStatusFilter || (paymentStatusFilter === 'pending' && (p.status === 'pending' || p.status === 'pending_verification'))) && (!searchPayments || 
+                    p.payment_type?.toLowerCase().includes(searchPayments.toLowerCase()) || 
+                    p.mpesa_ref?.toLowerCase().includes(searchPayments.toLowerCase()) || 
+                    p.description?.toLowerCase().includes(searchPayments.toLowerCase()) ||
+                    p.mpesa_phone?.toLowerCase().includes(searchPayments.toLowerCase())
+                  )).length === 0 && (
+                    <p className="text-center text-gray-500 text-sm py-8">No payments match the current filter.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeTab === 'billing' && (

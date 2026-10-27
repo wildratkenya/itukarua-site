@@ -44,6 +44,7 @@ export function useInfiniteJobs(filters?: {
   category?: string;
   location?: string;
   county?: string;
+  subcounty?: string;
   search?: string;
   activeOnly?: boolean;
   featured?: boolean;

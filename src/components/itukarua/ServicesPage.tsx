@@ -49,17 +49,28 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
 
+  const [locationDebounced, setLocationDebounced] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setLocationDebounced(locationFilter.trim()), 300);
+    return () => clearTimeout(id);
+  }, [locationFilter]);
 
   const filters = useMemo(() => ({
     category: category !== 'All Services' ? category : undefined,
     subcounty: subcounty || undefined,
     county: county || undefined,
+    location: locationDebounced || undefined,
     search: search.trim() || undefined,
-  }), [category, subcounty, county, search]);
+  }), [category, subcounty, county, locationDebounced, search]);
 
-  const { data: servicesData, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteServiceAds(filters);
+  const { data: servicesData, isLoading, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteServiceAds(filters);
 
-  const allServices = useMemo(() => (servicesData?.pages ?? []).flat(), [servicesData]);
+  const pendingFilterFetch = isFetching && !isFetchingNextPage;
+  const allServices = useMemo(
+    () => (pendingFilterFetch ? [] : (servicesData?.pages ?? []).flat()),
+    [servicesData, pendingFilterFetch],
+  );
+  const showListLoading = isLoading || pendingFilterFetch;
 
   const services = allServices.map((s: any) => {
     try {
@@ -137,7 +148,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">County</label>
-                <select value={county} onChange={e => setCounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                <select value={county} onChange={e => { setCounty(e.target.value); setSubcounty(''); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Counties</option>
                   {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -196,7 +207,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
         <div className="flex gap-6 items-start">
           <div className="flex-1 min-w-0">
             <p className="text-sm text-gray-500 mb-6">Showing <span className="font-semibold text-gray-900">{services.length}</span> businesses & services</p>
-            {isLoading ? (
+            {showListLoading ? (
               <div className="flex flex-col gap-3">
                 {[1,2,3,4,5].map(i => (
                   <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex gap-3">

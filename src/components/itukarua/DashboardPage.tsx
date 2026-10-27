@@ -34,6 +34,13 @@ interface DashboardPageProps {
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJob, onOpenMpesa, onEntitlementsRefresh }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [showManualPayment, setShowManualPayment] = useState(false);
+  const [manualMpesaRef, setManualMpesaRef] = useState('');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualNote, setManualNote] = useState('');
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualMsg, setManualMsg] = useState<{type: 'ok'|'err', text: string}|null>(null);
   const [publishingJobId, setPublishingJobId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>(user.role);
   const [loading, setLoading] = useState(true);
@@ -1286,60 +1293,43 @@ const notifRef = useRef<HTMLDivElement>(null);
         {activeTab === 'payments' && (
           <div className="space-y-4">
             {isAdmin && (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-semibold text-gray-900">Settings Summary — Payments</h3>
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search payments by ref, type, user, desc..."
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Payment Summary</h3>
+                    <p className="text-sm text-gray-500 mt-1">Overview of all platform payments</p>
+                  </div>
+                  <button 
+                    onClick={() => onNavigate('admin')} 
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    View All Payments in Admin Panel
+                    <CreditCard className="w-4 h-4" />
+                  </button>
                 </div>
-              </div>
-            )}
-            {isAdmin && (
-              <div className="space-y-3">
-                {payments
-                  .filter((pmt) => {
-                    const term = searchTerm.toLowerCase();
-                    if (!term) return true;
-                    const user = profiles.find((prf) => prf.id === pmt.user_id);
-                    return (
-                      pmt.id.toLowerCase().includes(term) ||
-                      (pmt.mpesa_ref || '')?.toLowerCase().includes(term) ||
-                      pmt.payment_type?.toLowerCase().includes(term) ||
-                      pmt.status?.toLowerCase().includes(term) ||
-                      pmt.description?.toLowerCase().includes(term) ||
-                      user?.full_name?.toLowerCase().includes(term) ||
-                      user?.email?.toLowerCase().includes(term)
-                    );
-                  })
-                  .map((pmt) => {
-                    const user = profiles.find((prf) => prf.id === pmt.user_id);
-                    return (
-                      <div key={pmt.id} className="bg-white rounded-xl p-4 border border-gray-100 space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <p className="font-medium">{pmt.payment_type} — KES {pmt.amount.toLocaleString()}</p>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{pmt.status}</span>
-                        </div>
-                        <p className="text-xs text-gray-500">User: {user?.full_name || user?.email || '—'} • Txn: {pmt.checkout_request_id || '—'}</p>
-                        <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
-                          <span>Job: {pmt.related_job_id || '—'}</span>
-                          <span>Ad: {pmt.related_ad_id || '—'}</span>
-                          <span>Created: {new Date(pmt.created_at).toLocaleString()}</span>
-                          {pmt.mpesa_ref && pmt.status !== 'failed' && <span className="font-mono">Ref: {pmt.mpesa_ref}</span>}
-                          {pmt.description && <span className="truncate max-w-xs">{pmt.description}</span>}
-                        </div>
-                        {pmt.status === 'failed' && (
-                          <p className="text-xs text-red-600">
-                            Failed {new Date(pmt.updated_at || pmt.created_at).toLocaleString()} — {pmt.mpesa_ref || 'No failure reason recorded'}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-1">Total Payments</p>
+                    <p className="text-2xl font-bold text-gray-900">{payments.length}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-1">Completed</p>
+                    <p className="text-2xl font-bold text-green-600">{payments.filter(p => p.status === 'completed').length}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-1">Pending</p>
+                    <p className="text-2xl font-bold text-amber-600">{payments.filter(p => p.status === 'pending' || p.status === 'pending_verification').length}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-1">Failed</p>
+                    <p className="text-2xl font-bold text-red-600">{payments.filter(p => p.status === 'failed').length}</p>
+                  </div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Single Source of Truth:</strong> All payment logs, manual verifications, and M-Pesa troubleshooting tools are now in the Admin Panel &gt; Payments tab.
+                  </p>
+                </div>
               </div>
             )}
             {!isAdmin && isJobseeker ? (<>
@@ -1389,7 +1379,10 @@ const notifRef = useRef<HTMLDivElement>(null);
                 <h3 className="font-semibold text-gray-900">Advert Payments</h3>
                 <p className="text-sm text-gray-500 mt-1">Payment history for banner advert subscriptions and homepage boosts.</p>
               </div>
-              {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost').length > 0 ? (
+              <button onClick={() => { setShowManualPayment(true); setManualMsg(null); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg flex items-center gap-2 w-fit">
+              <Send className="w-4 h-4" /> Submit M-Pesa Transaction ID
+            </button>
+            {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost' || p.payment_type === 'manual_submission').length > 0 ? (
                 <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -1404,7 +1397,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                         </tr>
                       </thead>
                       <tbody>
-                        {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost').map(p => (
+                        {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost' || p.payment_type === 'manual_submission').map(p => (
                           <tr key={p.id} className="border-t border-gray-50">
                             <td className="px-4 py-3 text-sm text-gray-900 capitalize flex items-center gap-1.5">{p.payment_type === 'featured_boost' && <Zap className="w-3 h-3 text-amber-500" />}{p.payment_type.replace('_', ' ')}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{p.description || '-'}</td>
@@ -2137,6 +2130,80 @@ const notifRef = useRef<HTMLDivElement>(null);
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Manual M-Pesa Payment Submission Modal */}
+      {showManualPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Submit M-Pesa Transaction</h3>
+              <button onClick={() => setShowManualPayment(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">If you paid directly to M-Pesa, enter your transaction details below. Our team will verify and apply the payment.</p>
+            {manualMsg && (
+              <div className={"text-sm p-2 rounded mb-3 " + (manualMsg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>
+                {manualMsg.text}
+              </div>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-gray-700">M-Pesa Transaction ID *</label>
+                <input value={manualMpesaRef} onChange={(e) => setManualMpesaRef(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" placeholder="e.g. QAB1234567" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-700">Amount (KES)</label>
+                <input value={manualAmount} onChange={(e) => setManualAmount(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" placeholder="e.g. 1000" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-700">Phone Number (optional)</label>
+                <input value={manualPhone} onChange={(e) => setManualPhone(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" placeholder="07XXXXXXXX" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-700">Notes (optional)</label>
+                <input value={manualNote} onChange={(e) => setManualNote(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" placeholder="What are you paying for?" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button onClick={() => setShowManualPayment(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg">Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!manualMpesaRef.trim()) { setManualMsg({ type: 'err', text: 'Please enter M-Pesa transaction ID' }); return; }
+                  setManualSubmitting(true); setManualMsg(null);
+                  try {
+                    const { error } = await supabase.from('payments').insert({
+                      user_id: user.id,
+                      payment_type: 'manual_submission',
+                      amount: manualAmount ? Number(manualAmount) : 0,
+                      mpesa_ref: manualMpesaRef.trim(),
+                      mpesa_phone: manualPhone.trim() || null,
+                      status: 'pending_verification',
+                      description: manualNote.trim() || 'Manual M-Pesa payment submission'
+                    });
+                    if (error) { setManualMsg({ type: 'err', text: error.message }); }
+                    else {
+                      setManualMsg({ type: 'ok', text: 'Transaction submitted. Our team will verify and activate your account shortly.' });
+                      setTimeout(() => {
+                        setShowManualPayment(false);
+                        setManualMpesaRef('');
+                        setManualAmount('');
+                        setManualPhone('');
+                        setManualNote('');
+                        setManualMsg(null);
+                      }, 2000);
+                    }
+                  } catch (e: any) {
+                    setManualMsg({ type: 'err', text: e.message || 'Failed to submit' });
+                  }
+                  setManualSubmitting(false);
+                }}
+                disabled={manualSubmitting}
+                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50"
+              >
+                {manualSubmitting ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
           </div>
         </div>
       )}

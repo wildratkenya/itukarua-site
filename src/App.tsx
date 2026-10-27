@@ -74,6 +74,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/advertise" element={<AppProvider><AppLayout initialPage="advertise" /></AppProvider>} />
+            <Route path="/dashboard" element={<AppProvider><AppLayout /></AppProvider>} />
             <Route path="/admin" element={<AdminRoute />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

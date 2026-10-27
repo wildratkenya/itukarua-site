@@ -68,11 +68,12 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^0.9.3",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
-    "@tailwindcss/typography": "^0.5.16",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -84,7 +85,7 @@
     "globals": "^15.9.0",
     "postcss": "^8.4.47",
     "sharp": "^0.35.5",
-    "tailwindcss": "^3.4.11",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^6.4.2"

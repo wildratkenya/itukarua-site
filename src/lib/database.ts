@@ -1,6 +1,33 @@
 ﻿import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
 import { isCorporateOnlySlot, type SavedCorporateFeatures } from '@/data/siteData';
 
+/** Escape `%`, `_`, and `\` for PostgREST `ilike` patterns. */
+export function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * Location filter AND-ed with county/subcounty elsewhere on the query.
+ * Matches a town/area token at the start of `location` or after a comma boundary,
+ * or an exact (case-insensitive) `subcounty` — avoids broad substring hits (e.g. "87" in unrelated text).
+ */
+export function applyListingLocationFilter<T extends { or: (filters: string) => T }>(
+  query: T,
+  rawLocation: string,
+): T {
+  const term = rawLocation.trim();
+  if (!term) return query;
+  const e = escapeIlikePattern(term);
+  return query.or(
+    [
+      `location.ilike.${e}%`,
+      `location.ilike.%, ${e}%`,
+      `location.ilike.%,${e}%`,
+      `subcounty.ilike.${e}`,
+    ].join(','),
+  );
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface DbProfile {
@@ -261,7 +288,7 @@ export async function getProfiles(filters?: {
     query = query.eq('role', filters.role);
   }
   if (filters?.location) {
-    query = query.ilike('location', `%${filters.location}%`);
+    query = applyListingLocationFilter(query, filters.location);
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);
@@ -300,6 +327,7 @@ export async function getJobs(filters?: {
   category?: string;
   location?: string;
   county?: string;
+  subcounty?: string;
   search?: string;
   status?: string;
   activeOnly?: boolean;
@@ -314,10 +342,13 @@ export async function getJobs(filters?: {
     query = query.eq('category', filters.category);
   }
   if (filters?.location) {
-    query = query.ilike('location', '%' + filters.location + '%');
+    query = applyListingLocationFilter(query, filters.location);
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);
+  }
+  if (filters?.subcounty) {
+    query = query.eq('subcounty', filters.subcounty);
   }
   if (filters?.status) {
     query = query.eq('status', filters.status);
@@ -547,7 +578,7 @@ export async function getServiceAds(filters?: {
     query = query.eq('category', filters.category);
   }
   if (filters?.location) {
-    query = query.ilike('location', '%' + filters.location + '%');
+    query = applyListingLocationFilter(query, filters.location);
   }
   if (filters?.county) {
     query = query.eq('county', filters.county);

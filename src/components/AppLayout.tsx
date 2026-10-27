@@ -92,7 +92,18 @@ const evaluateSubscriptionNotice = (profile: any): SubscriptionNotice | null => 
 };
 
 const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
-  const [currentPage, setCurrentPage] = useState<Page>(initialPage || 'home');
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
+    if (initialPage) return initialPage;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pay = params.get('pay') || params.get('payment') || params.get('type');
+      const role = params.get('role');
+      const intent = params.get('intent');
+      if (pay === 'corporate' || role === 'corporate' || intent === 'corporate') return 'corporate';
+      if (pay || intent || params.get('ad_id') || params.get('job_id') || params.get('invoice_id')) return 'dashboard';
+    } catch {}
+    return 'home';
+  });
   const [user, setUser] = useState<UserState | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');

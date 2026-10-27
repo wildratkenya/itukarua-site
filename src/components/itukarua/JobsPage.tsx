@@ -67,17 +67,29 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     });
   }, []);
 
+  const [locationDebounced, setLocationDebounced] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setLocationDebounced(locationFilter.trim()), 300);
+    return () => clearTimeout(id);
+  }, [locationFilter]);
+
   const filters = useMemo(() => ({
     category: category !== 'All Categories' ? category : undefined,
     subcounty: subcounty || undefined,
     county: county || undefined,
+    location: locationDebounced || undefined,
     search: search.trim() || undefined,
     activeOnly: true,
-  }), [category, subcounty, county, search]);
+  }), [category, subcounty, county, locationDebounced, search]);
 
-  const { data: jobsData, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, refetch } = useInfiniteJobs(filters);
+  const { data: jobsData, isLoading, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage, refetch } = useInfiniteJobs(filters);
 
-  const allJobs = useMemo(() => (jobsData?.pages ?? []).flat(), [jobsData]);
+  const pendingFilterFetch = isFetching && !isFetchingNextPage;
+  const allJobs = useMemo(
+    () => (pendingFilterFetch ? [] : (jobsData?.pages ?? []).flat()),
+    [jobsData, pendingFilterFetch],
+  );
+  const showListLoading = isLoading || pendingFilterFetch;
 
   // Client-side sort
   const jobs = useMemo(() => {
@@ -136,10 +148,11 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
     setCategory('All Categories');
     setSubcounty('');
     setCounty('');
+    setLocationFilter('');
     setSortBy('newest');
   };
 
-  const hasActiveFilters = search || category !== 'All Categories' || !!subcounty;
+  const hasActiveFilters = search || category !== 'All Categories' || !!subcounty || !!county || !!locationFilter;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -190,7 +203,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">County</label>
-                <select value={county} onChange={e => setCounty(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                <select value={county} onChange={e => { setCounty(e.target.value); setSubcounty(''); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
                   <option value="">All Counties</option>
                   {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -261,7 +274,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
               <p className="text-sm text-gray-500">Showing <span className="font-semibold text-gray-900">{jobs.length}</span> jobs</p>
             </div>
 
-            {isLoading ? (
+            {showListLoading ? (
               <div className="flex flex-col gap-3">
                 {[1,2,3,4,5].map(i => (
                   <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex gap-3">
