@@ -1,0 +1,1 @@
+const fs = require('fs');\nconst d = fs.readFileSync('src/components/itukarua/AdminPage.tsx','utf8');\nconst idx = d.indexOf('getPayments');\nconsole.log(idx);\nif(idx>=0){ console.log(d.slice(idx-80, idx+120)); }\n
