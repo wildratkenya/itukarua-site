@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search } from 'lucide-react';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search, Send } from 'lucide-react';
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
@@ -1318,7 +1318,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                   </div>
                   <div className="bg-white rounded-xl p-4 border border-gray-100">
                     <p className="text-xs text-gray-500 mb-1">Pending</p>
-                    <p className="text-2xl font-bold text-amber-600">{payments.filter(p => p.status === 'pending' || p.status === 'pending_verification').length}</p>
+                    <p className="text-2xl font-bold text-amber-600">{payments.filter(p => (p.status as any) === 'pending' || (p.status as any) === 'pending_verification').length}</p>
                   </div>
                   <div className="bg-white rounded-xl p-4 border border-gray-100">
                     <p className="text-xs text-gray-500 mb-1">Failed</p>
@@ -1357,7 +1357,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">KES {p.amount.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.mpesa_ref || '-'}</td>
-                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' || p.status === 'pending_verification' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
                           </tr>
                         ))}
                       </tbody>
@@ -1382,7 +1382,7 @@ const notifRef = useRef<HTMLDivElement>(null);
               <button onClick={() => { setShowManualPayment(true); setManualMsg(null); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg flex items-center gap-2 w-fit">
               <Send className="w-4 h-4" /> Submit M-Pesa Transaction ID
             </button>
-            {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost' || p.payment_type === 'manual_submission').length > 0 ? (
+            {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost' || (p.payment_type as any) === 'manual_submission').length > 0 ? (
                 <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -1397,14 +1397,14 @@ const notifRef = useRef<HTMLDivElement>(null);
                         </tr>
                       </thead>
                       <tbody>
-                        {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost' || p.payment_type === 'manual_submission').map(p => (
+                        {payments.filter(p => p.payment_type === 'advert' || p.payment_type === 'featured_boost' || (p.payment_type as any) === 'manual_submission').map(p => (
                           <tr key={p.id} className="border-t border-gray-50">
                             <td className="px-4 py-3 text-sm text-gray-900 capitalize flex items-center gap-1.5">{p.payment_type === 'featured_boost' && <Zap className="w-3 h-3 text-amber-500" />}{p.payment_type.replace('_', ' ')}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{p.description || '-'}</td>
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">KES {p.amount.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.mpesa_ref || '-'}</td>
-                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' || p.status === 'pending_verification' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
                           </tr>
                         ))}
                       </tbody>
@@ -1448,7 +1448,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">KES {p.amount.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.mpesa_ref || '-'}</td>
-                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : (p.status === 'pending' || (p.status as any) === 'pending_verification') ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
                           </tr>
                         ))}
                       </tbody>

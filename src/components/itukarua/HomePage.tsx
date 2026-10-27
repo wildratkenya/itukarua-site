@@ -22,7 +22,7 @@ interface HomePageProps {
   onSearch: (query: string) => void;
   onViewJob: (jobId: string) => void;
   onViewService: (serviceId: string) => void;
-  onOpenAuth: (tab: 'login' | 'signup') => void;
+  onOpenAuth: (tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => void;
   onOpenMpesa: MpesaHandler;
   onOpenEmployerPayment?: (jobId?: string, jobTitle?: string, onComplete?: () => void) => void;
   onWorkerPopupOpen?: () => void;
