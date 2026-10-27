@@ -222,6 +222,30 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleSetMemberPassword = async () => {
+    if (!resetTarget?.id || !resetPw) {
+      toast({ title: 'Password required', description: 'Enter a new password', variant: 'destructive' });
+      return;
+    }
+    if (resetPw.length < 6) {
+      toast({ title: 'Password too short', description: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await adminResetPassword(resetTarget.id, resetPw);
+      if (res.error) throw new Error(res.error);
+      toast({ title: 'Password updated', description: `Password set for ${resetTarget.email}` });
+      setShowResetPw(false);
+      setResetTarget(null);
+      setResetPw('');
+    } catch (err: any) {
+      toast({ title: 'Failed to set password', description: err.message, variant: 'destructive' });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-32"><div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" /></div>;
 
   if (!account) return (
@@ -539,7 +563,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                     <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-full uppercase">{m.member_role}</span>
                     {isOwner && m.email && (
                       <>
-                        <button onClick={async () => { try { await supabase.auth.resetPasswordForEmail(m.email!); toast({ title: 'Reset email sent', description: `Sent to ${m.email}` }); } catch (err:any) { toast({ title: 'Failed', description: err.message, variant: 'destructive' }); } }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Send reset email</button>
+                        <button onClick={async () => { try { await supabase.auth.resetPasswordForEmail(m.email!, { redirectTo: window.location.origin + '/reset-password' }); toast({ title: 'Reset email sent', description: `Sent to ${m.email}` }); } catch (err:any) { toast({ title: 'Failed to send reset email', description: err.message, variant: 'destructive' }); } }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Send reset email</button>
                         <button onClick={() => { setResetTarget({ id: m.profile_id, email: m.email }); setResetPw(''); setShowResetPw(true); }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Set password</button>
                       </>
                     )}
@@ -622,6 +646,29 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
               <button onClick={handleAddMember} disabled={addingMember || !memberForm.email || !memberForm.password}
                 className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
                 {addingMember ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</> : 'Add Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SET PASSWORD MODAL ── */}
+      {showResetPw && resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => { setShowResetPw(false); setResetTarget(null); setResetPw(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Set Password</h2>
+              <button onClick={() => { setShowResetPw(false); setResetTarget(null); setResetPw(''); }} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">Set a new password for <span className="font-medium text-gray-900">{resetTarget.email}</span></p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input type="password" value={resetPw} onChange={e => setResetPw(e.target.value)} placeholder="Minimum 6 characters" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+              </div>
+              <button onClick={handleSetMemberPassword} disabled={resetting || !resetPw}
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                {resetting ? <><Loader2 className="w-4 h-4 animate-spin" /> Setting...</> : 'Set Password'}
               </button>
             </div>
           </div>
