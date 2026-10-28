@@ -14,6 +14,14 @@
 
 import { loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from './smtp.ts'
 import { renewCorporate } from './corporateBilling.ts'
+import {
+  BOOST_PRICE_KES,
+  SERVICE_PLAN_KES,
+  minimumAmountKes,
+  underpaymentMessage,
+} from './pricing.ts'
+
+export { BOOST_PRICE_KES, SERVICE_PLAN_KES } from './pricing.ts'
 
 export type PaymentRow = {
   id: string
@@ -40,12 +48,6 @@ export type PaymentRow = {
 
 export const SERVICE_PLANS = { '10-day': 10, '20-day': 20, '30-day': 30 } as const
 export type ServicePlan = keyof typeof SERVICE_PLANS
-
-export const SERVICE_PLAN_KES: Record<ServicePlan, number> = {
-  '10-day': 300,
-  '20-day': 500,
-  '30-day': 800,
-}
 
 export function isServicePlan(v: unknown): v is ServicePlan {
   return typeof v === 'string' && Object.prototype.hasOwnProperty.call(SERVICE_PLANS, v)
@@ -362,8 +364,6 @@ export async function fulfilSubscription(supabase: any, payment: PaymentRow): Pr
 
 // ─── Featured boost ─────────────────────────────────────────────────────────
 
-/** Canonical Featured Boost price, in KES. Admin and product copy must match. */
-export const BOOST_PRICE_KES = 500
 export const BOOST_MS = 7 * 24 * 60 * 60 * 1000
 
 /** KES 500 adds exactly 7 days onto a live boost, otherwise starts a fresh window. */
@@ -520,6 +520,18 @@ export async function fulfilCorporate(supabase: any, payment: PaymentRow): Promi
 export async function runPaymentEffects(supabase: any, payment: PaymentRow): Promise<string[]> {
   const done: string[] = []
   const meta = payment.metadata || {}
+
+  // Defence in depth: the STK endpoint rejects underpaid requests, but rows
+  // created before that check existed (or by the old client-insert policy) are
+  // still in the table. Withhold the entitlement instead of granting it.
+  const minimum = await minimumAmountKes(
+    supabase,
+    payment,
+    payment.user_id ? await profileRole(supabase, payment.user_id) : null,
+  )
+  if (minimum !== null && Number(payment.amount || 0) < minimum) {
+    throw new Error(underpaymentMessage(minimum, Number(payment.amount || 0)))
+  }
 
   switch (payment.payment_type) {
     case 'registration':

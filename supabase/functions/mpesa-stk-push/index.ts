@@ -19,6 +19,7 @@ import {
   sendPaymentReceipt,
   type PaymentRow,
 } from '../_shared/paymentEffects.ts'
+import { minimumAmountKes, underpaymentMessage } from '../_shared/pricing.ts'
 import { corsHeadersFor } from '../_shared/cors.ts'
 
 const CONSUMER_KEY = Deno.env.get('MPESA_CONSUMER_KEY')!
@@ -134,6 +135,19 @@ function extractCallbackRef(callbackData: any): string {
   return ''
 }
 
+/**
+ * Unguessable id the browser can poll before Daraja answers.
+ *
+ * This used to be WS + Date.now(), which made pending payments enumerable:
+ * anyone could walk the range, read them from /status and forge a callback for
+ * one. The id must not carry a timestamp.
+ */
+function randomCheckoutId(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return 'WS' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url)
   const path = url.pathname.replace(/^\/mpesa-stk-push/, '') || '/'
@@ -185,7 +199,7 @@ Deno.serve(async (req) => {
       // Our own id, kept on the row as local_checkout_id. Daraja replaces
       // checkout_request_id with its own id below, and the browser needs an id
       // it can poll with before Daraja has answered, so both are stored.
-      const localCheckoutId = `WS${Date.now()}`
+      const localCheckoutId = randomCheckoutId()
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
       // Corporate placements are paid against an invoice, so the server decides
@@ -193,8 +207,10 @@ Deno.serve(async (req) => {
       // trusted for this flow. Every other payment type is unchanged.
       let effectiveAmount = Math.round(amount)
       let effectiveUserId = user_id || null
+      let isCorporatePayment = false
 
       if (payment_type === 'corporate' || related_account_id || related_invoice_id) {
+        isCorporatePayment = true
         if (!related_account_id || !related_invoice_id) {
           return json({ error: 'A corporate payment needs both the corporate account and the invoice' }, 400)
         }
@@ -234,6 +250,35 @@ Deno.serve(async (req) => {
         effectiveAmount = Math.round(Number(invoice.amount))
         effectiveUserId = uid
         console.log(`[STK Push] corporate payment for invoice ${invoice.invoice_no} (${effectiveAmount}) by ${uid}`)
+      }
+
+      if (!Number.isFinite(effectiveAmount) || effectiveAmount < 1) {
+        return json({ error: 'Invalid payment amount' }, 400)
+      }
+
+      // The browser chooses the product, not the price. Corporate totals come
+      // from the invoice above; everything else must cover the canonical price.
+      if (!isCorporatePayment) {
+        let profileRole: string | null = null
+        if (effectiveUserId) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', effectiveUserId)
+            .maybeSingle()
+          profileRole = (profile as any)?.role ?? null
+        }
+        const minimum = await minimumAmountKes(
+          supabase,
+          {
+            payment_type: payment_type || 'registration',
+            metadata: metadata && typeof metadata === 'object' ? metadata : null,
+          },
+          profileRole,
+        )
+        if (minimum !== null && effectiveAmount < minimum) {
+          return json({ error: underpaymentMessage(minimum, effectiveAmount) }, 400)
+        }
       }
 
       const { data: paymentData, error: insertErr } = await supabase
@@ -344,31 +389,37 @@ Deno.serve(async (req) => {
         return json({ error: 'Invalid callback data' }, 400)
       }
 
+      // Optional shared secret. Point MPESA_CALLBACK_URL at
+      // /functions/v1/mpesa-stk-push/callback?s=<MPESA_CALLBACK_SECRET> to
+      // require it. The Daraja verification below is the primary defence and
+      // runs either way.
+      const callbackSecret = Deno.env.get('MPESA_CALLBACK_SECRET') || ''
+      if (callbackSecret) {
+        const provided = url.searchParams.get('s') || path.split('/')[2] || ''
+        if (provided !== callbackSecret) {
+          console.error('[STK Callback] rejected: bad callback secret')
+          return json({ error: 'Unauthorized' }, 401)
+        }
+      } else {
+        console.warn('[STK Callback] MPESA_CALLBACK_SECRET is not set; verifying with Daraja only')
+      }
+
       const { ResultCode, ResultDesc, CheckoutRequestID } = Body.stkCallback
       const mpesaRef = extractCallbackRef(callbackData)
       console.log('[STK Callback] ResultCode:', ResultCode, 'CheckoutRequestID:', CheckoutRequestID)
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-      // Accept either id: Daraja sends its own, but be forgiving if it echoes
-      // ours, and fall back to a phone/time match if the id is unrecognised.
-      let payment: PaymentRow | null = null
-      {
-        const { data } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('checkout_request_id', CheckoutRequestID)
-          .maybeSingle()
-        payment = data as PaymentRow | null
-      }
-      if (!payment && CheckoutRequestID) {
-        const { data } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('local_checkout_id', CheckoutRequestID)
-          .maybeSingle()
-        payment = data as PaymentRow | null
-      }
+      // Only Daraja's own CheckoutRequestID can settle a payment. The local id
+      // the browser polls with is not proof that Safaricom sent this request.
+      const { data } = CheckoutRequestID
+        ? await supabase
+            .from('payments')
+            .select('*')
+            .eq('checkout_request_id', CheckoutRequestID)
+            .maybeSingle()
+        : { data: null }
+      const payment = data as PaymentRow | null
 
       if (!payment) {
         console.error('[STK Callback] no payment for CheckoutRequestID', CheckoutRequestID)
@@ -377,23 +428,51 @@ Deno.serve(async (req) => {
         return json({ ResultCode: 0, ResultDesc: 'Success' })
       }
 
-      if (Number(ResultCode) === 0) {
-        const result = await applyPaymentEffects(supabase, payment, { mpesaRef: mpesaRef || null })
-        if (result.claimed) {
-          if (result.error) {
-            // Fulfilment failed but the money arrived. effects_applied_at stays
-            // NULL so payments-reconcile repairs it.
-            console.error('[STK Callback] payment completed but fulfilment failed:', result.error)
-          } else {
-            await sendPaymentReceipt(supabase, payment, mpesaRef || payment.mpesa_ref)
-          }
-        }
-      } else {
+      // A callback is only a claim; the STK query is the settlement authority.
+      // A forged success POST cannot make Daraja report money that never moved,
+      // and a forged failure POST cannot cancel a payment Daraja already took.
+      const verdict = SIMULATE
+        ? { resultCode: Number(ResultCode), mpesaRef: mpesaRef || undefined }
+        : await queryDaraja(payment.checkout_request_id || CheckoutRequestID)
+
+      // No verdict (Daraja unreachable or has no record yet): never complete on
+      // the callback's word, but honour a reported failure since it grants
+      // nothing.
+      const settled: number | null = verdict
+        ? verdict.resultCode
+        : Number(ResultCode) === 0
+          ? null
+          : Number(ResultCode)
+
+      if (settled === null || settled === 1037) {
+        // 1037 means Safaricom has not finished with the request. Leave the
+        // payment pending rather than fail a live sale; /status and
+        // payments-reconcile settle it once Daraja answers.
+        console.warn('[STK Callback] unverified, leaving payment pending:', payment.id, 'code', settled)
+        return json({ ResultCode: 0, ResultDesc: 'Accepted, pending verification' })
+      }
+
+      if (settled !== 0) {
         await supabase
           .from('payments')
-          .update({ status: 'failed', mpesa_ref: mpesaRef || ResultDesc || null, updated_at: new Date().toISOString() })
+          .update({ status: 'failed', mpesa_ref: verdict?.mpesaRef || mpesaRef || null, updated_at: new Date().toISOString() })
           .eq('id', payment.id)
-        console.error('[STK Callback] payment failed:', ResultCode, ResultDesc)
+          .neq('status', 'completed')
+        console.error('[STK Callback] payment failed:', settled, ResultDesc)
+        return json({ ResultCode: 0, ResultDesc: 'Success' })
+      }
+
+      const result = await applyPaymentEffects(supabase, payment, {
+        mpesaRef: verdict?.mpesaRef || mpesaRef || null,
+      })
+      if (result.claimed) {
+        if (result.error) {
+          // Fulfilment failed but the money arrived. effects_applied_at stays
+          // NULL so payments-reconcile repairs it.
+          console.error('[STK Callback] payment completed but fulfilment failed:', result.error)
+        } else {
+          await sendPaymentReceipt(supabase, payment, verdict?.mpesaRef || mpesaRef || payment.mpesa_ref)
+        }
       }
 
       return json({ ResultCode: 0, ResultDesc: 'Success' })
@@ -416,7 +495,7 @@ Deno.serve(async (req) => {
       if (!payment) payment = await lookup('local_checkout_id')
 
       if (!payment) {
-        return json({ success: true, resultCode: 1, resultDesc: 'Payment not found' })
+        return json({ success: true, status: 'not_found', resultDesc: 'Payment not found' })
       }
 
       if (payment.status === 'pending') {
@@ -434,7 +513,9 @@ Deno.serve(async (req) => {
             payment = (fresh as PaymentRow) || { ...payment, status: 'completed' }
           } else {
             // Ask Daraja directly. This is what makes a lost callback survivable.
-            const queried = await queryDaraja(checkoutRequestId)
+            // Always query with Daraja's own id: a local id would only produce an
+            // error, and 1037 means "still processing", not "failed".
+            const queried = await queryDaraja(payment.checkout_request_id || checkoutRequestId)
             if (queried && queried.resultCode === 0) {
               const result = await applyPaymentEffects(supabase, payment, { mpesaRef: queried.mpesaRef || null })
               if (result.claimed && !result.error) {
@@ -442,7 +523,7 @@ Deno.serve(async (req) => {
               }
               const { data: fresh } = await supabase.from('payments').select('*').eq('id', payment.id).maybeSingle()
               payment = (fresh as PaymentRow) || { ...payment, status: 'completed' }
-            } else if (queried && queried.resultCode !== 0) {
+            } else if (queried && queried.resultCode !== 0 && queried.resultCode !== 1037) {
               await supabase
                 .from('payments')
                 .update({ status: 'failed', mpesa_ref: payment.mpesa_ref, updated_at: new Date().toISOString() })
@@ -454,7 +535,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({ success: true, status: payment.status, payment })
+      // Status only. The full row carries the customer's phone, metadata and the
+      // contact-access redemption token, and this endpoint is unauthenticated.
+      return json({
+        success: true,
+        status: payment.status,
+        mpesa_ref: payment.mpesa_ref,
+        access_expires_at: payment.access_expires_at ?? null,
+      })
     }
 
     return json({ error: 'Not found' }, 404)

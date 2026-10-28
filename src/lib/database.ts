@@ -169,7 +169,7 @@ export interface DbPayment {
   amount: number;
   mpesa_ref: string;
   mpesa_phone: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  status: 'pending' | 'pending_verification' | 'completed' | 'failed' | 'refunded';
   description: string;
   related_job_id: string | null;
   related_ad_id: string | null;

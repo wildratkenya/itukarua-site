@@ -155,7 +155,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
 
         if (data.status === 'completed') {
           if (pollingRef.current) clearInterval(pollingRef.current);
-          setTransactionId(data.payment?.mpesa_ref || `MPE${Date.now().toString().slice(-8)}`);
+          setTransactionId(data.mpesa_ref || `MPE${Date.now().toString().slice(-8)}`);
           setStep('success');
           // Refresh only. The advert/subscription was already extended by the
           // edge function, so nothing here decides whether the customer paid.
