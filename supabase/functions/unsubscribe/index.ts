@@ -1,5 +1,6 @@
 ﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeadersFor } from '../_shared/cors.ts'
+import { normalizeEmail, verifyUnsubscribeToken } from '../_shared/unsubscribeToken.ts'
 
 const SITE_URL = Deno.env.get('SITE_URL') || 'https://itukarua3.vercel.app'
 
@@ -14,16 +15,26 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
     const url = new URL(req.url)
-    const email = url.searchParams.get('email')
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const email = normalizeEmail(url.searchParams.get('email') || '')
+    const token = url.searchParams.get('token') || ''
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !token) {
       return new Response(htmlPage('Invalid Link', 'The unsubscribe link appears to be invalid.'), {
         headers: { ...corsHeaders, 'Content-Type': 'text/html' },
       })
     }
+
+    // The token covers the address, so editing ?email= cannot unsubscribe
+    // someone else.
+    if (!(await verifyUnsubscribeToken(email, token))) {
+      return new Response(htmlPage('Invalid Link', 'The unsubscribe link appears to be invalid.'), {
+        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+      })
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
-    const { error } = await supabase.from('newsletter_subscribers').delete().eq('email', email)
+    const { error } = await supabase.from('newsletter_subscribers').delete().ilike('email', email)
     if (error) {
       return new Response(htmlPage('Error', 'Something went wrong. Please try again.'), {
         headers: { ...corsHeaders, 'Content-Type': 'text/html' },

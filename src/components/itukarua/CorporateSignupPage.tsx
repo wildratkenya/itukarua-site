@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Mail, Shield, Building2, C
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { CORPORATE_PACKAGES, CORPORATE_TIER_ANCHOR_KES } from '@/data/siteData';
 import type { Page } from './Header';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT, suggestPassword } from '@/lib/password';
 
 interface CorporateSignupPageProps {
   onNavigate: (page: Page) => void;
@@ -84,7 +85,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     if (!form.company_name.trim()) errs.company_name = 'Company name is required';
     if (!form.email.trim()) errs.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Invalid email';
-    if (!form.password || form.password.length < 6) errs.password = 'Password must be at least 6 characters';
+    if (!form.password || form.password.length < MIN_PASSWORD_LENGTH) errs.password = PASSWORD_TOO_SHORT;
     if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
     if (!termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
     setErrors(errs);
@@ -559,13 +560,26 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
 
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">Password <span className="text-red-500">*</span></label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = suggestPassword();
+                          setForm({ ...form, password: p, confirmPassword: p });
+                          setErrors(prev => ({ ...prev, password: '', confirmPassword: '' }));
+                        }}
+                        className="text-xs font-semibold text-amber-700 hover:text-amber-800"
+                      >
+                        Suggest
+                      </button>
+                    </div>
                     <input
                       type="password"
                       value={form.password}
                       onChange={e => setForm({ ...form, password: e.target.value })}
                       className={`w-full px-4 py-2.5 rounded-lg border ${errors.password ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none`}
-                      placeholder="Min 6 characters"
+                      placeholder={PASSWORD_HINT}
                     />
                     {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
                   </div>

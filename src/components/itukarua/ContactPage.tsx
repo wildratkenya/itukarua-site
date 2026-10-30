@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import SEO from '@/lib/seo';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle, Bell } from 'lucide-react';
-import { createMessage } from '@/lib/database';
+import { submitContactMessage } from '@/lib/database';
 import { supabaseUrl, supabaseKey } from '@/lib/supabase';
 
 const ContactPage: React.FC = () => {
@@ -54,13 +54,17 @@ const ContactPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await createMessage({
-        sender_name: formData.name,
-        sender_email: formData.email,
+      const result = await submitContactMessage({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
         subject: formData.subject || 'General Inquiry',
-        message: `Phone: ${formData.phone || 'N/A'}\n\n${formData.message}`,
-        type: 'support',
+        message: formData.message,
       });
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
       fetch(`${supabaseUrl}/functions/v1/send-contact-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },

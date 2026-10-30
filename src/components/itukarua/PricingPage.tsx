@@ -5,6 +5,7 @@ import { PRICING_PLANS, CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIE
 import BoostProductModal from './BoostProductModal';
 import type { MpesaHandler } from '@/lib/mpesa';
 import { hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
+import { setSubscriptionIntent } from '@/lib/checkoutIntent';
 
 interface PricingUser {
   id: string;
@@ -51,18 +52,24 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
   // visitor is sent through sign-up first (staying on this page), a free
   // jobseeker is sent to upgrade for the first time, and an expired premium
   // account is asked to renew.
+  // A payment can only be attached to an existing account, so an anonymous
+  // visitor signs up first — the chosen plan is remembered and the M-Pesa
+  // prompt opens as soon as the account exists (see AppLayout).
   const handlePremiumSubscribe = () => {
+    const plan = PRICING_PLANS.jobseekerPremium;
     if (!user) {
+      setSubscriptionIntent({ kind: 'subscription', role: 'jobseeker', amount: plan.price, days: 30 });
       onStayAfterLogin?.();
       onOpenAuth?.('signup', 'jobseeker');
       return;
     }
     onOpenMpesa(
-      PRICING_PLANS.jobseekerPremium.price,
+      plan.price,
       premiumExpired || premiumActive ? 'Jobseeker Premium Renewal' : 'Jobseeker Premium Subscription',
       'PREM-NEW',
       'registration',
-      undefined, undefined, undefined, undefined, false, false, null, 'jobseeker',
+      undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined,
+      { metadata: { kind: 'subscription', role: 'jobseeker', days: 30 } },
     );
   };
 
@@ -187,10 +194,10 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   </div>
                 </div>
                 <div className="flex items-baseline gap-1 mt-4 mb-6">
-                  <span className="text-5xl font-extrabold text-white">KES 100</span>
-                  <span className="text-green-100/80 font-medium">/week</span>
+                  <span className="text-5xl font-extrabold text-white">KES {PRICING_PLANS.jobseekerPremium.price}</span>
+                  <span className="text-green-100/80 font-medium">{PRICING_PLANS.jobseekerPremium.period}</span>
                 </div>
-                <p className="text-sm text-green-100/90 mb-6 -mt-2">Weekly subscription for bidding &amp; messaging</p>
+                <p className="text-sm text-green-100/90 mb-6 -mt-2">Monthly subscription for bidding &amp; messaging</p>
                 <ul className="space-y-3 mb-8 flex-1">
                   {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-white/95">
@@ -208,6 +215,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   <Phone className="w-4 h-4" />
                   {premiumLabel}
                 </button>
+                <div className="mt-4 pt-4 border-t border-white/20 space-y-1.5 text-[11px] leading-relaxed text-green-50/90">
+                  <p className="font-bold text-white uppercase tracking-wide text-[10px]">Subscription terms</p>
+                  <p>KES {PRICING_PLANS.jobseekerPremium.price} covers 30 days from the day M-Pesa confirms payment.</p>
+                  <p>No auto-renewal: when the 30 days end, access drops to the Free plan until you pay again.</p>
+                  <p>Payments are non-refundable once the subscription is active. If M-Pesa charges you but activation fails, contact support for a reversal.</p>
+                </div>
               </div>
             </div>
           </div>

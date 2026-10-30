@@ -86,7 +86,7 @@ export function useServiceAd(adId: string) {
     queryKey: ['serviceAd', adId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('service_ads')
+        .from('service_directory')
         .select('*')
         .eq('id', adId)
         .maybeSingle();

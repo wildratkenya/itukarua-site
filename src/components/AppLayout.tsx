@@ -4,6 +4,9 @@ import { CheckCircle, CalendarX2, X, Lock } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
 import { getProfile, type DbProfile, getRoleEntitlements, ensureJobseekerEntitlement, type ProfileRoleEntitlement, type EntitlementRole } from '@/lib/database';
 import { getPendingScrollTarget, clearPendingScrollTarget } from '@/lib/pricingScroll';
+import { takeSubscriptionIntent } from '@/lib/checkoutIntent';
+import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/consent';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 import { SITE_URL } from '@/lib/siteConfig';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
@@ -269,6 +272,14 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
             county: meta.county || null,
             subcounty: meta.subcounty || null,
             skills: meta.skills || [],
+            // Consent evidence travels in the signup metadata; the DB trigger
+            // rejects a profile whose document versions do not match.
+            terms_accepted: meta.terms_accepted === true,
+            accepted_terms_at: meta.accepted_terms_at || now,
+            terms_version: meta.terms_version || TERMS_VERSION,
+            privacy_version: meta.privacy_version || PRIVACY_VERSION,
+            age_attested_at: meta.age_attested_at || now,
+            marketing_opt_in: meta.marketing_opt_in === true,
             created_at: now,
             updated_at: now,
           }, { Prefer: 'resolution=merge-duplicates' });
@@ -414,8 +425,8 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   }, []);
 
   const handlePasswordReset = async () => {
-    if (resetPassNew.length < 6) {
-      setResetError('Password must be at least 6 characters');
+    if (resetPassNew.length < MIN_PASSWORD_LENGTH) {
+      setResetError(PASSWORD_TOO_SHORT);
       return;
     }
     if (resetPassNew !== resetPassConfirm) {
@@ -532,6 +543,22 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
   const promptLoginSubscriptionCheck = useCallback((p: any) => {
     applySubscriptionState(p);
     const notice = evaluateSubscriptionNotice(p);
+
+    // A plan chosen on the pricing page is paid as soon as the account exists.
+    // The intent is one-shot: consuming it here keeps an abandoned checkout
+    // from re-opening the M-Pesa prompt on later sign-ins.
+    const intent = takeSubscriptionIntent();
+    if (intent && p?.role === intent.role) {
+      skipAutoPaymentOnRegister.current = false;
+      if (!notice || notice.status !== 'active') {
+        setSubNoticeDismissed(false);
+        setTimeout(() => {
+          handleOpenMpesa(intent.amount, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, intent.role, undefined, undefined, { metadata: { kind: 'subscription', role: intent.role, days: intent.days } });
+        }, 400);
+        return;
+      }
+    }
+
     // Fresh sign-ups through AuthModal already landed on a plan chooser there.
     const skippedAutoPrompt = skipAutoPaymentOnRegister.current;
     skipAutoPaymentOnRegister.current = false;
@@ -821,7 +848,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
                     value={resetPassNew}
                     onChange={e => setResetPassNew(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                    placeholder="Min 6 characters"
+                    placeholder={PASSWORD_HINT}
                   />
                 </div>
                 <div>
@@ -861,7 +888,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         initialRole={authRole}
         onAuth={handleAuthComplete}
         onNavigate={handleNavigate}
-        onOpenMpesa={(amount, description, accountRef, paymentType) => handleOpenMpesa(amount, description, accountRef, paymentType)}
+        onOpenMpesa={handleOpenMpesa}
       />
 
       <MpesaModal

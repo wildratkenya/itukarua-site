@@ -80,6 +80,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     if (!formData.budgetMin) errs.budgetMin = 'Enter minimum budget';
     if (!formData.budgetMax) errs.budgetMax = 'Enter maximum budget';
     if (!formData.deadline) errs.deadline = 'Set a deadline';
+    else if (formData.deadline < new Date().toISOString().split('T')[0]) errs.deadline = 'Choose today or a later date — a past deadline cannot be published';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -156,7 +157,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       const res = await fetch(`${supabaseUrl}/functions/v1/send-job-otp`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ user_id: user.id, email: user.email, job_data: jobData }),
+        body: JSON.stringify({ job_data: jobData }),
       });
       const otpResult = await res.json().catch(() => ({}));
       if (!res.ok || otpResult?.error) {
@@ -214,7 +215,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       const res = await fetch(`${supabaseUrl}/functions/v1/verify-job-otp`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ user_id: user?.id, otp_code: code }),
+        body: JSON.stringify({ otp_code: code }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -279,7 +280,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       };
 
       const { data: otpResult, error: otpError } = await supabase.functions.invoke('send-job-otp', {
-        body: { user_id: user!.id, email: user!.email, job_data: jobData },
+        body: { job_data: jobData },
       });
 
       if (otpError) throw new Error(otpError.message || 'Failed to resend');
@@ -597,7 +598,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Deadline *</label>
-                <input type="date" value={formData.deadline} onChange={e => setFormData({ ...formData, deadline: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.deadline ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} />
+                <input type="date" min={new Date().toISOString().split('T')[0]} value={formData.deadline} onChange={e => setFormData({ ...formData, deadline: e.target.value })} className={`w-full px-4 py-2.5 rounded-lg border ${errors.deadline ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`} />
                 {errors.deadline && <p className="text-red-500 text-xs mt-1">{errors.deadline}</p>}
               </div>
             </div>

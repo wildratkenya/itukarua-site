@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
-import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, COOKIE_POLICY } from '@/data/termsContent';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, COOKIE_POLICY, SUBSCRIPTION_TERMS } from '@/data/termsContent';
 import { subscribeNewsletter } from '@/lib/database';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { SITE_URL } from '@/lib/siteConfig';
@@ -91,7 +91,12 @@ const Footer: React.FC<FooterProps> = ({
               <h2 className="text-lg font-bold text-gray-900">Terms of Service</h2>
               <button onClick={() => setShowTerms(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{TERMS_AND_CONDITIONS}</div>
+            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+              {TERMS_AND_CONDITIONS}
+              {'\n\n'}
+              <span className="block border-t border-gray-200 my-4" />
+              {SUBSCRIPTION_TERMS}
+            </div>
           </div>
         </div>
       )}

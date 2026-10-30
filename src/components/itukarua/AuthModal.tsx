@@ -5,8 +5,13 @@ import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { setPendingScrollTarget } from '@/lib/pricingScroll';
 import type { Page } from './Header';
 import { compressImage } from '@/lib/imageUtils';
+import { DOCUMENTS_BUCKET } from '@/lib/documents';
 import { subscribeNewsletter, updateProfile, getCustomCategories } from '@/lib/database';
-import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, SUBSCRIPTION_TERMS } from '@/data/termsContent';
+import type { MpesaHandler } from '@/lib/mpesa';
+import { peekSubscriptionIntent, clearSubscriptionIntent, type SubscriptionIntent } from '@/lib/checkoutIntent';
+import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/consent';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT, suggestPassword } from '@/lib/password';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,7 +20,7 @@ interface AuthModalProps {
   initialRole?: 'advertiser' | 'employer' | 'jobseeker';
   onAuth: (role?: 'advertiser' | 'employer' | 'jobseeker') => void;
   onNavigate?: (page: Page) => void;
-  onOpenMpesa?: (amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: 'jobseeker' | 'employer' | 'advertiser') => void;
+  onOpenMpesa?: MpesaHandler;
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'login', initialRole, onAuth, onNavigate, onOpenMpesa }) => {
@@ -24,6 +29,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [role, setRole] = useState<'advertiser' | 'employer' | 'jobseeker'>(initialRole ?? 'employer');
   const [showPlanChoice, setShowPlanChoice] = useState(false);
   const [chosenRole, setChosenRole] = useState<'advertiser' | 'employer' | 'jobseeker' | null>(null);
+  const [pendingIntent, setPendingIntent] = useState<SubscriptionIntent | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -44,6 +50,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  // Kenya DPA treats under-18s as needing guardian consent, which this platform
+  // does not collect, so adults only.
+  const [ageAttested, setAgeAttested] = useState(false);
   // Jobseeker consent to have their contact details shown to paid employers.
   // On by default (unchecked still means no), revoked at any time in settings.
   const [allowContactDisplay, setAllowContactDisplay] = useState(true);
@@ -67,6 +76,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     setTab(initialTab);
     setForgotMode(false);
     setResetEmailSent(false);
+    // A plan picked on the pricing page is shown as selected here; choosing a
+    // different role DROPS it (the intent belongs to the jobseeker flow).
+    const intent = peekSubscriptionIntent();
+    setPendingIntent(intent);
+    if (intent) setRole('jobseeker');
     if (initialRole) {
       setRole(initialRole);
       setEmailSent(false);
@@ -75,6 +89,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     }
   }, [isOpen, initialTab, initialRole]);
 
+  useEffect(() => {
+    if (pendingIntent && role !== 'jobseeker') {
+      clearSubscriptionIntent();
+      setPendingIntent(null);
+    }
+  }, [role, pendingIntent]);
+
   if (!isOpen) return null;
 
   const validate = () => {
@@ -82,11 +103,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     if (tab === 'signup' && !formData.name.trim()) errs.name = 'Name is required';
     if (!formData.email.trim()) errs.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
-    if (!formData.password || formData.password.length < 6) errs.password = 'Min 6 characters';
+    if (!formData.password || formData.password.length < MIN_PASSWORD_LENGTH) errs.password = PASSWORD_TOO_SHORT;
     if (tab === 'signup' && !formData.phone.trim()) errs.phone = 'Phone is required';
     if (tab === 'signup' && (role === 'jobseeker' || role === 'employer') && selectedCategories.length === 0) errs.categories = 'Select at least one category of interest';
     if (tab === 'signup' && !termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
     if (tab === 'signup' && !privacyAccepted) errs.privacy = 'You must accept the Privacy Policy';
+    if (tab === 'signup' && !ageAttested) errs.age = 'You must confirm that you are 18 or older';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -106,6 +128,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         // Set the auth-complete flag BEFORE the async call so the SIGNED_IN
         // listener in AppLayout sees it when the event fires.
         onAuth(role);
+        const consentAt = new Date().toISOString();
         const signupPromise = supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -120,6 +143,12 @@ data: {
   skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
   selected_categories: (role === 'jobseeker' || role === 'employer') ? selectedCategories : [],
   allow_contact_display: role === 'jobseeker' ? allowContactDisplay : false,
+  terms_accepted: true,
+  terms_version: TERMS_VERSION,
+  privacy_version: PRIVACY_VERSION,
+  accepted_terms_at: consentAt,
+  age_attested_at: consentAt,
+  marketing_opt_in: subscribeToNewsletter,
 },
           },
         });
@@ -145,7 +174,11 @@ data: {
               skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
               resume: formData.resume || null,
               terms_accepted: true,
-              accepted_terms_at: new Date().toISOString(),
+              accepted_terms_at: consentAt,
+              terms_version: TERMS_VERSION,
+              privacy_version: PRIVACY_VERSION,
+              age_attested_at: consentAt,
+              marketing_opt_in: subscribeToNewsletter,
               data_sharing_consent: true,
               // Only jobseekers are offered for contact reveal, so only they
               // can consent to it at signup.
@@ -178,26 +211,26 @@ data: {
 
           // Upload certificates if jobseeker
           if (certFiles.length > 0 && role === 'jobseeker') {
-            const certUrls: string[] = [];
+            const certPaths: string[] = [];
             const filesToUpload = certFiles.slice(0, 3);
             for (const file of filesToUpload) {
               const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
               const ext = compressed.name.split('.').pop() || (file.type.startsWith('image/') ? 'jpg' : file.name.split('.').pop());
               const fileName = `${data.user.id}/certs/${Date.now()}_${crypto.randomUUID()}.${ext}`;
-              const { error: certError } = await supabase.storage.from('adverts').upload(fileName, compressed);
-              if (!certError) {
-                const publicUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
-                certUrls.push(publicUrl);
-              }
+              const { error: certError } = await supabase.storage.from(DOCUMENTS_BUCKET).upload(fileName, compressed, { contentType: file.type || 'application/pdf' });
+              if (!certError) certPaths.push(fileName);
             }
-            // Update user metadata with cert URLs
-            if (certUrls.length > 0 || profileImageUrl) {
+            // Update user metadata with certificate paths (private bucket).
+            if (certPaths.length > 0 || profileImageUrl) {
               await supabase.auth.updateUser({
                 data: { 
-                  ...(certUrls.length > 0 ? { certificates: certUrls } : {}),
+                  ...(certPaths.length > 0 ? { certificates: certPaths } : {}),
                   ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
                 }
               });
+            }
+            if (hasSession && certPaths.length > 0) {
+              await updateProfile(data.user.id, { certificates: certPaths }).catch(() => {});
             }
           }
           
@@ -208,8 +241,11 @@ data: {
 
           if (hasSession) {
             // No email confirmation required — account is live now.
-            // Jobseekers choose their subscription plan (Free / Premium) right here.
-            if (role === 'jobseeker') {
+            if (pendingIntent && role === 'jobseeker') {
+              // Premium was already chosen on the pricing page; AppLayout opens
+              // M-Pesa for the pending intent as soon as the session lands.
+              onClose();
+            } else if (role === 'jobseeker') {
               setChosenRole(role);
               setShowPlanChoice(true);
             } else if (role === 'employer') {
@@ -266,16 +302,9 @@ data: {
     setServerError('');
     setErrors({});
     try {
-      // Boolean RPC rather than a table read: selecting the profile row here both
-      // bypassed the RLS lockdown and confirmed to any caller whether an address
-      // is registered. The enum is inherent to password reset, so this keeps the
-      // same behaviour without returning profile data.
-      const { data: exists, error: existsError } = await supabase.rpc('email_is_registered', { p_email: email });
-      if (existsError) throw existsError;
-      if (!exists) {
-        setServerError('No account found with this email. Check the address or create a new account.');
-        return;
-      }
+      // Always attempt the reset: branching on account existence confirms to any
+      // caller which addresses are registered. GoTrue already returns success for
+      // unknown addresses, so the UI message stays identical either way.
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
       if (error) throw error;
       setResetEmailSent(true);
@@ -356,7 +385,7 @@ data: {
                 <div className="border-2 border-green-500 bg-green-50 rounded-xl p-5 relative">
                   <span className="absolute -top-2.5 right-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
                   <p className="font-bold text-gray-900">Premium</p>
-                  <p className="text-xs text-gray-500">KES 100 · 30 days</p>
+                  <p className="text-xs text-gray-500">KES {PRICING_PLANS.jobseekerPremium.price} · 30 days</p>
                   <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
                     <li>• Unlimited job bids</li>
                     <li>• Priority visibility & featured badge</li>
@@ -368,12 +397,13 @@ data: {
                       setShowPlanChoice(false);
                       setChosenRole(null);
                       onClose();
-                      onOpenMpesa?.(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker');
+                      onOpenMpesa?.(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined, { metadata: { kind: 'subscription', role: 'jobseeker', days: 30 } });
                     }}
                     className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Pay KES 100 via M-Pesa
+                    Pay KES {PRICING_PLANS.jobseekerPremium.price} via M-Pesa
                   </button>
+                  <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">No auto-renewal — access runs for 30 days from payment. Non-refundable once active.</p>
                 </div>
               </div>
               <p className="text-[10px] text-gray-400 text-center">You can upgrade or switch plans anytime from your dashboard.</p>
@@ -449,6 +479,27 @@ data: {
             {serverError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {serverError}
+            </div>
+          )}
+
+          {!emailSent && tab === 'signup' && pendingIntent && role === 'jobseeker' && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Crown className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Premium plan selected</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    KES {pendingIntent.amount} for {pendingIntent.days} days. We'll open M-Pesa as soon as your account is created.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { clearSubscriptionIntent(); setPendingIntent(null); }}
+                    className="mt-1 text-[11px] font-semibold text-green-800 underline"
+                  >
+                    Remove Premium and sign up free instead
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -538,14 +589,29 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
 
 {!(tab === 'login' && forgotMode) && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                {tab === 'signup' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, password: suggestPassword() });
+                      setShowPassword(true);
+                      setErrors(prev => ({ ...prev, password: '' }));
+                    }}
+                    className="text-xs font-semibold text-green-700 hover:text-green-800"
+                  >
+                    Suggest strong password
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={e => setFormData({ ...formData, password: e.target.value })}
                   className={`w-full px-4 py-2.5 rounded-lg border ${errors.password ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none pr-10`}
-                  placeholder="Min 6 characters"
+                  placeholder={PASSWORD_HINT}
                 />
                 <button
                   type="button"
@@ -775,6 +841,8 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
               >
                 <pre className="whitespace-pre-wrap font-sans">{TERMS_AND_CONDITIONS}</pre>
                 <div className="border-t border-gray-200 my-4" />
+                <pre className="whitespace-pre-wrap font-sans">{SUBSCRIPTION_TERMS}</pre>
+                <div className="border-t border-gray-200 my-4" />
                 <pre className="whitespace-pre-wrap font-sans">{PRIVACY_POLICY}</pre>
               </div>
 
@@ -822,6 +890,20 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
               </div>
               {errors.privacy && <p className="text-red-500 text-xs mb-1 ml-6">{errors.privacy}</p>}
 
+              <div className="flex items-start gap-2 mb-2">
+                <input
+                  type="checkbox"
+                  id="age"
+                  checked={ageAttested}
+                  onChange={e => setAgeAttested(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                <label htmlFor="age" className="text-xs text-gray-600">
+                  I confirm that I am <strong>18 years or older</strong>
+                </label>
+              </div>
+              {errors.age && <p className="text-red-500 text-xs mb-2 ml-6">{errors.age}</p>}
+
               {tab === 'signup' && role === 'jobseeker' && (
                 <div className="flex items-start gap-2 mb-2 ml-6">
                   <input
@@ -861,7 +943,7 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
 
 {!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
-              Jobseeker membership is <span className="font-semibold text-green-700">FREE</span>, Premium Membership is <span className="font-semibold text-green-700">KES 100/mo</span> — a 30-day subscription. Register now to start bidding on jobs and connecting with employers.{' '}
+              Jobseeker membership is <span className="font-semibold text-green-700">FREE</span>. Premium Membership is <span className="font-semibold text-green-700">KES {PRICING_PLANS.jobseekerPremium.price} for 30 days</span> — no auto-renewal. Register now to start bidding on jobs and connecting with employers.{' '}
               <button
                 type="button"
                 onClick={() => {

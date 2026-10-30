@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, Loader2, ExternalLink, ChevronRight } from 'lucide-react';
-import { createChatMessage, getChatConversation, getConversationId } from '@/lib/database';
+import { createChatMessage, submitChatTranscript, getChatConversation, getConversationId } from '@/lib/database';
 import { supabase } from '@/lib/supabase';
 
 interface ChatMessage {
@@ -89,14 +89,11 @@ const ChatBot: React.FC = () => {
       })
       .join('\n');
     try {
-      await supabase.from('messages').insert({
+      await submitChatTranscript({
         conversation_id: conversationId,
         sender_name: userName || 'Chat User',
         sender_email: userEmail || 'chat@itukarua.co.ke',
-        subject: 'Chat Conversation',
         message: transcript || 'No messages',
-        type: 'chat_transcript',
-        status: 'unread',
       });
     } catch {}
   }, [transcriptSaved, messages, conversationId, userName, userEmail]);

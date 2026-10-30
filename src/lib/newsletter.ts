@@ -193,7 +193,7 @@ export function buildNewsletterHtml(opts: {
       <a href="${SITE_URL}/services" style="color:#059669;text-decoration:none">Services</a>
     </p>
     <p style="color:#9ca3af;font-size:11px;margin:0">You received this because you subscribed to Itukarua updates.</p>
-    <p style="margin:4px 0 0"><a href="${SITE_URL}/api/unsubscribe?email={{email}}" style="color:#9ca3af;font-size:11px">Unsubscribe</a></p>
+    <p style="margin:4px 0 0"><a href="${SITE_URL}/api/unsubscribe?email={{email}}&token={{token}}" style="color:#9ca3af;font-size:11px">Unsubscribe</a></p>
   </td></tr>
 </table>
 </center>

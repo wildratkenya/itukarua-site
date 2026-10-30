@@ -7,7 +7,13 @@
 // the notice or the policies changes materially - everyone on an older version
 // sees the bar again and must re-accept.
 
-export const CONSENT_VERSION = 1;
+export const CONSENT_VERSION = 2;
+
+// Versions of the documents a signup accepts. Must match the row in
+// public.consent_versions, which the profile-insert trigger enforces.
+export const TERMS_VERSION = '2.0';
+export const PRIVACY_VERSION = '2.0';
+
 const STORAGE_KEY = 'itukarua_consent';
 
 export type ConsentStatus = 'accepted' | 'declined';

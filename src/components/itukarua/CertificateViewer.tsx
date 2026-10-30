@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import { proxyImageUrl } from '@/lib/supabase';
+import { resolveDocumentUrl } from '@/lib/documents';
 
 interface CertificateViewerProps {
   url: string | null;
@@ -10,9 +10,16 @@ interface CertificateViewerProps {
 
 const CertificateViewer: React.FC<CertificateViewerProps> = ({ url, onClose, label }) => {
   const [loading, setLoading] = useState(true);
+  const [src, setSrc] = useState('');
 
   useEffect(() => {
+    if (!url) { setSrc(''); return; }
+    let active = true;
     setLoading(true);
+    resolveDocumentUrl(url).then(resolved => {
+      if (active) setSrc(resolved || url);
+    });
+    return () => { active = false; };
   }, [url]);
 
   useEffect(() => {
@@ -23,8 +30,6 @@ const CertificateViewer: React.FC<CertificateViewerProps> = ({ url, onClose, lab
   }, [url, onClose]);
 
   if (!url) return null;
-
-  const src = proxyImageUrl(url);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -46,12 +51,14 @@ const CertificateViewer: React.FC<CertificateViewerProps> = ({ url, onClose, lab
               <Loader2 className="w-6 h-6 animate-spin text-green-600" />
             </div>
           )}
-          <iframe
-            title={label || 'Certificate'}
-            src={src}
-            className="w-full h-full"
-            onLoad={() => setLoading(false)}
-          />
+          {src && (
+            <iframe
+              title={label || 'Certificate'}
+              src={src}
+              className="w-full h-full"
+              onLoad={() => setLoading(false)}
+            />
+          )}
         </div>
       </div>
     </div>

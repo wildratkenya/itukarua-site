@@ -9,6 +9,7 @@ import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlan
 import MpesaModal from './MpesaModal';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
 import { compressImage } from '@/lib/imageUtils';
+import { DOCUMENTS_BUCKET } from '@/lib/documents';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,8 @@ import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
 import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
 import CertificateViewer from './CertificateViewer';
+import SignedDocumentImage from './SignedDocumentImage';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 
 function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -105,6 +108,7 @@ interface Job {
   boost_until?: string | null;
   corporate_account_id?: string | null;
   corporate_tier?: string | null;
+  deadline?: string | null;
   valid_until?: string | null;
   retired_at?: string | null;
   retired_by?: string | null;
@@ -1154,8 +1158,8 @@ const AdminPage: React.FC = () => {
   };
 
   const handleDirectPasswordReset = async () => {
-    if (!resetPwUser || resetPwPassword.length < 6) {
-      toast({ title: 'Error', description: 'Password must be at least 6 characters', variant: 'destructive' });
+    if (!resetPwUser || resetPwPassword.length < MIN_PASSWORD_LENGTH) {
+      toast({ title: 'Error', description: PASSWORD_TOO_SHORT, variant: 'destructive' });
       return;
     }
     setResettingPw(true);
@@ -1244,16 +1248,14 @@ const AdminPage: React.FC = () => {
       }
 
       // Upload certificates if jobseeker
-      const certUrls: string[] = [];
+      const certPaths: string[] = [];
       if (certFiles.length > 0 && role === 'jobseeker') {
         try {
           for (const file of certFiles) {
             const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
             const fileName = `${result.user_id}/certs/img_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9._-]/g, '' )}`;
-            const { error: certError } = await supabase.storage.from('adverts').upload(fileName, compressed);
-            if (!certError) {
-              certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
-            }
+            const { error: certError } = await supabase.storage.from(DOCUMENTS_BUCKET).upload(fileName, compressed, { contentType: file.type || 'application/pdf' });
+            if (!certError) certPaths.push(fileName);
           }
         } catch (certErr) {
           console.error('Cert upload failed:', certErr);
@@ -1261,8 +1263,8 @@ const AdminPage: React.FC = () => {
       }
 
       // Update profile with certificates if uploaded
-      if (certUrls.length > 0) {
-        await proxyTable('profiles').update({ certificates: certUrls }, 'id', result.user_id);
+      if (certPaths.length > 0) {
+        await proxyTable('profiles').update({ certificates: certPaths }, 'id', result.user_id);
       }
 
       if (subscribeToNewsletter) {
@@ -1491,9 +1493,9 @@ const AdminPage: React.FC = () => {
         const uploaded: string[] = [];
         for (const file of editCertFiles) {
           const fileName = `${editingUser.id}/certificates/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          const { error: uploadError } = await supabase.storage.from('adverts').upload(fileName, file, { upsert: true, contentType: 'application/pdf' });
+          const { error: uploadError } = await supabase.storage.from(DOCUMENTS_BUCKET).upload(fileName, file, { upsert: true, contentType: 'application/pdf' });
           if (uploadError) throw uploadError;
-          uploaded.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+          uploaded.push(fileName);
         }
         const { error: certError } = await proxyTable('profiles').update({ certificates: [...editCerts, ...uploaded] }, 'id', editingUser.id);
         if (certError) throw certError;
@@ -1537,12 +1539,18 @@ const AdminPage: React.FC = () => {
 
   const jobLifecycle = (job: Job): { key: 'retired' | 'expired' | 'unpublished' | 'live' | string; label: string; hint?: string } => {
     const now = Date.now();
-    if (job.retired_by === 'system') return { key: 'retired', label: 'System retired', hint: job.retired_at ? `Retired ${new Date(job.retired_at).toLocaleDateString()}` : undefined };
-    if (job.retired_at) return { key: 'retired', label: 'Retired', hint: `Retired ${new Date(job.retired_at).toLocaleDateString()}` };
-    if (!job.valid_until) return { key: 'unpublished', label: 'Not published' };
+    const today = new Date().toISOString().split('T')[0];
+    // Revive moves a lapsed application deadline to the new end date, so the
+    // row must say so — otherwise "Expired" looks like a plain window renewal.
+    const lapsedHint = job.deadline && job.deadline < today
+      ? `Applications closed ${new Date(`${job.deadline}T00:00:00`).toLocaleDateString()} — Revive reopens them to the new end date`
+      : undefined;
+    if (job.retired_by === 'system') return { key: 'retired', label: 'System retired', hint: lapsedHint ?? (job.retired_at ? `Retired ${new Date(job.retired_at).toLocaleDateString()}` : undefined) };
+    if (job.retired_at) return { key: 'retired', label: 'Retired', hint: lapsedHint ?? `Retired ${new Date(job.retired_at).toLocaleDateString()}` };
+    if (!job.valid_until) return { key: 'unpublished', label: 'Not published', hint: lapsedHint };
     const expired = new Date(job.valid_until).getTime() <= now;
-    if (expired) return { key: 'expired', label: 'Expired', hint: `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
-    if (job.status === 'open') return { key: 'live', label: 'Live', hint: `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
+    if (expired) return { key: 'expired', label: 'Expired', hint: lapsedHint ?? `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
+    if (job.status === 'open') return { key: 'live', label: 'Live', hint: lapsedHint ?? `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
     return { key: job.status, label: job.status, hint: `Valid till ${new Date(job.valid_until).toLocaleDateString()}` };
   };
 
@@ -1553,8 +1561,14 @@ const AdminPage: React.FC = () => {
       if (error) throw error;
       const row = (Array.isArray(data) ? data[0] : data) as Partial<Job> | undefined;
       const validUntil = row?.valid_until ?? new Date(Date.now() + clamped * 24 * 60 * 60 * 1000).toISOString();
+      // A lapsed application deadline is moved to the new window end by the RPC, so
+      // the toast has to say so: the revive reopens applications, not just the ad.
+      const newDeadline = row?.deadline && row.deadline !== job.deadline ? row.deadline : null;
       setJobs(jobs.map(j => j.id === job.id ? { ...j, ...row, status: 'open', retired_at: null, retired_by: null } : j));
-      toast({ title: 'Success', description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${job.title}". Live until ${new Date(validUntil).toLocaleDateString()} — boost it to reach the homepage.` });
+      toast({
+        title: 'Success',
+        description: `Added ${clamped} day${clamped !== 1 ? 's' : ''} to "${job.title}". Live until ${new Date(validUntil).toLocaleDateString()}${newDeadline ? `, applications open until ${new Date(`${newDeadline}T00:00:00`).toLocaleDateString()}` : ''} — boost it to reach the homepage.`,
+      });
     } catch (error: any) {
       console.error('Error reactivating job:', error);
       toast({ title: 'Error', description: error?.message || 'Failed to reactivate job', variant: 'destructive' });
@@ -3046,6 +3060,9 @@ const AdminPage: React.FC = () => {
                               ) : (
                                 <div className="px-2 py-1.5">
                                   <p className="text-[11px] font-medium text-gray-500 mb-1">Revive · add days</p>
+                                  {job.deadline && job.deadline < new Date().toISOString().split('T')[0] && (
+                                    <p className="text-[10px] text-amber-600 mb-1">Application deadline already passed — reviving moves it to the new end date.</p>
+                                  )}
                                   <div className="flex items-center gap-1.5">
                                     <input
                                       type="number"
@@ -4651,7 +4668,7 @@ const AdminPage: React.FC = () => {
                                 <span className="text-[8px] mt-1 truncate px-1">Cert {i + 1}</span>
                               </div>
                             ) : (
-                              <img src={optimizeImageUrl(cert, 100, 100)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                              <SignedDocumentImage path={cert} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                             )}
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <span className="text-white text-[10px] font-bold">View Full</span>
@@ -4697,7 +4714,7 @@ const AdminPage: React.FC = () => {
             </div>
             <div>
               <Label>Password</Label>
-              <Input name="password" type="password" required placeholder="Min 6 characters" minLength={6} />
+              <Input name="password" type="password" required placeholder={PASSWORD_HINT} minLength={MIN_PASSWORD_LENGTH} />
             </div>
             <div>
               <Label>Phone</Label>
@@ -4978,16 +4995,16 @@ const AdminPage: React.FC = () => {
             </p>
             <Input
               type="password"
-              placeholder="New password (min 6 characters)"
+              placeholder={`New password (${PASSWORD_HINT.toLowerCase()})`}
               value={resetPwPassword}
               onChange={e => setResetPwPassword(e.target.value)}
-              minLength={6}
+              minLength={MIN_PASSWORD_LENGTH}
             />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setResetPwUser(null); setResetPwPassword(''); setIsResetPwDialogOpen(false); }}>
                 Cancel
               </Button>
-              <Button onClick={handleDirectPasswordReset} disabled={resettingPw || resetPwPassword.length < 6}>
+              <Button onClick={handleDirectPasswordReset} disabled={resettingPw || resetPwPassword.length < MIN_PASSWORD_LENGTH}>
                 {resettingPw ? 'Resetting...' : 'Set Password'}
               </Button>
             </div>
@@ -5154,7 +5171,7 @@ const AdminPage: React.FC = () => {
             </div>
             <div>
               <Label>Login Password <span className="text-red-500">*</span></Label>
-              <Input name="admin_password" type="text" required placeholder="Temporary password (mailed)" minLength={6} />
+              <Input name="admin_password" type="text" required placeholder="Temporary password (mailed)" minLength={MIN_PASSWORD_LENGTH} />
             </div>
             <div>
               <Label>Contact Person</Label>
@@ -5363,7 +5380,7 @@ const AdminPage: React.FC = () => {
                 </div>
                 <form onSubmit={addCorporateMember} className="mt-3 p-3 bg-gray-50 rounded-lg grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Input value={addMemberForm.email} onChange={e => setAddMemberForm({ ...addMemberForm, email: e.target.value })} type="email" placeholder="Member email" required />
-                  <Input value={addMemberForm.password} onChange={e => setAddMemberForm({ ...addMemberForm, password: e.target.value })} placeholder="Temp password" minLength={6} required />
+                  <Input value={addMemberForm.password} onChange={e => setAddMemberForm({ ...addMemberForm, password: e.target.value })} placeholder="Temp password" minLength={MIN_PASSWORD_LENGTH} required />
                   <div className="flex gap-2">
                     <Input value={addMemberForm.full_name} onChange={e => setAddMemberForm({ ...addMemberForm, full_name: e.target.value })} placeholder="Full name" className="flex-1" />
                     <Button type="submit" disabled={addingMember} size="sm" className="bg-green-600 hover:bg-green-700">{addingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}</Button>

@@ -117,9 +117,9 @@ export const PRICING_PLANS = {
   jobseekerPremium: {
     name: 'Premium',
     price: 100,
-    period: '/week',
+    period: '/month • 30-day subscription',
     features: [
-      'Unlimited job bids per week',
+      'Unlimited job bids',
       'Direct messaging with employers',
       'Priority visibility in employer searches',
       'Ratings & recommendations from employers',

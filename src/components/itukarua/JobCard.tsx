@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, AlertTriangle, Camera, Zap } from 'lucide-react';
+import { MapPin, AlertTriangle, Camera, Zap, Clock } from 'lucide-react';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import CorporateBadge from './CorporateBadge';
 
@@ -25,6 +25,12 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
   const hasImage = images.length > 0;
   const hasMultipleImages = images.length > 1;
   const isBoosted = job.featured && job.boost_until && new Date(job.boost_until).getTime() > Date.now();
+  // postedDate is a plain 'YYYY-MM-DD'; anchor it to local midnight so the
+  // rendered day never shifts with the timezone.
+  const postedDate = job.postedDate ? new Date(`${job.postedDate}T00:00:00`) : null;
+  const postedLabel = postedDate && !Number.isNaN(postedDate.getTime())
+    ? postedDate.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
   const cardShell = hasImage
     ? 'bg-white border-gray-100'
     : 'bg-gray-100 border-dashed border-gray-300';
@@ -83,6 +89,12 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
               <MapPin className="w-3 h-3 text-green-600" />
               {job.county || ''}
             </span>
+            {postedLabel && (
+              <span className="hidden sm:flex items-center gap-1 text-[11px] text-gray-500">
+                <Clock className="w-3 h-3 text-gray-400" />
+                {postedLabel}
+              </span>
+            )}
             <span className="text-xs font-semibold text-green-700">
               KES {job.budgetMin.toLocaleString()} - {job.budgetMax.toLocaleString()}
             </span>
@@ -221,6 +233,12 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
               <MapPin className="w-3.5 h-3.5 text-green-600" />
               {job.county ? `${job.county}${job.subcounty ? `, ${job.subcounty}` : ''}` : ''}
             </span>
+            {postedLabel && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-gray-400" />
+                Posted {postedLabel}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-3 border-t border-gray-50">

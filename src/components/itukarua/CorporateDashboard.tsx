@@ -7,6 +7,7 @@ import { effectiveFeaturesFor, corporateMonthlyAmount, type EffectiveCorporateFe
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { compressImage } from '@/lib/imageUtils';
 import { cn } from '@/lib/utils';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 
 interface CorporateDashboardProps {
   user: { id: string; name: string; email: string; role: string; profile?: any };
@@ -227,8 +228,8 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
       toast({ title: 'Password required', description: 'Enter a new password', variant: 'destructive' });
       return;
     }
-    if (resetPw.length < 6) {
-      toast({ title: 'Password too short', description: 'Password must be at least 6 characters', variant: 'destructive' });
+    if (resetPw.length < MIN_PASSWORD_LENGTH) {
+      toast({ title: 'Password too short', description: PASSWORD_TOO_SHORT, variant: 'destructive' });
       return;
     }
     setResetting(true);
@@ -664,7 +665,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
               <p className="text-sm text-gray-600">Set a new password for <span className="font-medium text-gray-900">{resetTarget.email}</span></p>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                <input type="password" value={resetPw} onChange={e => setResetPw(e.target.value)} placeholder="Minimum 6 characters" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
+                <input type="password" value={resetPw} onChange={e => setResetPw(e.target.value)} placeholder={PASSWORD_HINT} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
               </div>
               <button onClick={handleSetMemberPassword} disabled={resetting || !resetPw}
                 className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">

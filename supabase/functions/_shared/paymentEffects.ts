@@ -122,7 +122,12 @@ export function resolveServicePlan(payment: PaymentRow, currentPlan?: string | n
  */
 export async function fulfilServiceAd(supabase: any, payment: PaymentRow): Promise<void> {
   const adId = payment.related_ad_id
-  if (!adId) return
+  // Money has moved by the time this runs, so an advert we cannot open must
+  // surface as an unfulfilled payment (effects_applied_at stays NULL) rather
+  // than be marked done and forgotten.
+  if (!adId) {
+    throw new Error(`advert payment ${payment.id} has no related advert; needs a manual refund`)
+  }
 
   const { data: ad } = await supabase
     .from('service_ads')
@@ -130,8 +135,7 @@ export async function fulfilServiceAd(supabase: any, payment: PaymentRow): Promi
     .eq('id', adId)
     .maybeSingle()
   if (!ad) {
-    console.error('[fulfilment] service_ads row missing for payment', payment.id, adId)
-    return
+    throw new Error(`service_ads row ${adId} missing for payment ${payment.id}; needs a manual refund`)
   }
 
   const plan = resolveServicePlan(payment, ad.plan)
@@ -175,7 +179,9 @@ export async function fulfilServiceAd(supabase: any, payment: PaymentRow): Promi
 /** Publish a paid banner so it starts serving for its billing cycle. */
 export async function fulfilBanner(supabase: any, payment: PaymentRow): Promise<void> {
   const adId = payment.related_ad_id
-  if (!adId) return
+  if (!adId) {
+    throw new Error(`banner payment ${payment.id} has no related advert; needs a manual refund`)
+  }
 
   const { data: ad } = await supabase
     .from('advertisements')
@@ -183,8 +189,7 @@ export async function fulfilBanner(supabase: any, payment: PaymentRow): Promise<
     .eq('id', adId)
     .maybeSingle()
   if (!ad) {
-    console.error('[fulfilment] advertisements row missing for payment', payment.id, adId)
-    return
+    throw new Error(`advertisements row ${adId} missing for payment ${payment.id}; needs a manual refund`)
   }
 
   const days = planDays(ad.billing_cycle)
@@ -225,17 +230,25 @@ function jobListingDays(payment: PaymentRow): number {
  * deadline has not passed — deadline-expired ads must be retired/re-posted.
  */
 export async function fulfilJobListing(supabase: any, payment: PaymentRow): Promise<void> {
-  if (!payment.related_job_id) return
+  // Throwing, never returning, is deliberate: applyPaymentEffects marks
+  // effects_applied_at on success, and a silent no-op would leave a paid listing
+  // looking fulfilled so reconcile never asks for the refund it needs.
+  if (!payment.related_job_id) {
+    throw new Error('job listing payment has no related job; needs a manual refund')
+  }
   const { data: job } = await supabase
     .from('jobs')
     .select('deadline')
     .eq('id', payment.related_job_id)
     .maybeSingle()
-  if (!job) return
+  if (!job) {
+    throw new Error(`job ${payment.related_job_id} no longer exists; needs a manual refund`)
+  }
   const today = new Date().toISOString().slice(0, 10)
   if (job.deadline && job.deadline < today) {
-    console.error('[fulfilment] job listing paid but deadline already passed:', payment.related_job_id)
-    return
+    throw new Error(
+      `job ${payment.related_job_id} cannot be listed: its application deadline (${job.deadline}) has passed; needs a manual refund`,
+    )
   }
   const end = addDays(new Date(), jobListingDays(payment)).toISOString()
   const { error } = await supabase
@@ -280,7 +293,9 @@ async function profileRole(supabase: any, userId: string): Promise<string> {
  */
 export async function fulfilSubscription(supabase: any, payment: PaymentRow): Promise<void> {
   const userId = payment.user_id
-  if (!userId) return
+  if (!userId) {
+    throw new Error(`subscription payment ${payment.id} has no user to grant access to; needs a manual refund`)
+  }
 
   const meta = payment.metadata || {}
   const role =
@@ -368,7 +383,9 @@ export const BOOST_MS = 7 * 24 * 60 * 60 * 1000
 
 /** KES 500 adds exactly 7 days onto a live boost, otherwise starts a fresh window. */
 export async function fulfilFeaturedBoost(supabase: any, payment: PaymentRow): Promise<void> {
-  if (!payment.related_ad_id && !payment.related_job_id) return
+  if (!payment.related_ad_id && !payment.related_job_id) {
+    throw new Error(`featured boost payment ${payment.id} has nothing to boost; needs a manual refund`)
+  }
   if (Number(payment.amount) !== BOOST_PRICE_KES) {
     throw new Error(
       `Featured boost underpays: expected KES ${BOOST_PRICE_KES}, received ${payment.amount}. Boost withheld for manual review.`,
@@ -388,7 +405,9 @@ export async function fulfilFeaturedBoost(supabase: any, payment: PaymentRow): P
     const { data: ad } = await supabase.from('advertisements').select('id').eq('id', payment.related_ad_id).maybeSingle()
     if (ad) table = 'advertisements'
   }
-  if (!table) return
+  if (!table) {
+    throw new Error(`featured boost payment ${payment.id} points at an advert or job that no longer exists; needs a manual refund`)
+  }
 
   const id = payment.related_job_id || payment.related_ad_id
   const now = Date.now()

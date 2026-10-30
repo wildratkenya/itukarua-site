@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createFreshTransport, loadSmtpConfig, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 import { corsHeadersFor as sharedCorsHeadersFor } from '../_shared/cors.ts'
 import { authenticateStaff } from '../_shared/cronAuth.ts'
+import { signUnsubscribeToken } from '../_shared/unsubscribeToken.ts'
 
 function pickImage(item: any): string {
   let images = item.images
@@ -180,7 +181,7 @@ function buildNewsletterHtml(jobs: any[], ads: any[], banners: any[], dateStr: s
       <a href="${SITE_URL}/services" style="color:#059669;text-decoration:none">Services</a>
     </p>
     <p style="color:#9ca3af;font-size:11px;margin:0">You received this because you subscribed to Itukarua updates.</p>
-    <p style="margin:4px 0 0"><a href="${SITE_URL}/api/unsubscribe?email={{email}}" style="color:#9ca3af;font-size:11px">Unsubscribe</a></p>
+    <p style="margin:4px 0 0"><a href="${SITE_URL}/api/unsubscribe?email={{email}}&token={{token}}" style="color:#9ca3af;font-size:11px">Unsubscribe</a></p>
   </td></tr>
 </table>
 </center>
@@ -285,12 +286,15 @@ Deno.serve(async (req) => {
     let lastError = ''
     for (const sub of subscribers) {
       try {
+        const unsubscribeToken = await signUnsubscribeToken(sub.email)
         await transport.sendMail({
           from: smtp.from,
           to: sub.email,
           subject,
           text: textPlain,
-          html: html.replace('{{email}}', encodeURIComponent(sub.email)),
+          html: html
+            .split('{{email}}').join(encodeURIComponent(sub.email))
+            .split('{{token}}').join(unsubscribeToken),
         })
         sent++
       } catch (e: any) {

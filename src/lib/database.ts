@@ -6,6 +6,12 @@ export function escapeIlikePattern(value: string): string {
   return value.replace(/[%_\\]/g, (ch) => `\\${ch}`);
 }
 
+// PostgREST splits an `or=(...)` list on commas, so a pattern that contains a
+// comma must be double-quoted or the whole filter fails to parse (PGRST100).
+function quoteOrPattern(pattern: string): string {
+  return `"${pattern.replace(/"/g, '\\"')}"`;
+}
+
 /**
  * Location filter AND-ed with county/subcounty elsewhere on the query.
  * Matches a town/area token at the start of `location` or after a comma boundary,
@@ -21,8 +27,8 @@ export function applyListingLocationFilter<T extends { or: (filters: string) => 
   return query.or(
     [
       `location.ilike.${e}%`,
-      `location.ilike.%, ${e}%`,
-      `location.ilike.%,${e}%`,
+      `location.ilike.${quoteOrPattern(`%, ${e}%`)}`,
+      `location.ilike.${quoteOrPattern(`%,${e}%`)}`,
       `subcounty.ilike.${e}`,
     ].join(','),
   );
@@ -590,7 +596,10 @@ export async function getServiceAds(filters?: {
   limit?: number;
   from?: number;
 }): Promise<DbServiceAd[]> {
-  let query = supabase.from('service_ads').select('*');
+  // Public listings read the restricted view; the base table is only reachable by
+  // the owner (and staff/corporate members), so it is used for owner-scoped reads.
+  const ownerScoped = !!filters?.ownerId;
+  let query = supabase.from(ownerScoped ? 'service_ads' : 'service_directory').select('*');
 
   if (filters?.category && filters.category !== 'All Services') {
     query = query.eq('category', filters.category);
@@ -609,10 +618,9 @@ export async function getServiceAds(filters?: {
   }
   if (filters?.activeOnly) {
     query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
-    // An unpaid advert has no expiry_date, so the window check above already
-    // excludes it. Keep the explicit payment gate so the rule survives a future
-    // change to how an unpaid row is dated.
-    query = query.eq('payment_confirmed', true);
+    // The view already filters on payment_confirmed; only the base-table path
+    // needs the explicit gate.
+    if (ownerScoped) query = query.eq('payment_confirmed', true);
   }
   if (filters?.featured) {
     query = query.eq('featured', true);
@@ -670,9 +678,11 @@ export async function getServiceAds(filters?: {
 }
 
 export async function getServiceAdById(id: string): Promise<DbServiceAd | null> {
-  const { data, error } = await supabase.from('service_ads').select('*').eq('id', id).single();
-  if (error) { console.error('[getServiceAdById]', error); return null; }
-  return data as DbServiceAd;
+  const { data } = await supabase.from('service_directory').select('*').eq('id', id).maybeSingle();
+  if (data) return data as DbServiceAd;
+  // Not live: only the owner (or staff) can still read their own unpaid/expired row.
+  const { data: own } = await supabase.from('service_ads').select('*').eq('id', id).maybeSingle();
+  return (own as DbServiceAd | null) ?? null;
 }
 
 export async function createServiceAd(ad: {
@@ -844,27 +854,25 @@ export async function getMessages(filters?: {
   return data || [];
 }
 
-export async function createMessage(msg: {
-  sender_name: string;
-  sender_email: string;
-  subject: string;
+export async function submitContactMessage(msg: {
+  name: string;
+  email: string;
+  phone?: string;
+  subject?: string;
   message: string;
-  type?: string;
-}): Promise<DbMessage> {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({
-      sender_name: msg.sender_name,
-      sender_email: msg.sender_email,
-      subject: msg.subject,
-      message: msg.message,
-      type: msg.type || 'support',
-      status: 'unread',
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as DbMessage;
+}): Promise<{ error?: string }> {
+  const { data, error } = await supabase.rpc('submit_contact_message', {
+    p_name: msg.name,
+    p_email: msg.email,
+    p_phone: msg.phone || '',
+    p_subject: msg.subject || '',
+    p_message: msg.message,
+  });
+  if (error) {
+    console.error('submitContactMessage error:', error);
+    return { error: 'Could not send your message. Please try again.' };
+  }
+  return typeof data === 'string' && data ? { error: data } : {};
 }
 
 export async function updateMessageStatus(messageId: string, status: DbMessage['status'], adminResponse?: string, respondedBy?: string) {
@@ -890,7 +898,19 @@ export async function createChatMessage(msg: {
   sender_email: string;
   message: string;
   role: 'user' | 'admin';
-}): Promise<DbMessage> {
+}): Promise<DbMessage | null> {
+  if (msg.role === 'user') {
+    const { data, error } = await supabase.rpc('submit_chat_message', {
+      p_conversation_id: msg.conversation_id,
+      p_name: msg.sender_name,
+      p_email: msg.sender_email,
+      p_message: msg.message,
+      p_kind: 'message',
+    });
+    if (error) throw error;
+    if (typeof data === 'string' && data) throw new Error(data);
+    return null;
+  }
   const { data, error } = await supabase
     .from('messages')
     .insert({
@@ -901,12 +921,32 @@ export async function createChatMessage(msg: {
       message: msg.message,
       type: 'chat_message',
       role: msg.role,
-      status: msg.role === 'admin' ? 'read' : 'unread',
+      status: 'read',
     })
     .select()
     .single();
   if (error) throw error;
   return data as DbMessage;
+}
+
+export async function submitChatTranscript(msg: {
+  conversation_id: string;
+  sender_name: string;
+  sender_email: string;
+  message: string;
+}): Promise<{ error?: string }> {
+  const { data, error } = await supabase.rpc('submit_chat_message', {
+    p_conversation_id: msg.conversation_id,
+    p_name: msg.sender_name,
+    p_email: msg.sender_email,
+    p_message: msg.message,
+    p_kind: 'transcript',
+  });
+  if (error) {
+    console.error('submitChatTranscript error:', error);
+    return { error: 'Could not save the conversation.' };
+  }
+  return typeof data === 'string' && data ? { error: data } : {};
 }
 
 export async function getChatConversation(conversationId: string): Promise<DbMessage[]> {
@@ -2100,7 +2140,7 @@ export async function incrementServiceAdClicks(serviceAdId: string) {
 // ─── Advert Analytics ──────────────────────────────────────────────────────
 
 export async function logAdEvent(adId: string, eventType: 'click' | 'impression') {
-  const { error } = await supabase.from('advert_analytics').insert({ ad_id: adId, event_type: eventType });
+  const { error } = await supabase.rpc('log_ad_event', { p_ad_id: adId, p_event_type: eventType });
   if (error) console.error('[Ad] analytics log failed:', error);
 }
 

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { isCorporateOnlySlot } from '@/data/siteData';
+import { canTrack } from './consent';
 import type { DbAdvertisement } from './database';
 
 // ============================================================
@@ -8,8 +9,16 @@ import type { DbAdvertisement } from './database';
 
 const VISITOR_ID_KEY = 'itukarua_visitor_id';
 
-export function getVisitorId(): string {
-  if (typeof window === 'undefined') return 'ssr';
+// The id is a persistent pseudonymous identifier used for ad measurement and
+// frequency capping, so it is only created (or read) once the visitor has
+// accepted the consent notice. Declining also removes any copy left by an
+// earlier visit. Returns null when measurement is not permitted.
+export function getVisitorId(): string | null {
+  if (typeof window === 'undefined') return null;
+  if (!canTrack()) {
+    try { localStorage.removeItem(VISITOR_ID_KEY); } catch { /* storage blocked */ }
+    return null;
+  }
   let id = localStorage.getItem(VISITOR_ID_KEY);
   if (!id) {
     id = crypto.randomUUID?.() || ('v_' + Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -72,6 +81,7 @@ export function isCapped(daily: number, weekly: number): boolean {
 
 export async function logImpression(adId: string, county?: string | null, subcounty?: string | null) {
   const visitorId = getVisitorId();
+  if (!visitorId) return; // no consent -> no measurement
   const { error } = await supabase.from('ad_impressions').insert({
     ad_id: adId,
     visitor_id: visitorId,
@@ -207,7 +217,6 @@ export async function getAdsForDelivery(
   limit: number = 5,
   featuredOnly: boolean = false
 ): Promise<DbAdvertisement[]> {
-  const visitorId = getVisitorId();
   const now = new Date().toISOString();
 
   // Fetch all active ads in this slot that are within their billing period
@@ -241,28 +250,33 @@ export async function getAdsForDelivery(
   });
   if (rows.length === 0) return [];
 
-  // Fetch frequency cap counts for this visitor (batch)
-  const capPromises = rows.map(async ad => {
-    const counts = await getVisitorImpressionCount(ad.id, visitorId);
-    return { adId: ad.id, capped: isCapped(counts.daily, counts.weekly), daily: counts.daily, weekly: counts.weekly };
-  });
-  const caps = await Promise.all(capPromises);
+  // Frequency capping reads per-visitor impression history, which only exists
+  // with a persisted visitor id - i.e. after consent. Without consent the same
+  // fair rotation runs, uncapped, and nothing about the visitor is stored.
+  const visitorId = getVisitorId();
+  let eligible = rows;
 
-  // Filter out capped ads
-  const eligible = rows.filter(ad => {
-    const cap = caps.find(c => c.adId === ad.id);
-    return cap && !cap.capped;
-  });
+  if (visitorId) {
+    const caps = await Promise.all(rows.map(async ad => {
+      const counts = await getVisitorImpressionCount(ad.id, visitorId);
+      return { adId: ad.id, capped: isCapped(counts.daily, counts.weekly), daily: counts.daily, weekly: counts.weekly };
+    }));
 
-  if (eligible.length === 0) {
-    // All capped — return the uncapped ones sorted by least-seen
-    return rows
-      .sort((a, b) => {
-        const ca = caps.find(c => c.adId === a.id);
-        const cb = caps.find(c => c.adId === b.id);
-        return (ca?.daily || 0) - (cb?.daily || 0);
-      })
-      .slice(0, limit);
+    eligible = rows.filter(ad => {
+      const cap = caps.find(c => c.adId === ad.id);
+      return cap && !cap.capped;
+    });
+
+    if (eligible.length === 0) {
+      // All capped — return the uncapped ones sorted by least-seen
+      return rows
+        .sort((a, b) => {
+          const ca = caps.find(c => c.adId === a.id);
+          const cb = caps.find(c => c.adId === b.id);
+          return (ca?.daily || 0) - (cb?.daily || 0);
+        })
+        .slice(0, limit);
+    }
   }
 
   // When featuredOnly, only currently-boosted ads (featured + boost within window)

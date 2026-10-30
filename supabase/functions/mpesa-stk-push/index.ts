@@ -281,6 +281,29 @@ Deno.serve(async (req) => {
         }
       }
 
+      // A paid listing is only sold for an ad that can still accept applications.
+      // Fulfilment refuses deadline-lapsed ads, and taking the money for a listing
+      // that will never go live means a manual refund — so refuse before charging.
+      if (payment_type === 'job_listing' || payment_type === 'employer_day_token') {
+        if (!related_job_id) {
+          return json({ error: 'Choose the job this listing is for.' }, 400)
+        }
+        const { data: job } = await supabase
+          .from('jobs')
+          .select('deadline')
+          .eq('id', related_job_id)
+          .maybeSingle()
+        if (!job) {
+          return json({ error: 'That job no longer exists — nothing was charged.' }, 400)
+        }
+        const today = new Date().toISOString().slice(0, 10)
+        if (job.deadline && job.deadline < today) {
+          return json({
+            error: "This ad's application deadline has passed, so a listing cannot be bought for it. Repost the job with a new deadline — no money was charged.",
+          }, 400)
+        }
+      }
+
       const { data: paymentData, error: insertErr } = await supabase
         .from('payments')
         .insert({

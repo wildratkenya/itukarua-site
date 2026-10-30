@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search, Send } from 'lucide-react';
+import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search, Send, Trash2 } from 'lucide-react';
+import { downloadMyData, deleteMyAccount } from '@/lib/account';
 import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
+import { DOCUMENTS_BUCKET } from '@/lib/documents';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import MpesaModal from './MpesaModal';
@@ -15,6 +17,7 @@ import JobViewsChart from './JobViewsChart';
 import SiteTrafficChart from './SiteTrafficChart';
 import UserRanking from './UserRanking';
 import { isPremiumOrFeatured } from '@/lib/utils';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 import { Badge } from '@/components/ui/badge';
 import CertificateViewer from './CertificateViewer';
 import AdSpecsModal, { validateAdImage } from './AdSpecsModal';
@@ -76,6 +79,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [ratingsEnabled, setRatingsEnabled] = useState(user.profile?.ratings_enabled || false);
   const [allowContactDisplay, setAllowContactDisplay] = useState(user.profile?.allow_contact_display ?? false);
+  const [exportingData, setExportingData] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [privacyMessage, setPrivacyMessage] = useState('');
   const [notifications, setNotifications] = useState<DbNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -252,7 +259,7 @@ const notifRef = useRef<HTMLDivElement>(null);
         if (photoError) console.warn('[ProfileSave] photo upload failed:', photoError);
         else profileImageUrl = supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl;
       }
-      let certUrls: string[] = [];
+      let certPaths: string[] = [];
       const certUploadErrors: string[] = [];
       if (certFiles.length > 0) {
         console.log(`[ProfileSave] uploading ${certFiles.length} certificate(s)...`);
@@ -260,12 +267,12 @@ const notifRef = useRef<HTMLDivElement>(null);
           const compressed = file.type.startsWith('image/') ? await compressImage(file) : file;
           const ext = compressed.name.split('.').pop() || 'jpg';
           const fileName = `${user.id}/certs/${Date.now()}_${crypto.randomUUID()}.${ext}`;
-          const { error: upErr } = await withTimeout(supabase.storage.from('adverts').upload(fileName, compressed), 20000, 'Certificate upload');
+          const { error: upErr } = await withTimeout(supabase.storage.from(DOCUMENTS_BUCKET).upload(fileName, compressed, { contentType: file.type || 'application/pdf' }), 20000, 'Certificate upload');
           if (upErr) {
             console.warn(`[ProfileSave] cert upload failed (${file.name}):`, upErr);
             certUploadErrors.push(`${file.name}: ${upErr.message ?? 'upload failed'}`);
           } else {
-            certUrls.push(supabase.storage.from('adverts').getPublicUrl(fileName).data.publicUrl);
+            certPaths.push(fileName);
           }
         }
       }
@@ -284,7 +291,7 @@ const notifRef = useRef<HTMLDivElement>(null);
         experience: profileForm.experience,
         profile_image: profileImageUrl,
         ratings_enabled: ratingsEnabled,
-        certificates: [...existingCerts, ...certUrls],
+        certificates: [...existingCerts, ...certPaths],
         whatsapp_number: profileForm.whatsapp_number || null,
         allow_contact_display: user?.role === 'jobseeker' ? allowContactDisplay : user.profile?.allow_contact_display,
       }), 25000, 'Profile save');
@@ -309,9 +316,38 @@ const notifRef = useRef<HTMLDivElement>(null);
     finally { setSaving(false); }
   };
 
+  const handleExportData = async () => {
+    setExportingData(true);
+    setPrivacyMessage('');
+    try {
+      await downloadMyData();
+      setPrivacyMessage('Your data file has been downloaded.');
+    } catch (err: any) {
+      setPrivacyMessage(err.message || 'Could not prepare your data. Please try again.');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      setPrivacyMessage('Type DELETE to confirm.');
+      return;
+    }
+    setDeletingAccount(true);
+    setPrivacyMessage('');
+    try {
+      await deleteMyAccount();
+      window.location.href = '/';
+    } catch (err: any) {
+      setPrivacyMessage(err.message || 'Could not delete the account. Please contact support.');
+      setDeletingAccount(false);
+    }
+  };
+
   const handleChangePassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      setPwMessage('Password must be at least 6 characters.');
+    if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPwMessage(PASSWORD_TOO_SHORT);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -465,10 +501,20 @@ const notifRef = useRef<HTMLDivElement>(null);
 
   const jobStateBadge = (job: DbJob): { key: string; label: string; cls: string } => {
     const today = new Date().toISOString().split('T')[0];
+    // A lapsed application deadline cannot be paid for: fulfilment refuses to
+    // publish such an ad, so offering "Publish / Reactivate" here would take the
+    // money and then need a manual refund. Offer Re-post instead.
+    const deadlineLapsed = !!job.deadline && job.deadline < today;
     if (job.retired_by === 'system') return { key: 'system_retired', label: 'System retired', cls: 'bg-red-100 text-red-700' };
-    if (job.retired_by === 'employer') return { key: 'retired', label: 'Retired', cls: 'bg-gray-200 text-gray-700' };
-    if (!job.valid_until || new Date(job.valid_until).getTime() < Date.now()) return { key: 'disabled', label: 'Disabled', cls: 'bg-gray-100 text-gray-600' };
-    if (job.deadline && job.deadline < today) return { key: 'closed', label: 'Application closed', cls: 'bg-amber-100 text-amber-700' };
+    if (job.retired_by === 'employer') {
+      if (deadlineLapsed) return { key: 'deadline_lapsed', label: 'Deadline passed', cls: 'bg-amber-100 text-amber-700' };
+      return { key: 'retired', label: 'Retired', cls: 'bg-gray-200 text-gray-700' };
+    }
+    if (!job.valid_until || new Date(job.valid_until).getTime() < Date.now()) {
+      if (deadlineLapsed) return { key: 'deadline_lapsed', label: 'Deadline passed', cls: 'bg-amber-100 text-amber-700' };
+      return { key: 'disabled', label: 'Disabled', cls: 'bg-gray-100 text-gray-600' };
+    }
+    if (deadlineLapsed) return { key: 'closed', label: 'Application closed', cls: 'bg-amber-100 text-amber-700' };
     return { key: 'serving', label: 'Serving', cls: 'bg-green-100 text-green-700' };
   };
 
@@ -1108,6 +1154,10 @@ const notifRef = useRef<HTMLDivElement>(null);
                   <p className="mt-3 text-xs text-gray-500">This ad was retired by the system after its deadline lapsed. Re-post it to list again.</p>
                 )}
 
+                {st.key === 'deadline_lapsed' && (
+                  <p className="mt-3 text-xs text-gray-500">The application deadline has passed, so this ad cannot be published or reactivated. Re-post it with a new deadline to list it again.</p>
+                )}
+
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {canEnable && publishingJobId !== job.id && (
                     <button onClick={(e) => { e.stopPropagation(); setPublishingJobId(job.id); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Publish / Reactivate</button>
@@ -1119,6 +1169,12 @@ const notifRef = useRef<HTMLDivElement>(null);
                     </>
                   )}
                   {st.key === 'system_retired' && (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); onNavigate('post-job'); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Re-post</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
+                    </>
+                  )}
+                  {st.key === 'deadline_lapsed' && (
                     <>
                       <button onClick={(e) => { e.stopPropagation(); onNavigate('post-job'); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Re-post</button>
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
@@ -1816,7 +1872,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                       <div className="space-y-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 6 characters" className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={PASSWORD_HINT} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
@@ -1961,6 +2017,42 @@ const notifRef = useRef<HTMLDivElement>(null);
                     {profileSaveNotice && <p className="text-xs text-amber-600 mt-2">{profileSaveNotice}</p>}
                   </>
                 )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 border border-gray-100">
+              <h3 className="font-semibold text-gray-900 mb-2">Privacy & Data</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Download a copy of everything we hold about you, or erase your account. Erasure removes your profile, documents, messages and bids; payment records are kept for five years as required by the Tax Procedures Act, 2015.
+              </p>
+              <button onClick={handleExportData} disabled={exportingData} className="px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                {exportingData ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Download my data
+              </button>
+              <div className="mt-5 pt-4 border-t border-gray-200">
+                <h4 className="font-semibold text-gray-900 text-sm mb-1">Delete my account</h4>
+                <p className="text-xs text-gray-500 mb-2">This cannot be undone. Type <strong>DELETE</strong> to confirm.</p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                    className="w-32 px-3 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deletingAccount || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+                    className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete account
+                  </button>
+                </div>
+              </div>
+              {privacyMessage && <p className="text-xs text-gray-600 mt-3">{privacyMessage}</p>}
+              <div className="mt-5 pt-4 border-t border-gray-200">
+                <h4 className="font-semibold text-gray-900 text-sm mb-1">Sign-in security</h4>
+                <p className="text-xs text-gray-500">
+                  Passwords must be at least {MIN_PASSWORD_LENGTH} characters. Two-factor authentication with an authenticator app is required for Itukarua staff accounts and can be enabled on request for any account by contacting support.
+                </p>
               </div>
             </div>
           </div>
