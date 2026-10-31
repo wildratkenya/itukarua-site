@@ -91,6 +91,7 @@
     "vite": "^6.4.2"
   },
   "overrides": {
+    "minimatch": "^11.0.3",
     "postcss-selector-parser": "^6.1.5"
   }
 }
