@@ -1,5 +1,6 @@
 import { createServiceClient, loadSmtpConfig, createFreshTransport, escapeHtml, SITE_URL } from '../_shared/smtp.ts'
 import { corsHeadersFor, isOriginAllowed } from '../_shared/cors.ts'
+import { authenticateStaff } from '../_shared/cronAuth.ts'
 
 Deno.serve(async (req) => {
   const corsHeaders = corsHeadersFor(req)
@@ -12,6 +13,13 @@ Deno.serve(async (req) => {
   }
 
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  if (!(await authenticateStaff(req))) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
 
   try {
     const body = await req.json()

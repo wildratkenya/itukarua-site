@@ -1,4 +1,5 @@
 # Supabase config
+
 [api]
 enabled = true
 
@@ -39,4 +40,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-weekly-newsletter]
+verify_jwt = false
+
+[functions.unsubscribe]
+verify_jwt = false
+
+[functions.send-job-otp]
+verify_jwt = false
+
+[functions.verify-job-otp]
+verify_jwt = false
+
+[functions.send-contact-email]
+verify_jwt = false
+
+[functions.send-advert-lead]
 verify_jwt = false

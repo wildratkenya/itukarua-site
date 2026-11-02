@@ -715,9 +715,10 @@ const AdminPage: React.FC = () => {
             accountRef: billingAccountRef(item.id),
             note: billingNote(item.billing_end),
           });
+      const staffToken = await ensureValidToken();
       const res = await fetch(`${supabaseUrl}/functions/v1/send-billing-invoice`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${staffToken}` },
         body: JSON.stringify({
           item_type: item.item_type,
           item_id: item.id,
