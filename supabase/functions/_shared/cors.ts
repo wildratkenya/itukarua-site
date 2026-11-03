@@ -11,6 +11,7 @@
 const FALLBACK_ALLOWED_ORIGINS = [
   'https://www.itukarua.co.ke',
   'https://itukarua3.vercel.app',
+  'https://itukarua3-cyan.vercel.app',
   'http://localhost:8080',
 ]
 
