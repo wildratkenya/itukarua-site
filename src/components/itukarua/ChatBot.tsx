@@ -246,6 +246,11 @@ const ChatBot: React.FC = () => {
                     ? 'bg-white text-gray-800 rounded-bl-sm'
                     : 'bg-[#dcf8c6] text-gray-800 rounded-br-sm'
                 }`}>
+                  {msg.role === 'admin' && (
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-green-700">
+                      IT Support Agent
+                    </div>
+                  )}
                   {msg.text}
                 </div>
               </div>
