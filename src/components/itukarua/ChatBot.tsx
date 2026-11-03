@@ -57,28 +57,31 @@ const ChatBot: React.FC = () => {
   }, [messages, showFaqButtons, showHelpfulButtons, showAgentButton]);
 
   useEffect(() => {
-    if (mode === 'agent' && open) {
-      pollRef.current = setInterval(async () => {
-        try {
-          const msgs = await getChatConversation(conversationId);
-          const adminMsgs = msgs.filter(m => m.role === 'admin');
-          setMessages(prev => {
-            const existingIds = new Set(prev.filter(m => m.id).map(m => m.id));
-            const newMsgs: ChatMessage[] = [];
-            for (const m of adminMsgs) {
-              if (!existingIds.has(m.id)) {
-                newMsgs.push({ role: 'admin', text: m.message, id: m.id });
-              }
+    if (!open) return;
+
+    const loadAdminMessages = async () => {
+      try {
+        const msgs = await getChatConversation(conversationId);
+        const adminMsgs = msgs.filter(m => m.role === 'admin');
+        setMessages(prev => {
+          const existingIds = new Set(prev.filter(m => m.id).map(m => m.id));
+          const newMsgs: ChatMessage[] = [];
+          for (const m of adminMsgs) {
+            if (!existingIds.has(m.id)) {
+              newMsgs.push({ role: 'admin', text: m.message, id: m.id });
             }
-            return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
-          });
-        } catch (error) {
-          console.error('[support-chat] failed to load agent messages', error);
-        }
-      }, 3000);
-    }
+          }
+          return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
+        });
+      } catch (error) {
+        console.error('[support-chat] failed to load agent messages', error);
+      }
+    };
+
+    void loadAdminMessages();
+    pollRef.current = setInterval(() => { void loadAdminMessages(); }, 3000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [mode, open, conversationId]);
+  }, [open, conversationId]);
 
   const saveTranscript = useCallback(async () => {
     if (transcriptSaved) return;
