@@ -135,20 +135,55 @@ Deno.serve(async (req) => {
 
     const priority = ['PAY-2', 'PAY-3', 'SAF-1', 'SAF-2'].includes(top?.id) ? 'P1' : top?.escalate ? 'P2' : 'P3'
     stage = 'ticket'
-    const { data: ticket, error: ticketError } = await supabase
-      .from('support_tickets')
-      .insert({
-        user_id: user?.id || null,
-        email: user?.email || null,
-        category: top?.id || 'unmatched',
-        priority,
-        message,
-        transcript: history,
-        conversation_id: conversationId,
-      })
-      .select('id')
-      .single()
-    if (ticketError) throw ticketError
+    let ticket: { id: string } | null = null
+    let isNewTicket = false
+    if (conversationId) {
+      const { data: existingTicket, error: existingTicketError } = await supabase
+        .from('support_tickets')
+        .select('id, transcript, status')
+        .eq('conversation_id', conversationId)
+        .maybeSingle()
+      if (existingTicketError) throw existingTicketError
+
+      if (existingTicket) {
+        const transcript = Array.isArray(existingTicket.transcript) ? existingTicket.transcript : []
+        const { data: updatedTicket, error: updateTicketError } = await supabase
+          .from('support_tickets')
+          .update({
+            user_id: user?.id || null,
+            email: user?.email || null,
+            category: top?.id || 'unmatched',
+            priority,
+            message,
+            transcript: [...transcript, ...history].slice(-20),
+            status: existingTicket.status === 'resolved' ? 'open' : existingTicket.status,
+          })
+          .eq('id', existingTicket.id)
+          .select('id')
+          .single()
+        if (updateTicketError) throw updateTicketError
+        ticket = updatedTicket
+      }
+    }
+
+    if (!ticket) {
+      const { data: createdTicket, error: ticketError } = await supabase
+        .from('support_tickets')
+        .insert({
+          user_id: user?.id || null,
+          email: user?.email || null,
+          category: top?.id || 'unmatched',
+          priority,
+          message,
+          transcript: history,
+          conversation_id: conversationId,
+        })
+        .select('id')
+        .single()
+      if (ticketError) throw ticketError
+      ticket = createdTicket
+      isNewTicket = true
+    }
 
     if (conversationId) {
       const { error: messageError } = await supabase.from('messages').insert({
@@ -166,15 +201,15 @@ Deno.serve(async (req) => {
     }
 
     stage = 'notification'
-    const notification = await supabase.functions.invoke('send-contact-email', {
+    const notification = isNewTicket ? await supabase.functions.invoke('send-contact-email', {
       body: {
         name: user?.email || 'Chat visitor',
         email: user?.email || 'chat@itukarua.co.ke',
         subject: `[${priority}] Support ticket ${ticket.id}`,
         message,
       },
-    })
-    if (notification.error) {
+    }) : null
+    if (notification?.error) {
       console.error('[support-chat] ticket notification failed', notification.error)
     }
 
