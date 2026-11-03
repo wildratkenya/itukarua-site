@@ -403,6 +403,16 @@ const AdminPage: React.FC = () => {
         const ids = new Set(tickets.map(ticket => ticket.id));
         if (knownTicketIds.current === null) {
           knownTicketIds.current = ids;
+          const recentTicket = tickets.find(ticket =>
+            ticket.status !== 'resolved'
+            && new Date(ticket.created_at).getTime() > Date.now() - 2 * 60 * 1000
+          );
+          if (!recentTicket) return;
+          setNewTicketAlert(recentTicket);
+          toast({
+            title: 'New support question',
+            description: `${recentTicket.email || 'Anonymous visitor'} needs help.`,
+          });
           return;
         }
         const newest = tickets.find(ticket =>
@@ -4006,42 +4016,51 @@ const AdminPage: React.FC = () => {
                           ))}
                         </div>
                       )}
-                      {selectedSupportTicket.conversation_id ? (
-                        <div className="space-y-2">
-                          <Textarea value={ticketReply} onChange={event => setTicketReply(event.target.value)} placeholder="Reply to the customer in the live chat..." rows={3} />
-                          <Button
-                            disabled={!ticketReply.trim() || sendingTicketReply}
-                            onClick={async () => {
-                              if (!selectedSupportTicket.conversation_id || !ticketReply.trim()) return;
-                              setSendingTicketReply(true);
-                              try {
-                                const { data: { user } } = await supabase.auth.getUser();
-                                await createChatMessage({
-                                  conversation_id: selectedSupportTicket.conversation_id,
-                                  sender_name: 'Itukarua Support',
-                                  sender_email: user?.email || 'admin@itukarua.co.ke',
-                                  message: ticketReply.trim(),
-                                  role: 'admin',
-                                });
-                                setTicketReply('');
-                                setTicketConversation(await getChatConversation(selectedSupportTicket.conversation_id));
-                                setSelectedSupportTicket({ ...selectedSupportTicket, status: 'pending', first_response_at: selectedSupportTicket.first_response_at || new Date().toISOString() });
-                                toast({ title: 'Reply sent' });
-                              } catch (error: any) {
-                                console.error('[admin] failed to reply to support ticket', error);
-                                toast({ title: 'Could not send reply', description: error?.message || 'Please try again.', variant: 'destructive' });
-                              } finally {
-                                setSendingTicketReply(false);
-                              }
-                            }}
-                          >
-                            {sendingTicketReply ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                            Send Reply
-                          </Button>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500">This ticket has no live-chat conversation. Reply through the customer email or Contact workflow.</p>
-                      )}
+                      <div className="space-y-2">
+                        <Textarea value={ticketReply} onChange={event => setTicketReply(event.target.value)} placeholder="Reply to the customer in the live chat..." rows={3} />
+                        <Button
+                          disabled={!ticketReply.trim() || sendingTicketReply}
+                          onClick={async () => {
+                            if (!ticketReply.trim()) return;
+                            setSendingTicketReply(true);
+                            try {
+                              const { data: { user } } = await supabase.auth.getUser();
+                              const conversationId = selectedSupportTicket.conversation_id || crypto.randomUUID();
+                              await createChatMessage({
+                                conversation_id: conversationId,
+                                sender_name: 'Itukarua Support',
+                                sender_email: user?.email || 'admin@itukarua.co.ke',
+                                message: ticketReply.trim(),
+                                role: 'admin',
+                              });
+                              const { data: updatedTicket, error: updateError } = await supabase
+                                .from('support_tickets')
+                                .update({
+                                  conversation_id: conversationId,
+                                  status: 'pending',
+                                  first_response_at: selectedSupportTicket.first_response_at || new Date().toISOString(),
+                                })
+                                .eq('id', selectedSupportTicket.id)
+                                .select()
+                                .single();
+                              if (updateError) throw updateError;
+                              setTicketReply('');
+                              setTicketConversation(await getChatConversation(conversationId));
+                              setSelectedSupportTicket(updatedTicket as SupportTicket);
+                              setSupportTickets(prev => prev.map(ticket => ticket.id === updatedTicket.id ? updatedTicket as SupportTicket : ticket));
+                              toast({ title: 'Reply sent' });
+                            } catch (error: any) {
+                              console.error('[admin] failed to reply to support ticket', error);
+                              toast({ title: 'Could not send reply', description: error?.message || 'Please try again.', variant: 'destructive' });
+                            } finally {
+                              setSendingTicketReply(false);
+                            }
+                          }}
+                        >
+                          {sendingTicketReply ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                          Send Reply
+                        </Button>
+                      </div>
                     </div>
                     {selectedSupportTicket.transcript?.length > 0 && (
                       <div>
