@@ -617,6 +617,22 @@ export async function runPaymentEffects(supabase: any, payment: PaymentRow): Pro
       break
     }
 
+    case 'top_rated_day_pass': {
+      // KES 100 day pass: the purchased snapshot of top-rated profile ids is
+      // already on the row metadata; this only opens the 24h window the
+      // redemption RPC checks.
+      const hours = await readSettingInt(supabase, 'top_rated_pass_hours', 24)
+      const end = addHours(new Date(), hours).toISOString()
+      const { error } = await supabase
+        .from('payments')
+        .update({ access_expires_at: end })
+        .eq('id', payment.id)
+      if (error) throw new Error(`fulfilTopRatedPass ${payment.id}: ${error.message}`)
+      done.push(`top_rated_day_pass:${hours}h`)
+      console.log(`[fulfilment] top_rated_day_pass ${payment.id} unlocks the snapshot until ${end}`)
+      break
+    }
+
     case 'mpesa_test':
       // Connectivity test fired from /admin. Recorded only — never grants an
       // entitlement, extends a subscription or touches pricing.
@@ -734,6 +750,7 @@ export async function reconcileUnappliedPayments(supabase: any, limit = 200): Pr
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   registration: 'Account Registration',
   contact_access: 'Contact Access',
+  top_rated_day_pass: 'Top Rated Day Pass',
   job_posting: 'Job Posting',
   job_payment: 'Job Payment',
   advert: 'Advertisement',

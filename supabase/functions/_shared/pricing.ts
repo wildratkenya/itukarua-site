@@ -31,6 +31,7 @@ const DAY_PRICE_KES: Record<number, number> = {
 const DEFAULT_JOBSEEKER_REGISTRATION_KES = 100
 const EMPLOYER_WEEKLY_KES = 200
 const DEFAULT_CONTACT_ACCESS_KES = 100
+const DEFAULT_TOP_RATED_PASS_KES = 100
 const DEFAULT_ADVERT_KES = 300
 
 function metaOf(payment: { metadata?: Record<string, any> | null }): Record<string, any> {
@@ -90,6 +91,9 @@ export async function minimumAmountKes(
 
     case 'contact_access':
       return settingKes(supabase, 'contact_access_fee', DEFAULT_CONTACT_ACCESS_KES)
+
+    case 'top_rated_day_pass':
+      return settingKes(supabase, 'top_rated_pass_fee', DEFAULT_TOP_RATED_PASS_KES)
 
     case 'featured_boost':
       return BOOST_PRICE_KES

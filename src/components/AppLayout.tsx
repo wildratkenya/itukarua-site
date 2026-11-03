@@ -28,6 +28,7 @@ import MpesaModal from './itukarua/MpesaModal';
 import AdminPage from './itukarua/AdminPage';
 import SitewideAnchorStrip from './itukarua/SitewideAnchorStrip';
 import CorporateDashboard from './itukarua/CorporateDashboard';
+import DayPassPage from './itukarua/DayPassPage';
 import CorporateSignupPage from './itukarua/CorporateSignupPage';
 import ChatBot from './itukarua/ChatBot';
 
@@ -108,6 +109,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     try {
       const path = window.location.pathname;
       if (path === '/dashboard') return 'dashboard';
+      if (path === '/day-pass') return 'day-pass';
     } catch {}
     return 'home';
   });
@@ -134,7 +136,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     amount: number;
     description: string;
     accountRef: string;
-    paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing';
+    paymentType?: 'registration' | 'contact_access' | 'top_rated_day_pass' | 'job_posting' | 'job_payment' | 'advert' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing';
     relatedAdId?: string;
     relatedJobId?: string;
     relatedJobTitle?: string;
@@ -149,6 +151,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     metadata?: Record<string, unknown>;
     defaultPhone?: string;
     payingOnBehalfOf?: string;
+    onTokenIssued?: (token: string, expiresAt: string | null) => void;
   }>({ open: false, amount: 0, description: '', accountRef: '' });
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -498,8 +501,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
     setCurrentPage('jobs');
   }, [currentPage]);
 
-  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: EntitlementRole, relatedAccountId?: string, relatedInvoiceId?: string, opts?: { metadata?: Record<string, unknown>; defaultPhone?: string; payingOnBehalfOf?: string }) => {
-    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt, role, relatedAccountId, relatedInvoiceId, metadata: opts?.metadata, defaultPhone: opts?.defaultPhone, payingOnBehalfOf: opts?.payingOnBehalfOf });
+  const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: EntitlementRole, relatedAccountId?: string, relatedInvoiceId?: string, opts?: { metadata?: Record<string, unknown>; defaultPhone?: string; payingOnBehalfOf?: string; onTokenIssued?: (token: string, expiresAt: string | null) => void }) => {
+    setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt, role, relatedAccountId, relatedInvoiceId, metadata: opts?.metadata, defaultPhone: opts?.defaultPhone, payingOnBehalfOf: opts?.payingOnBehalfOf, onTokenIssued: opts?.onTokenIssued });
   }, []);
 
   // Open the employer payment popup offering BOTH plans (KES 100/1-day job token
@@ -652,6 +655,8 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           return <CorporateDashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} onOpenMpesa={handleOpenMpesa} />;
         case 'corporate-signup':
           return <CorporateSignupPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onAuthComplete={handleAuthComplete} onOpenMpesa={handleOpenMpesa} />;
+        case 'day-pass':
+          return <DayPassPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
         case 'admin':
           if (!user || user.role !== 'super_admin') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
@@ -910,9 +915,15 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         metadata={mpesaModal.metadata}
         defaultPhone={mpesaModal.defaultPhone}
         payingOnBehalfOf={mpesaModal.payingOnBehalfOf}
+        onTokenIssued={mpesaModal.onTokenIssued}
         user={user}
         onPaymentComplete={() => {
-          handleCloseMpesa();
+          // Token products keep the modal open so the customer can copy or
+          // download the token; their Continue button closes it.
+          const isTokenProduct =
+            mpesaModal.paymentType === 'contact_access' ||
+            mpesaModal.paymentType === 'top_rated_day_pass';
+          if (!isTokenProduct) handleCloseMpesa();
           // Refresh only. Everything this used to do here — boosting the advert,
           // flipping registration_paid, extending the role subscription — is now
           // done by the edge function from the payment row, so it lands even if

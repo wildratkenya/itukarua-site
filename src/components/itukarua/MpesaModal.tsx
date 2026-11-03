@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2, Info } from 'lucide-react';
+import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2, Info, Download } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { PRICING_PLANS } from '@/data/siteData';
 
@@ -11,7 +11,7 @@ interface MpesaModalProps {
   accountRef: string;
   user?: { id: string; name: string; email: string; role: string } | null;
   onPaymentComplete?: () => void;
-  paymentType?: 'registration' | 'contact_access' | 'job_posting' | 'job_payment' | 'advert' | 'advert_upgrade' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing' | 'mpesa_test';
+  paymentType?: 'registration' | 'contact_access' | 'top_rated_day_pass' | 'job_posting' | 'job_payment' | 'advert' | 'advert_upgrade' | 'featured_boost' | 'single_job_post' | 'employer_day_token' | 'employer_day_access' | 'corporate' | 'job_listing' | 'mpesa_test';
   relatedJobId?: string;
   relatedAdId?: string;
   relatedProfileId?: string;
@@ -31,6 +31,12 @@ interface MpesaModalProps {
   defaultPhone?: string;
   /** Shown above the phone field so an admin knows whose payment this is. */
   payingOnBehalfOf?: string;
+  /**
+   * Called once a token product completes. The browser saves the token so the
+   * customer can keep using it without re-entering it; the success screen also
+   * shows it with copy/download.
+   */
+  onTokenIssued?: (token: string, expiresAt: string | null) => void;
 }
 
 const EMPLOYER_WEEKLY = {
@@ -53,7 +59,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   relatedJobId, relatedAdId, relatedProfileId,
   relatedAccountId, relatedInvoiceId,
   employerPlans = false, relatedJobTitle, employerExpired = false, employerExpiredAt,
-  metadata, defaultPhone, payingOnBehalfOf,
+  metadata, defaultPhone, payingOnBehalfOf, onTokenIssued,
 }) => {
   const [step, setStep] = useState<'plans' | 'instructions' | 'processing' | 'success' | 'error'>('instructions');
   const [selectedPlan, setSelectedPlan] = useState<'weekly' | 'day' | null>(null);
@@ -64,10 +70,12 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   const [transactionId, setTransactionId] = useState('');
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState('');
+  const [accessExpiresAt, setAccessExpiresAt] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // The redemption token is minted server-side and only for contact access
-  // purchases, so the browser never invents one.
+  // Both token products are minted server-side, so the browser never invents one.
   const isContactAccess = paymentType === 'contact_access';
+  const isTopRatedPass = paymentType === 'top_rated_day_pass';
+  const isTokenProduct = isContactAccess || isTopRatedPass;
 
   const planFor = (p: 'weekly' | 'day') => {
     if (p === 'day') {
@@ -112,6 +120,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
       setTransactionId('');
       setCheckoutId(null);
       setAccessToken('');
+      setAccessExpiresAt(null);
       if (pollingRef.current) clearInterval(pollingRef.current);
     } else {
       setStep(employerPlans ? 'plans' : 'instructions');
@@ -129,7 +138,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     setTimeout(() => setCopied(''), 2000);
   };
 
-  const startPolling = (checkoutRequestId: string) => {
+  const startPolling = (checkoutRequestId: string, issuedToken: string) => {
     let attempts = 0;
     const maxAttempts = 15;
 
@@ -155,8 +164,13 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
 
         if (data.status === 'completed') {
           if (pollingRef.current) clearInterval(pollingRef.current);
+          const expiresAt = data.access_expires_at || null;
           setTransactionId(data.mpesa_ref || `MPE${Date.now().toString().slice(-8)}`);
+          setAccessExpiresAt(expiresAt);
           setStep('success');
+          // Hand the token over as soon as fulfilment is confirmed, so closing
+          // this tab cannot lose it. The success screen still shows/downloads it.
+          if (issuedToken) onTokenIssued?.(issuedToken, expiresAt);
           // Refresh only. The advert/subscription was already extended by the
           // edge function, so nothing here decides whether the customer paid.
           onPaymentComplete?.();
@@ -231,7 +245,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
 
       if (data.success && data.CheckoutRequestID) {
         setCheckoutId(data.CheckoutRequestID);
-        startPolling(data.CheckoutRequestID);
+        startPolling(data.CheckoutRequestID, data.token || '');
       } else {
         throw new Error('Unexpected response from server');
       }
@@ -248,7 +262,52 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
     setPhone('');
     // Never let a previous purchase's token linger into the next one.
     setAccessToken('');
+    setAccessExpiresAt(null);
     onClose();
+  };
+
+  const downloadToken = () => {
+    if (!accessToken) return;
+    const expiry = accessExpiresAt
+      ? new Date(accessExpiresAt).toLocaleString('en-KE', {
+          day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        })
+      : '24 hours from payment';
+    const scope = isTopRatedPass
+      ? 'Contact details for the Top Rated workers as they stood when you paid.'
+      : 'Contact details for one worker.';
+    const text = [
+      isTopRatedPass ? 'ITUKARUA TOP RATED DAY PASS' : 'ITUKARUA CONTACT ACCESS TOKEN',
+      '=====================================',
+      '',
+      `Token:      ${accessToken}`,
+      `Expires:    ${expiry}`,
+      `Amount:     KES ${effective.amount.toLocaleString()}`,
+      `M-Pesa ref: ${transactionId || 'pending'}`,
+      '',
+      'What this unlocks',
+      '-----------------',
+      scope,
+      'CVs and certificates are not included. Sign in on itukarua.co.ke to view them.',
+      '',
+      isTopRatedPass
+        ? 'This pass works on up to 3 browsers or devices. Redeem at itukarua.co.ke -> Top Rated -> "I have a day pass".'
+        : 'Redeem at itukarua.co.ke -> Find a Worker -> "Have a token?".',
+      '',
+      'Keep this token private: anyone who has it can use it until it expires.',
+    ].join('\n');
+
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = isTopRatedPass
+      ? `itukarua-day-pass-${new Date().toISOString().slice(0, 10)}.txt`
+      : `itukarua-contact-token-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   if (!isOpen) return null;
@@ -423,24 +482,41 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
                   <p className="text-sm text-gray-500 mb-1">KES {effective.amount.toLocaleString()} has been received.</p>
                   <p className="text-xs text-gray-400 mb-4">Transaction ID: {transactionId}</p>
-                  {isContactAccess && (
+                  {isTokenProduct && (
                     <p className="text-sm text-gray-600 mb-6 max-w-xs mx-auto">
-                      This contact is now unlocked for you for 24 hours. You can view the details on this device, on refresh, or on another browser.
+                      {isTopRatedPass
+                        ? 'All Top Rated worker contacts are unlocked for 24 hours. The token works on up to 3 browsers or devices; download or copy it below.'
+                        : 'This contact is now unlocked for you for 24 hours. You can view the details on this device, on refresh, or on another browser.'}
                     </p>
                   )}
-                  {isContactAccess && accessToken && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 mx-auto max-w-xs">
+                  {isTokenProduct && accessToken && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 mx-auto max-w-sm">
                       <div className="flex items-center justify-center gap-2 mb-2">
                         <Key className="w-4 h-4 text-green-600" />
-                        <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Your Access Token</span>
+                        <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">
+                          {isTopRatedPass ? 'Your Day Pass Token' : 'Your Access Token'}
+                        </span>
                       </div>
                       <div className="flex items-center justify-center gap-2">
-                        <p className="text-xl font-bold text-green-800 tracking-widest">{accessToken}</p>
-                        <button onClick={() => { navigator.clipboard.writeText(accessToken); setCopied('token'); setTimeout(() => setCopied(''), 2000); }} className="p-1 hover:bg-green-100 rounded transition-colors">
+                        <p className="text-base sm:text-lg font-bold text-green-800 font-mono break-all">{accessToken}</p>
+                        <button onClick={() => { navigator.clipboard.writeText(accessToken); setCopied('token'); setTimeout(() => setCopied(''), 2000); }} className="p-1 hover:bg-green-100 rounded transition-colors flex-shrink-0" aria-label="Copy token">
                           {copied === 'token' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-green-600" />}
                         </button>
                       </div>
-                      <p className="text-[11px] text-green-600 mt-2">Save this token to re-open the contact for 24 hours, on any device, even if you sign out.</p>
+                      {accessExpiresAt && (
+                        <p className="text-[11px] text-green-700 mt-2">
+                          Valid until {new Date(accessExpiresAt).toLocaleString('en-KE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
+                      <button
+                        onClick={downloadToken}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-green-300 text-green-700 text-xs font-semibold rounded-lg hover:bg-green-100 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Download token
+                      </button>
+                      <p className="text-[11px] text-green-600 mt-2">
+                        Keep it private — the token works on up to 3 devices and anyone who has it can use a slot. Sign in to see CVs and certificates.
+                      </p>
                     </div>
                   )}
                   <button

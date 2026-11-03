@@ -15,5 +15,5 @@ export type MpesaHandler = (
   role?: EntitlementRole,
   relatedAccountId?: string,
   relatedInvoiceId?: string,
-  opts?: { metadata?: Record<string, unknown>; defaultPhone?: string; payingOnBehalfOf?: string }
+  opts?: { metadata?: Record<string, unknown>; defaultPhone?: string; payingOnBehalfOf?: string; onTokenIssued?: (token: string, expiresAt: string | null) => void }
 ) => void;

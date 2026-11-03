@@ -1,4 +1,5 @@
 ﻿import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
+import { getDeviceId } from './deviceId';
 import { isCorporateOnlySlot, type SavedCorporateFeatures } from '@/data/siteData';
 
 /** Escape `%`, `_`, and `\` for PostgREST `ilike` patterns. */
@@ -237,18 +238,19 @@ export async function updateProfile(userId: string, updates: Partial<DbProfile>)
   return data as DbProfile;
 }
 
-// Worker cards are readable by anyone, so they come from the directory view
+// Worker cards are readable by anyone, so they come from the listing view
 // rather than profiles. The view omits phone, email, whatsapp_number and
-// resume; contact is fetched through get_profile_contact once a payment window
-// is active. See migration 20261003120000_lock_down_profile_reads.
-const WORKER_DIRECTORY = 'public_worker_directory';
+// resume, and excludes jobseekers who have not enabled contact display.
+// Contact is fetched through get_profile_contact / the day pass once a payment
+// window is active.
+const WORKER_DIRECTORY = 'public_worker_listing';
 
-// Card-safe ratings opt-in lookup for non-owners. Reading a foreign profile row
-// would be blocked by profiles_select_own, so this goes through the directory
-// view that everyone authenticated may read.
+// Card-safe ratings opt-in lookup for non-owners. This is an authenticated
+// by-id lookup, so it uses the directory view rather than the consent-filtered
+// listing: an employer must still be able to rate a worker who is not listed.
 export async function getProfileRatingsFlag(profileId: string): Promise<boolean> {
   const { data } = await supabase
-    .from(WORKER_DIRECTORY)
+    .from('public_worker_directory')
     .select('ratings_enabled')
     .eq('id', profileId)
     .maybeSingle();
@@ -287,7 +289,7 @@ export async function getProfiles(filters?: {
   let query = supabase
     .from(WORKER_DIRECTORY)
     .select(
-      `id, full_name, profile_image, rating, reviews_count, qualifications, experience, skills, location, created_at, role, verified, registration_paid, updated_at, suspended, ratings_enabled, terms_accepted, data_sharing_consent, accepted_terms_at, subscription_expires_at, county, subcounty, profile_views, likes_count, dislikes_count, is_featured, allow_contact_display`
+      `id, full_name, profile_image, rating, reviews_count, qualifications, experience, skills, location, created_at, role, verified, updated_at, ratings_enabled, subscription_expires_at, county, subcounty, profile_views, likes_count, dislikes_count, is_featured, allow_contact_display`
     );
 
   if (filters?.role) {
@@ -321,8 +323,10 @@ export async function getProfiles(filters?: {
   const { data, error } = await query;
   if (error) { 
     if (error.message?.includes('AbortError')) return [];
-    console.error('[getProfiles] error:', error); 
-    return []; 
+    console.error('[getProfiles] error:', error);
+    // A failure is not an empty directory. Let callers show a retry state
+    // instead of "No workers found".
+    throw new Error(error.message || 'Could not load workers');
   }
   return (data as unknown) as DbProfile[];
 }
@@ -1098,13 +1102,11 @@ export async function recomputeProfileRating(profileId: string): Promise<void> {
 }
 
 export async function getProfileReviews(profileId: string): Promise<any[]> {
-  const { data, error } = await supabase
-    .from('profile_reviews')
-    .select('*, reviewer:reviewer_id(full_name, profile_image)')
-    .eq('profile_id', profileId)
-    .order('created_at', { ascending: false });
+  // RPC, not an embedded select: profiles is no longer readable by anon, and
+  // the embed made every review list return empty for signed-out visitors.
+  const { data, error } = await supabase.rpc('get_profile_reviews', { p_profile_id: profileId });
   if (error) { console.error('getProfileReviews error:', error); return []; }
-  return data || [];
+  return (data as any[]) || [];
 }
 
 export async function checkProfileReview(profileId: string, userId: string): Promise<number | null> {
@@ -1252,6 +1254,85 @@ export async function getContactAccessConfig(): Promise<ContactAccessConfig> {
   return { fee, windowHours };
 }
 
+// ─── Top Rated Day Pass ────────────────────────────────────────────────────
+//
+// KES 100 buys 24h of contact details for the top-rated snapshot stored on the
+// payment row. It is a bearer token, so it works without an account. CVs and
+// certificates are intentionally not part of the pass.
+
+export const TOP_RATED_PASS_FEE_DEFAULT = 100;
+export const TOP_RATED_PASS_HOURS_DEFAULT = 24;
+
+export interface TopRatedPassProfile {
+  id: string;
+  full_name: string;
+  profile_image: string | null;
+  rating: number | null;
+  reviews_count: number | null;
+  skills: string[] | string | null;
+  location: string | null;
+  county: string | null;
+  subcounty: string | null;
+}
+
+export interface TopRatedPassResult {
+  allowed: boolean;
+  reason?: 'invalid' | 'expired' | 'rate_limited' | 'device_limit' | 'missing_device';
+  expiresAt?: string | null;
+  profiles?: TopRatedPassProfile[];
+}
+
+export interface TopRatedPassContactResult {
+  allowed: boolean;
+  reason?: 'invalid' | 'expired' | 'rate_limited' | 'device_limit' | 'missing_device' | 'not_in_pass' | 'opted_out' | 'missing';
+  expiresAt?: string | null;
+  fullName?: string | null;
+  contact?: ProfileContactResult['contact'];
+}
+
+export async function getTopRatedPassConfig(): Promise<ContactAccessConfig> {
+  const settings = await getPlatformSettings();
+  return {
+    fee: settings.top_rated_pass_fee || TOP_RATED_PASS_FEE_DEFAULT,
+    windowHours: settings.top_rated_pass_hours || TOP_RATED_PASS_HOURS_DEFAULT,
+  };
+}
+
+export async function getTopRatedPass(token: string): Promise<TopRatedPassResult | null> {
+  const { data, error } = await supabase.rpc('get_top_rated_pass', {
+    p_token: token.trim().toUpperCase(),
+    p_device_id: getDeviceId(),
+  });
+  if (error) { console.error('getTopRatedPass error:', error); return null; }
+  if (!data) return null;
+  return {
+    allowed: !!data.allowed,
+    reason: data.reason,
+    expiresAt: data.expires_at ?? null,
+    profiles: data.profiles || [],
+  };
+}
+
+export async function getTopRatedPassContact(
+  token: string,
+  profileId: string,
+): Promise<TopRatedPassContactResult | null> {
+  const { data, error } = await supabase.rpc('get_top_rated_pass_contact', {
+    p_token: token.trim().toUpperCase(),
+    p_profile_id: profileId,
+    p_device_id: getDeviceId(),
+  });
+  if (error) { console.error('getTopRatedPassContact error:', error); return null; }
+  if (!data) return null;
+  return {
+    allowed: !!data.allowed,
+    reason: data.reason,
+    expiresAt: data.expires_at ?? null,
+    fullName: data.full_name ?? null,
+    contact: data.contact || null,
+  };
+}
+
 // ─── Terms & Conditions ─────────────────────────────────────────────────────
 
 export async function acceptTerms(userId: string, dataSharingConsent: boolean, allowContactDisplay?: boolean): Promise<void> {
@@ -1375,9 +1456,11 @@ export async function getConversations(userId: string): Promise<DbConversationWi
     if (!otherUserId) continue;
 
     // Another participant's row, so it must come from the directory view rather
-    // than profiles, which is now readable only by the owner and admins.
+    // than profiles, which is now readable only by the owner and admins. Inbox
+    // is signed-in only, so the authenticated directory (any role) is correct;
+    // the anonymous listing would hide employer and advertiser participants.
     const { data: otherProfile } = await supabase
-      .from(WORKER_DIRECTORY)
+      .from('public_worker_directory')
       .select('full_name, profile_image')
       .eq('id', otherUserId)
       .maybeSingle();
@@ -1772,10 +1855,10 @@ export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
   const { data: job } = await supabase.from('jobs').select('id, title, category, county').eq('id', jobId).maybeSingle();
   if (!job) return;
 
+  // Alerts must reach every active jobseeker, including those who are not in
+  // the public listing because they hid their contact details.
   const { data: jobseekers } = await supabase
-    .from(WORKER_DIRECTORY)
-    .select('id, skills, county')
-    .eq('role', 'jobseeker');
+    .rpc('get_jobseeker_notification_targets');
 
   if (!jobseekers?.length) return;
 
@@ -1783,7 +1866,7 @@ export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
 
   for (const seeker of jobseekers) {
     let matchReason = '';
-    const skills = (seeker.skills || []).join(',').toLowerCase();
+    const skills = (seeker.skills || '').toLowerCase();
     if (job.category && skills.includes(job.category.toLowerCase())) {
       matchReason = 'category';
     }
@@ -1918,7 +2001,13 @@ export async function setSocialLink(platform: string, url: string): Promise<void
 // ─── Profile Views ─────────────────────────────────────────────────────────
 
 export async function incrementProfileViews(profileId: string): Promise<void> {
-  await supabase.rpc('increment_profile_views', { p_profile_id: profileId });
+  // Display-only metric: never let a counter failure break a card click.
+  try {
+    const { error } = await supabase.rpc('increment_profile_views', { p_profile_id: profileId });
+    if (error) console.warn('[incrementProfileViews]', error.message);
+  } catch (err) {
+    console.warn('[incrementProfileViews]', err);
+  }
 }
 
 export async function trackProfileView(profileId: string, viewerId?: string): Promise<void> {
@@ -1987,8 +2076,10 @@ export async function getSiteTraffic(days = 30): Promise<{ date: string; visitor
 }
 
 export async function getProfileRanking(profileId: string): Promise<{ rank: number; total: number; reviews_count: number; rating: number } | null> {
+  // Ranking is a signed-in self-view and must still work for a worker who is
+  // not in the consent-filtered public listing.
   const { data, error } = await supabase
-    .from(WORKER_DIRECTORY)
+    .from('public_worker_directory')
     .select('id, rating, reviews_count')
     .eq('role', 'jobseeker')
     .order('rating', { ascending: false, nullsFirst: false })

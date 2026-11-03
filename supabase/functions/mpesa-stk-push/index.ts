@@ -59,14 +59,14 @@ function formatPhone(phone: string): string {
 }
 
 /**
- * One-Day Contact Access redemption token. Minted server-side with
- * crypto.getRandomValues (never Math.random) so it is unpredictable and can be
- * enforced unique by the payments_token_unique index. Only contact_access
- * purchases receive a token.
+ * One-Day Contact Access / Top Rated Day Pass redemption token. Minted
+ * server-side with crypto.getRandomValues (never Math.random) and enforced
+ * unique by payments_token_unique. 20 base32 characters is ~100 bits, enough
+ * for an unauthenticated bearer secret.
  */
 function generateContactToken(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const bytes = new Uint8Array(8)
+  const bytes = new Uint8Array(20)
   crypto.getRandomValues(bytes)
   let token = 'ITK-'
   for (const b of bytes) token += chars[b % chars.length]
@@ -191,8 +191,11 @@ Deno.serve(async (req) => {
         return json({ error: 'Contact access requires a profile to unlock' }, 400)
       }
 
-      // Mint the redemption token server-side, and only for contact purchases.
-      const mintToken = payment_type === 'contact_access' ? generateContactToken() : null
+      // Mint the redemption token server-side for both token products.
+      const mintToken =
+        payment_type === 'contact_access' || payment_type === 'top_rated_day_pass'
+          ? generateContactToken()
+          : null
       void token
 
       const formattedPhone = formatPhone(phone)
@@ -281,6 +284,41 @@ Deno.serve(async (req) => {
         }
       }
 
+      // The day pass covers a snapshot of the top-rated list as it stands when
+      // the customer pays. The server chooses the snapshot, not the browser.
+      let effectiveMetadata =
+        metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>) : null
+
+      if (payment_type === 'top_rated_day_pass') {
+        const { data: topWorkers, error: topErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'jobseeker')
+          .eq('ratings_enabled', true)
+          .eq('allow_contact_display', true)
+          .or('suspended.is.null,suspended.eq.false')
+          .is('deleted_at', null)
+          .order('rating', { ascending: false, nullsFirst: false })
+          .order('likes_count', { ascending: false, nullsFirst: false })
+          .order('reviews_count', { ascending: false, nullsFirst: false })
+          .limit(100)
+
+        if (topErr) {
+          console.error('[STK Push] top-rated snapshot failed:', topErr)
+          return json({ error: 'Could not prepare the day pass. Please try again.' }, 500)
+        }
+        if (!topWorkers || topWorkers.length === 0) {
+          return json({ error: 'No top-rated workers are available right now — no money was charged.' }, 400)
+        }
+
+        effectiveMetadata = {
+          ...(effectiveMetadata || {}),
+          kind: 'top_rated_pass',
+          profile_ids: topWorkers.map((w: { id: string }) => w.id),
+          snapshot_at: new Date().toISOString(),
+        }
+      }
+
       // A paid listing is only sold for an ad that can still accept applications.
       // Fulfilment refuses deadline-lapsed ads, and taking the money for a listing
       // that will never go live means a manual refund — so refuse before charging.
@@ -315,7 +353,7 @@ Deno.serve(async (req) => {
           description: description || accountRef || 'Payment',
           checkout_request_id: localCheckoutId,
           local_checkout_id: localCheckoutId,
-          metadata: metadata && typeof metadata === 'object' ? metadata : null,
+          metadata: effectiveMetadata,
           related_job_id: related_job_id || null,
           related_ad_id: related_ad_id || null,
           related_profile_id: related_profile_id || null,
@@ -398,8 +436,8 @@ Deno.serve(async (req) => {
         local_checkout_id: localCheckoutId,
         payment_id: paymentData?.id,
         simulated: SIMULATE,
-        // Only contact purchases carry a redemption token, and only the minted
-        // value is ever echoed back to the browser.
+        // Contact access and the top-rated day pass carry a redemption token,
+        // and only the minted value is ever echoed back to the browser.
         token: mintToken,
       })
     }

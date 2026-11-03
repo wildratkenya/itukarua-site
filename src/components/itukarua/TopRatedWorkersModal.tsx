@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Star, Loader2, Shield, Zap, ThumbsUp, ThumbsDown, Users } from 'lucide-react';
+import { AlertCircle, Clock, KeyRound, Search, X, Star, Loader2, Shield, Zap, ThumbsUp, ThumbsDown, Users } from 'lucide-react';
 import { getProfiles, getCustomCategories } from '@/lib/database';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { isPremiumOrFeatured } from '@/lib/utils';
@@ -9,6 +9,13 @@ interface TopRatedWorkersModalProps {
   onClose: () => void;
   defaultCategories?: string[];
   onSelectWorker: (worker: any) => void;
+  anonymousPassOffer?: {
+    fee: number;
+    hours: number;
+    expiresLabel: string | null;
+    onBuy: () => void;
+    onRedeem: () => void;
+  } | null;
 }
 
 const workerSkills = (worker: any): string[] => {
@@ -23,9 +30,11 @@ const matchesCategory = (worker: any, categories: string[]): boolean => {
   return categories.some(c => skills.some(s => s.includes(c.toLowerCase()) || c.toLowerCase().includes(s)));
 };
 
-const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onClose, defaultCategories, onSelectWorker }) => {
+const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onClose, defaultCategories, onSelectWorker, anonymousPassOffer }) => {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -39,13 +48,14 @@ const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onC
     setSelected((defaultCategories || []).filter(c => categories.includes(c)));
     let cancelled = false;
     setLoading(true);
+    setLoadError('');
     setWorkers([]);
     getProfiles({ role: 'jobseeker', ratings_enabled: true, limit: 100 })
       .then(results => { if (!cancelled) setWorkers(results || []); })
-      .catch(() => { if (!cancelled) setWorkers([]); })
+      .catch(() => { if (!cancelled) setLoadError('Could not load the top-rated workers right now.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [isOpen, categories, defaultCategories]);
+  }, [isOpen, categories, defaultCategories, reloadKey]);
 
   const sorted = React.useMemo(() => {
     const list = [...workers];
@@ -77,6 +87,41 @@ const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onC
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
         </div>
+
+        {anonymousPassOffer && (
+          <div className="px-4 py-3 border-b border-gray-100 bg-green-50">
+            {anonymousPassOffer.expiresLabel ? (
+              <p className="flex items-center gap-2 text-xs text-green-800">
+                <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
+                Day pass active until {anonymousPassOffer.expiresLabel}. Open any worker to see their contact details.
+              </p>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">No account? Unlock all contacts</p>
+                  <p className="text-xs text-gray-600">
+                    KES {anonymousPassOffer.fee} reveals phone, email, WhatsApp and location for every
+                    top-rated worker for {anonymousPassOffer.hours} hours.
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={anonymousPassOffer.onBuy}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    Buy pass — KES {anonymousPassOffer.fee}
+                  </button>
+                  <button
+                    onClick={anonymousPassOffer.onRedeem}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 hover:border-green-600 hover:text-green-700 text-gray-700 text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" /> I have one
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -112,14 +157,28 @@ const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onC
             </div>
           )}
 
-          {!loading && sorted.length === 0 && (
+          {!loading && loadError && (
+            <div className="text-center py-12">
+              <AlertCircle className="w-10 h-10 text-red-300 mx-auto mb-3" />
+              <p className="text-gray-600 text-sm mb-1">{loadError}</p>
+              <p className="text-gray-400 text-xs mb-4">This is usually temporary.</p>
+              <button
+                onClick={() => setReloadKey(k => k + 1)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {!loading && !loadError && sorted.length === 0 && (
             <div className="text-center py-12">
               <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-400 text-sm">No rated workers yet.</p>
             </div>
           )}
 
-          {!loading && sorted.length > 0 && (
+          {!loading && !loadError && sorted.length > 0 && (
             <>
               <p className="text-xs text-gray-400 mb-2">{filtered.length} worker{filtered.length !== 1 ? 's' : ''}{selected.length > 0 ? ` in ${selected.length} selected categor${selected.length === 1 ? 'y' : 'ies'}` : ''}</p>
               {filtered.length === 0 && (

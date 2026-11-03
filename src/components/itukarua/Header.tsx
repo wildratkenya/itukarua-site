@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Menu, X, User, LogOut, ChevronDown, Send, Briefcase, Building2, Megaphone, Zap, Crown, ArrowRight } from 'lucide-react';
 import { setPendingScrollTarget } from '@/lib/pricingScroll';
 
-export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate' | 'corporate-signup';
+export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate' | 'corporate-signup' | 'day-pass';
 
 interface HeaderProps {
   currentPage: Page;

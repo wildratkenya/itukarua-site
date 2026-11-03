@@ -7,12 +7,14 @@ import JobCard from './JobCard';
 import ServiceCard from './ServiceCard';
 import WorkerSearchModal from './WorkerSearchModal';
 import TopRatedWorkersModal from './TopRatedWorkersModal';
+import RedeemPassModal from './RedeemPassModal';
 import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { isPremiumOrFeatured } from '@/lib/utils';
 
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
-import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, getSocialLinks, SOCIAL_PLATFORMS, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult, type SocialLinks } from '@/lib/database';
+import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, getTopRatedPassConfig, getTopRatedPassContact, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, getSocialLinks, SOCIAL_PLATFORMS, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, TOP_RATED_PASS_FEE_DEFAULT, TOP_RATED_PASS_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult, type SocialLinks } from '@/lib/database';
+import { readStoredPass, saveStoredPass, clearStoredPass, formatPassExpiry, type StoredPass } from '@/lib/contactPass';
 import { supabase } from '@/lib/supabase';
 import type { Page } from './Header';
 import type { MpesaHandler } from '@/lib/mpesa';
@@ -63,6 +65,7 @@ const SOCIAL_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
 
 const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, onViewService, onOpenAuth, onOpenMpesa, onOpenEmployerPayment, onWorkerPopupOpen, onWorkerSearchAuth, autoOpenWorkerSearch, onConsumeAutoOpenWorkerSearch }) => {
   const pendingAdvertNav = useRef(false);
+  const lastSelectedWorkerId = useRef<string | null>(null);
   const [stats, setStats] = useState<PlatformStats>({ active_jobs: 0, registered_workers: 0, active_businesses: 0, completed_jobs: 0, total_payments: 0, counties_served: 0 });
   const [user, setUser] = useState<any>(null);
   const [showSticker, setShowSticker] = useState(false);
@@ -75,6 +78,13 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const [contactOptedOut, setContactOptedOut] = useState(false);
   const [contactFee, setContactFee] = useState(CONTACT_ACCESS_FEE_DEFAULT);
   const [contactWindowHours, setContactWindowHours] = useState(CONTACT_ACCESS_WINDOW_HOURS_DEFAULT);
+  const [contactSource, setContactSource] = useState<'account' | 'pass' | null>(null);
+  const [pass, setPass] = useState<StoredPass | null>(() => readStoredPass());
+  const [passFee, setPassFee] = useState(TOP_RATED_PASS_FEE_DEFAULT);
+  const [passHours, setPassHours] = useState(TOP_RATED_PASS_HOURS_DEFAULT);
+  const [showRedeemPass, setShowRedeemPass] = useState(false);
+  const [passNotCovering, setPassNotCovering] = useState(false);
+  const [passNotice, setPassNotice] = useState('');
   const [workerReviews, setWorkerReviews] = useState<any[]>([]);
   const [showWorkerSearch, setShowWorkerSearch] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
@@ -179,9 +189,11 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
       setWorkerContact(null);
       setContactOptedOut(result.reason === 'opted_out');
       setHasContactAccess(false);
+      setContactSource(null);
       return;
     }
     setContactOptedOut(false);
+    setContactSource('account');
     setWorkerContact(result.contact || null);
     setWorkerContactCerts(result.certificates || []);
     setWorkerContactResumes(result.resume || '');
@@ -189,33 +201,124 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
     setHasContactAccess(true);
   };
 
+  // A day pass is contact-only. CVs and certificates stay behind sign-in, so
+  // the pass path never populates workerContactResumes/Certs.
+  const loadPassContact = async (profileId: string, currentPass: StoredPass): Promise<boolean> => {
+    setPassNotCovering(false);
+    const result = await getTopRatedPassContact(currentPass.token, profileId);
+    if (!result) return false;
+    if (!result.allowed) {
+      if (result.reason === 'expired' || result.reason === 'invalid') {
+        clearStoredPass();
+        setPass(null);
+      }
+      if (result.reason === 'opted_out') setContactOptedOut(true);
+      if (result.reason === 'not_in_pass') setPassNotCovering(true);
+      if (result.reason === 'device_limit') {
+        setPassNotice('This day pass is already in use on 3 devices. Use it on one of them, or buy a new pass.');
+      }
+      return false;
+    }
+    setContactOptedOut(false);
+    setContactSource('pass');
+    setWorkerContact(result.contact || null);
+    setWorkerContactCerts([]);
+    setWorkerContactResumes('');
+    setWorkerAccessExpiresAt(result.expiresAt || null);
+    setHasContactAccess(true);
+    return true;
+  };
+
+  // KES 100 mints a bearer token for the top-rated snapshot the server records
+  // at payment initiation. The modal keeps the token on screen after completion.
+  const handleBuyPass = () => {
+    if (!onOpenMpesa) return;
+    onOpenMpesa(
+      passFee,
+      'Top Rated Day Pass — 24h',
+      'ITK-TOP',
+      'top_rated_day_pass',
+      undefined, undefined, undefined, undefined, false, false, null,
+      undefined, undefined, undefined,
+      {
+        metadata: { kind: 'top_rated_pass' },
+        onTokenIssued: (token, expiresAt) => {
+          const stored = saveStoredPass(token, expiresAt);
+          setPass(stored);
+          setPassNotice(`Day pass active for ${passHours} hours. Contact details for every top-rated worker are now unlocked.`);
+          if (selectedWorker) loadPassContact(selectedWorker.id, stored);
+        },
+      }
+    );
+  };
+
+  const handleRedeemPass = (stored: StoredPass) => {
+    setPass(stored);
+    setPassNotice(`Day pass redeemed. Contacts for the top-rated snapshot are unlocked until ${formatPassExpiry(stored)}.`);
+    if (selectedWorker) loadPassContact(selectedWorker.id, stored);
+  };
+
   useEffect(() => {
     if (selectedWorker) {
+      let cancelled = false;
       setHasContactAccess(false);
       setWorkerContact(null);
       setWorkerContactCerts([]);
       setWorkerContactResumes('');
       setWorkerAccessExpiresAt(null);
       setContactOptedOut(false);
+      setContactSource(null);
+      setPassNotCovering(false);
+      if (lastSelectedWorkerId.current !== selectedWorker.id) {
+        lastSelectedWorkerId.current = selectedWorker.id;
+        setPassNotice('');
+      }
       setWorkerReviews([]);
       setReviewRating(0);
       setReviewComment('');
       setReviewMsg('');
-      if (user) loadWorkerContact(selectedWorker.id);
-      getProfileReviews(selectedWorker.id).then(setWorkerReviews);
+      if (user) {
+        loadWorkerContact(selectedWorker.id);
+      } else if (pass) {
+        getTopRatedPassContact(pass.token, selectedWorker.id).then(result => {
+          if (cancelled || !result) return;
+          if (!result.allowed) {
+            if (result.reason === 'expired' || result.reason === 'invalid') {
+              clearStoredPass();
+              setPass(null);
+            }
+            if (result.reason === 'opted_out') setContactOptedOut(true);
+            if (result.reason === 'not_in_pass') setPassNotCovering(true);
+            if (result.reason === 'device_limit') {
+              setPassNotice('This day pass is already in use on 3 devices. Use it on one of them, or buy a new pass.');
+            }
+            return;
+          }
+          setContactSource('pass');
+          setWorkerContact(result.contact || null);
+          setWorkerAccessExpiresAt(result.expiresAt || null);
+          setHasContactAccess(true);
+        });
+      }
+      getProfileReviews(selectedWorker.id).then(reviews => { if (!cancelled) setWorkerReviews(reviews); });
       if (user) { setMyVote(null); getMyProfileVote(user.id, selectedWorker.id).then(v => setMyVote(v || null)).catch(() => {}); }
+      return () => { cancelled = true; };
     }
-  }, [selectedWorker, user]);
+  }, [selectedWorker, user, pass]);
 
   useEffect(() => {
     if (!selectedWorker) return;
     getContactAccessConfig().then(cfg => { setContactFee(cfg.fee); setContactWindowHours(cfg.windowHours); }).catch(() => {});
   }, [selectedWorker]);
 
+  useEffect(() => {
+    getTopRatedPassConfig().then(cfg => { setPassFee(cfg.fee); setPassHours(cfg.windowHours); }).catch(() => {});
+  }, []);
+
   // Load homepage data with retry logic
   const { data: jobsData = [], isLoading: jobsLoading } = useJobs({ featured: true, activeOnly: true, limit: 50 });
   const { data: servicesData = [], isLoading: servicesLoading } = useServiceAds({ featured: true, limit: 50 });
-  const { data: workersData = [], isLoading: workersLoading } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
+  const { data: workersData = [], isLoading: workersLoading, isError: workersError, refetch: refetchWorkers } = useProfiles({ limit: 4, ratings_enabled: true, role: 'jobseeker' });
   const jobsRowRef = useRef<HTMLDivElement>(null);
   const servicesRowRef = useRef<HTMLDivElement>(null);
 
@@ -405,31 +508,54 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
               {/* Contact & Certifications Section — revealed only by the server gate */}
               {hasContactAccess && workerContact ? (
                 <div className="space-y-3 mb-4 p-4 bg-green-50 rounded-xl border border-green-100">
-                  <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5"><Mail className="w-4 h-4" /> Contact Information</h4>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5"><Mail className="w-4 h-4" /> Contact Information</h4>
+                    {contactSource === 'pass' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-600 text-white text-[10px] font-semibold rounded-full">
+                        <Clock className="w-3 h-3" /> Day pass
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2 text-sm">
                     {workerContact.phone && <p className="flex items-center gap-2 text-gray-700"><Phone className="w-4 h-4 text-green-600" /> {workerContact.phone}</p>}
                     {workerContact.email && <p className="flex items-center gap-2 text-gray-700"><Mail className="w-4 h-4 text-green-600" /> {workerContact.email}</p>}
                     {workerContact.whatsapp && <a href={`https://wa.me/${workerContact.whatsapp.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"><span className="w-4 h-4 flex items-center justify-center">💬</span> Chat on WhatsApp</a>}
                     {workerContact.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {workerContact.county ? `${workerContact.county}${workerContact.subcounty ? `, ${workerContact.subcounty}` : ''} - ${workerContact.location}` : workerContact.location}</p>}
                   </div>
-                  {workerContactResumes !== undefined && workerContactResumes ? (
-                    <>
-                      <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><FileText className="w-4 h-4" /> Professional CV</h4>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{workerContactResumes}</p>
-                    </>
+                  {contactSource === 'pass' ? (
+                    <div className="pt-2 border-t border-green-200">
+                      <p className="text-xs text-gray-600 mb-2">
+                        Your day pass covers contact details only. CVs and certificates are available to signed-in members.
+                      </p>
+                      <button
+                        onClick={() => onOpenAuth('login')}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white border border-green-300 hover:border-green-500 text-green-700 text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        <Lock className="w-3.5 h-3.5" /> Sign in to see CV & certificates
+                      </button>
+                    </div>
                   ) : (
-                    <p className="text-xs text-gray-500 italic">No CV uploaded by this worker.</p>
-                  )}
-                  {workerContactCerts && workerContactCerts.length > 0 && (
                     <>
-                      <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><Award className="w-4 h-4" /> Certifications</h4>
-                      <div className="flex gap-2 flex-wrap">
-                        {workerContactCerts.map((cert: string, i: number) => (
-                          <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">
-                            📄 Certificate {i + 1}
-                          </button>
-                        ))}
-                      </div>
+                      {workerContactResumes !== undefined && workerContactResumes ? (
+                        <>
+                          <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><FileText className="w-4 h-4" /> Professional CV</h4>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{workerContactResumes}</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-500 italic">No CV uploaded by this worker.</p>
+                      )}
+                      {workerContactCerts && workerContactCerts.length > 0 && (
+                        <>
+                          <h4 className="font-semibold text-sm text-green-800 flex items-center gap-1.5 pt-2 border-t border-green-200"><Award className="w-4 h-4" /> Certifications</h4>
+                          <div className="flex gap-2 flex-wrap">
+                            {workerContactCerts.map((cert: string, i: number) => (
+                              <button key={i} type="button" onClick={() => setViewerCert(cert)} className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer">
+                                📄 Certificate {i + 1}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                   {workerAccessExpiresAt && (
@@ -445,18 +571,49 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   <p className="text-xs text-gray-500">This worker has chosen not to share their phone, email or WhatsApp.</p>
                 </div>
               ) : (
-                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
-                  <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-700 mb-1">Contact & Certifications Locked</p>
-                  <p className="text-xs text-gray-500 mb-3">Unlock this worker for KES {contactFee} for {contactWindowHours} hours, or subscribe for all contacts</p>
+                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="text-center">
+                    <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-gray-700 mb-1">Contact & Certifications Locked</p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      {passNotCovering
+                        ? 'This worker is not part of the top-rated snapshot your day pass covers.'
+                        : user
+                          ? `Unlock this worker for KES ${contactFee} for ${contactWindowHours} hours, or subscribe for all contacts`
+                          : 'Sign in to unlock this worker, or buy a day pass for contact details on every top-rated worker.'}
+                    </p>
+                  </div>
                   <div className="flex flex-col sm:flex-row gap-2 justify-center">
                     {!user ? (
-                      <button
-                        onClick={() => onOpenAuth('login')}
-                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                      >
-                        Sign In to View Profile
-                      </button>
+                      pass && passNotCovering ? (
+                        <button
+                          onClick={() => onOpenAuth('login')}
+                          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          Sign In to View Profile
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={handleBuyPass}
+                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                          >
+                            Buy day pass — KES {passFee}
+                          </button>
+                          <button
+                            onClick={() => setShowRedeemPass(true)}
+                            className="px-4 py-2 bg-white border border-gray-300 hover:border-green-600 hover:text-green-700 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+                          >
+                            I have a day pass
+                          </button>
+                          <button
+                            onClick={() => onOpenAuth('login')}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                          >
+                            Sign In
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
                         <button
@@ -483,7 +640,21 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                       </>
                     )}
                   </div>
-                  {reviewMsg === 'Please sign in first' && <p className="text-xs text-red-500 mt-2">{reviewMsg}</p>}
+                  {!user && !passNotCovering && (
+                    <p className="text-[11px] text-gray-500 text-center mt-3">
+                      The day pass covers phone, email, WhatsApp and location for every top-rated worker for {passHours} hours on up to 3 devices. CVs and certificates need an account.
+                    </p>
+                  )}
+                  {pass && (
+                    <button
+                      onClick={() => onNavigate('day-pass')}
+                      className="mt-2 mx-auto flex items-center justify-center gap-1 text-[11px] text-green-700 hover:text-green-800 font-semibold"
+                    >
+                      <Clock className="w-3 h-3" /> Day pass active until {formatPassExpiry(pass)} · Manage
+                    </button>
+                  )}
+                  {passNotice && <p className="text-[11px] text-green-700 text-center mt-1">{passNotice}</p>}
+                  {reviewMsg === 'Please sign in first' && <p className="text-xs text-red-500 mt-2 text-center">{reviewMsg}</p>}
                 </div>
               )}
 
@@ -571,12 +742,25 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
         isOpen={showTopRated}
         onClose={() => setShowTopRated(false)}
         defaultCategories={userCategories}
+        anonymousPassOffer={!user ? {
+          fee: passFee,
+          hours: passHours,
+          expiresLabel: pass ? formatPassExpiry(pass) : null,
+          onBuy: () => { setShowTopRated(false); handleBuyPass(); },
+          onRedeem: () => { setShowTopRated(false); setShowRedeemPass(true); },
+        } : null}
         onSelectWorker={(worker) => {
           setShowTopRated(false);
           setSelectedWorker(worker);
           incrementProfileViews(worker.id);
           onWorkerPopupOpen?.();
         }}
+      />
+
+      <RedeemPassModal
+        isOpen={showRedeemPass}
+        onClose={() => setShowRedeemPass(false)}
+        onRedeemed={handleRedeemPass}
       />
 
       <CertificateViewer url={viewerCert} label="Certificate" onClose={() => setViewerCert(null)} />
@@ -681,6 +865,16 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
               <button onClick={() => setShowTopRated(true)} className="mt-3 flex items-center gap-2 px-4 py-2 border border-gray-300 hover:border-green-600 hover:text-green-700 text-sm font-semibold rounded-lg transition-colors">
                 More <ArrowRight className="w-4 h-4" />
               </button>
+              {!user && (
+                <button onClick={handleBuyPass} className="mt-2 flex items-center gap-2 text-xs font-semibold text-green-700 hover:text-green-800 transition-colors">
+                  <Clock className="w-3.5 h-3.5" /> Day pass — KES {passFee} for {passHours}h
+                </button>
+              )}
+              {pass && (
+                <button onClick={() => onNavigate('day-pass')} className="mt-2 text-[11px] text-green-700 hover:text-green-800 font-semibold">
+                  Pass active until {formatPassExpiry(pass)} · Manage
+                </button>
+              )}
             </div>
             <div className="lg:col-span-3">
               {loading ? (
@@ -692,7 +886,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : workersError ? null : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {topRatedWorkers.map((worker) => {
                     const rawWorkerSkills = worker.skills as unknown;
@@ -729,6 +923,18 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                     </div>
                     );
                   })}
+                </div>
+              )}
+              {workersError && !loading && (
+                <div className="text-center py-8 bg-white rounded-xl border border-gray-100">
+                  <p className="text-sm text-gray-600 mb-1">Could not load top-rated workers.</p>
+                  <p className="text-xs text-gray-400 mb-4">Check your connection and try again.</p>
+                  <button
+                    onClick={() => refetchWorkers()}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    Try again
+                  </button>
                 </div>
               )}
             </div>
