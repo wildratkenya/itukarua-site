@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen, Share2 } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
@@ -170,6 +170,21 @@ interface Message {
   created_at: string;
 }
 
+interface SupportTicket {
+  id: string;
+  user_id: string | null;
+  email: string | null;
+  category: string;
+  priority: 'P1' | 'P2' | 'P3';
+  message: string;
+  transcript: Array<{ role?: string; text?: string }>;
+  status: 'open' | 'pending' | 'resolved';
+  assigned_to: string | null;
+  created_at: string;
+  first_response_at: string | null;
+  conversation_id: string | null;
+}
+
 /**
  * Expiry for a service ad, derived from its plan.
  *
@@ -207,6 +222,7 @@ const AdminPage: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [mpesaTest, setMpesaTest] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [customJobCats, setCustomJobCats] = useState<string[]>([]);
   const [customServiceCats, setCustomServiceCats] = useState<string[]>([]);
@@ -295,6 +311,15 @@ const AdminPage: React.FC = () => {
   const [verifyingPaymentId, setVerifyingPaymentId] = useState<string | null>(null);
   const [paymentVerifyMsg, setPaymentVerifyMsg] = useState<{type:'ok'|'err', text:string}|null>(null);
   const [searchMessages, setSearchMessages] = useState('');
+  const [searchSupportTickets, setSearchSupportTickets] = useState('');
+  const [selectedSupportTicket, setSelectedSupportTicket] = useState<SupportTicket | null>(null);
+  const [isSupportTicketModalOpen, setIsSupportTicketModalOpen] = useState(false);
+  const [supportTicketSaving, setSupportTicketSaving] = useState(false);
+  const [ticketConversation, setTicketConversation] = useState<Message[]>([]);
+  const [ticketReply, setTicketReply] = useState('');
+  const [sendingTicketReply, setSendingTicketReply] = useState(false);
+  const [newTicketAlert, setNewTicketAlert] = useState<SupportTicket | null>(null);
+  const knownTicketIds = useRef<Set<string> | null>(null);
   const [searchCategories, setSearchCategories] = useState('');
   const [searchSubscribers, setSearchSubscribers] = useState('');
   const [searchAdverts, setSearchAdverts] = useState('');
@@ -327,10 +352,83 @@ const AdminPage: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (currentRole !== 'admin' && currentRole !== 'super_admin') return;
+    let active = true;
+    const heartbeat = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && active) {
+        const { error } = await supabase.from('support_admin_presence').upsert({
+          user_id: user.id,
+          last_seen: new Date().toISOString(),
+        });
+        if (error) console.error('[admin] presence heartbeat failed', error);
+      }
+    };
+    void heartbeat();
+    const timer = setInterval(heartbeat, 30_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [currentRole]);
+
   const loadAds = async () => {
     const { data } = await supabase.from('service_ads').select('*').order('created_at', { ascending: false });
     setAds(data || []);
   };
+
+  const loadSupportTickets = async (): Promise<SupportTicket[]> => {
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[admin] failed to load support tickets', error);
+      throw error;
+    }
+    const tickets = (data || []) as SupportTicket[];
+    setSupportTickets(tickets);
+    return tickets;
+  };
+
+  useEffect(() => {
+    if (currentRole !== 'admin' && currentRole !== 'super_admin') return;
+
+    let active = true;
+    const pollTickets = async () => {
+      try {
+        const tickets = await loadSupportTickets();
+        if (!active) return;
+        const ids = new Set(tickets.map(ticket => ticket.id));
+        if (knownTicketIds.current === null) {
+          knownTicketIds.current = ids;
+          return;
+        }
+        const newest = tickets.find(ticket =>
+          !knownTicketIds.current?.has(ticket.id)
+          && new Date(ticket.created_at).getTime() > Date.now() - 2 * 60 * 1000
+        );
+        knownTicketIds.current = ids;
+        if (newest) {
+          setNewTicketAlert(newest);
+          toast({
+            title: 'New support question',
+            description: `${newest.email || 'Anonymous visitor'} needs help.`,
+          });
+        }
+      } catch (error) {
+        console.error('[admin] support ticket polling failed', error);
+      }
+    };
+
+    void pollTickets();
+    const timer = setInterval(() => { void pollTickets(); }, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [currentRole]);
 
   const loadAdverts = async () => {
     const { data } = await supabase.from('advertisements').select('*').order('sort_order');
@@ -936,6 +1034,7 @@ const AdminPage: React.FC = () => {
         loadAds(),
         loadPayments(),
         proxyRequest('/rest/v1/messages?select=*&order=created_at.desc', 'GET', undefined, { Prefer: 'return=representation' }).then(data => setMessages(Array.isArray(data) ? data : [])),
+        loadSupportTickets(),
         getNewsletterSubscribers().then(setSubscribers),
         loadAdverts(),
         loadLeads(),
@@ -2684,6 +2783,50 @@ const AdminPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      {newTicketAlert && (
+        <div className="fixed right-6 top-6 z-[70] w-[min(28rem,calc(100vw-3rem))] rounded-xl border border-green-200 bg-white p-4 shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-full bg-green-100 p-2 text-green-700">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-gray-900">New support question</p>
+                  <p className="text-xs text-gray-500">{newTicketAlert.email || 'Anonymous visitor'} · {newTicketAlert.priority}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Dismiss support notification"
+                  onClick={() => setNewTicketAlert(null)}
+                  className="text-gray-400 hover:text-gray-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mt-2 line-clamp-3 text-sm text-gray-700">{newTicketAlert.message}</p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => {
+                  const ticket = newTicketAlert;
+                  setNewTicketAlert(null);
+                  setActiveTab('support-tickets');
+                  setSelectedSupportTicket(ticket);
+                  setTicketReply('');
+                  setTicketConversation([]);
+                  setIsSupportTicketModalOpen(true);
+                  if (ticket.conversation_id) {
+                    getChatConversation(ticket.conversation_id).then(setTicketConversation);
+                  }
+                }}
+              >
+                Open live chat
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
 
@@ -2702,6 +2845,7 @@ const AdminPage: React.FC = () => {
                 { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
                 { id: 'billing', label: 'Billing', icon: <Receipt className="w-4 h-4" /> },
                 { id: 'messages', label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
+                { id: 'support-tickets', label: 'Support Tickets', icon: <Inbox className="w-4 h-4" /> },
                 { id: 'categories', label: 'Categories', icon: <Tags className="w-4 h-4" /> },
                 { id: 'subscribers', label: 'Subscribers', icon: <Mail className="w-4 h-4" /> },
                 { id: 'email', label: 'Email Providers', icon: <Send className="w-4 h-4" /> },
@@ -3741,6 +3885,242 @@ const AdminPage: React.FC = () => {
                           setIsMessageModalOpen(false);
                         }}>Mark as Read</Button>
                       </div>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+          </>)}
+
+          {activeTab === 'support-tickets' && (<>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Support Tickets ({supportTickets.length})</CardTitle>
+                <Button variant="outline" size="sm" onClick={loadSupportTickets}>Refresh</Button>
+              </CardHeader>
+              <CardContent>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchSupportTickets}
+                    onChange={e => setSearchSupportTickets(e.target.value)}
+                    placeholder="Search by ticket ID, email, category or message..."
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Ticket</TableHead>
+                        <TableHead>Issue</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Assigned to</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {supportTickets
+                        .filter(ticket => {
+                          const query = searchSupportTickets.trim().toLowerCase();
+                          return !query || [ticket.id, ticket.email, ticket.category, ticket.message].some(value => value?.toLowerCase().includes(query));
+                        })
+                        .map(ticket => {
+                          const assignee = users.find(user => user.id === ticket.assigned_to);
+                          return (
+                            <TableRow key={ticket.id}>
+                              <TableCell>
+                                <span className="font-mono text-xs">{ticket.id.slice(0, 8)}</span>
+                                <p className="text-xs text-gray-500">{ticket.email || 'Anonymous visitor'}</p>
+                              </TableCell>
+                              <TableCell>
+                                <p className="font-medium">{ticket.category}</p>
+                                <p className="max-w-xs truncate text-xs text-gray-500">{ticket.message}</p>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={ticket.priority === 'P1' ? 'destructive' : ticket.priority === 'P2' ? 'default' : 'secondary'}>
+                                  {ticket.priority}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={ticket.status === 'resolved' ? 'secondary' : ticket.status === 'open' ? 'destructive' : 'outline'}>
+                                  {ticket.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm">{assignee?.full_name || assignee?.email || 'Unassigned'}</TableCell>
+                              <TableCell className="whitespace-nowrap text-sm">{new Date(ticket.created_at).toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                  setSelectedSupportTicket(ticket);
+                                  setTicketReply('');
+                                  setTicketConversation([]);
+                                  setIsSupportTicketModalOpen(true);
+                                  if (ticket.conversation_id) {
+                                    getChatConversation(ticket.conversation_id).then(setTicketConversation);
+                                  }
+                                }}>
+                                  View
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                  {supportTickets.length === 0 && <p className="py-8 text-center text-sm text-gray-500">No support tickets found.</p>}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Dialog open={isSupportTicketModalOpen} onOpenChange={setIsSupportTicketModalOpen}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Support Ticket Details</DialogTitle>
+                </DialogHeader>
+                {selectedSupportTicket && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><span className="text-gray-500">Ticket:</span> <span className="font-mono">{selectedSupportTicket.id}</span></div>
+                      <div><span className="text-gray-500">Created:</span> {new Date(selectedSupportTicket.created_at).toLocaleString()}</div>
+                      <div><span className="text-gray-500">Email:</span> {selectedSupportTicket.email || 'Anonymous visitor'}</div>
+                      <div><span className="text-gray-500">Category:</span> {selectedSupportTicket.category}</div>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-4">
+                      <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Customer message</p>
+                      <p className="whitespace-pre-wrap text-sm text-gray-800">{selectedSupportTicket.message}</p>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-gray-700">Live conversation</p>
+                      {ticketConversation.length > 0 && (
+                        <div className="mb-3 max-h-48 space-y-2 overflow-y-auto rounded-lg bg-gray-50 p-3">
+                          {ticketConversation.map((entry, index) => (
+                            <div key={entry.id || index} className={`flex ${entry.role === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${entry.role === 'admin' ? 'bg-green-600 text-white' : 'bg-white border border-gray-200'}`}>
+                                <div className="mb-0.5 text-[10px] opacity-70">{entry.role === 'admin' ? 'You' : entry.sender_name}</div>
+                                {entry.message}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedSupportTicket.conversation_id ? (
+                        <div className="space-y-2">
+                          <Textarea value={ticketReply} onChange={event => setTicketReply(event.target.value)} placeholder="Reply to the customer in the live chat..." rows={3} />
+                          <Button
+                            disabled={!ticketReply.trim() || sendingTicketReply}
+                            onClick={async () => {
+                              if (!selectedSupportTicket.conversation_id || !ticketReply.trim()) return;
+                              setSendingTicketReply(true);
+                              try {
+                                const { data: { user } } = await supabase.auth.getUser();
+                                await createChatMessage({
+                                  conversation_id: selectedSupportTicket.conversation_id,
+                                  sender_name: 'Itukarua Support',
+                                  sender_email: user?.email || 'admin@itukarua.co.ke',
+                                  message: ticketReply.trim(),
+                                  role: 'admin',
+                                });
+                                setTicketReply('');
+                                setTicketConversation(await getChatConversation(selectedSupportTicket.conversation_id));
+                                setSelectedSupportTicket({ ...selectedSupportTicket, status: 'pending', first_response_at: selectedSupportTicket.first_response_at || new Date().toISOString() });
+                                toast({ title: 'Reply sent' });
+                              } catch (error: any) {
+                                console.error('[admin] failed to reply to support ticket', error);
+                                toast({ title: 'Could not send reply', description: error?.message || 'Please try again.', variant: 'destructive' });
+                              } finally {
+                                setSendingTicketReply(false);
+                              }
+                            }}
+                          >
+                            {sendingTicketReply ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Send Reply
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">This ticket has no live-chat conversation. Reply through the customer email or Contact workflow.</p>
+                      )}
+                    </div>
+                    {selectedSupportTicket.transcript?.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-semibold text-gray-700">Conversation context</p>
+                        <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg bg-gray-50 p-3">
+                          {selectedSupportTicket.transcript.map((entry, index) => (
+                            <div key={index} className="text-sm">
+                              <span className="font-semibold capitalize">{entry.role || 'message'}:</span> {entry.text || ''}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label>Status</Label>
+                        <Select
+                          value={selectedSupportTicket.status}
+                          onValueChange={value => setSelectedSupportTicket({ ...selectedSupportTicket, status: value as SupportTicket['status'] })}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="open">Open</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="resolved">Resolved</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Assigned to</Label>
+                        <Select
+                          value={selectedSupportTicket.assigned_to || 'unassigned'}
+                          onValueChange={value => setSelectedSupportTicket({ ...selectedSupportTicket, assigned_to: value === 'unassigned' ? null : value })}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {users.filter(user => user.role === 'admin' || user.role === 'super_admin').map(user => (
+                              <SelectItem key={user.id} value={user.id}>{user.full_name || user.email || user.id}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 border-t pt-4">
+                      <Button variant="outline" onClick={() => setIsSupportTicketModalOpen(false)}>Cancel</Button>
+                      <Button
+                        disabled={supportTicketSaving}
+                        onClick={async () => {
+                          setSupportTicketSaving(true);
+                          try {
+                            const { data, error } = await supabase
+                              .from('support_tickets')
+                              .update({
+                                status: selectedSupportTicket.status,
+                                assigned_to: selectedSupportTicket.assigned_to,
+                                first_response_at: selectedSupportTicket.status === 'open'
+                                  ? selectedSupportTicket.first_response_at
+                                  : selectedSupportTicket.first_response_at || new Date().toISOString(),
+                              })
+                              .eq('id', selectedSupportTicket.id)
+                              .select()
+                              .single();
+                            if (error) throw error;
+                            const updated = data as SupportTicket;
+                            setSupportTickets(prev => prev.map(ticket => ticket.id === updated.id ? updated : ticket));
+                            setSelectedSupportTicket(updated);
+                            toast({ title: 'Ticket updated' });
+                          } catch (error: any) {
+                            console.error('[admin] failed to update support ticket', error);
+                            toast({ title: 'Could not update ticket', description: error?.message || 'Please try again.', variant: 'destructive' });
+                          } finally {
+                            setSupportTicketSaving(false);
+                          }
+                        }}
+                      >
+                        {supportTicketSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Save Changes
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -5471,9 +5851,3 @@ const NewsletterSection: React.FC<NewsletterSectionProps> = ({ title, icon, item
 };
 
 export default AdminPage;
-
-
-
-
-
-

@@ -10,7 +10,7 @@ import TopRatedWorkersModal from './TopRatedWorkersModal';
 import RedeemPassModal from './RedeemPassModal';
 import CertificateViewer from './CertificateViewer';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { isPremiumOrFeatured } from '@/lib/utils';
+import { isPremiumOrFeatured, compareByPositiveReviews } from '@/lib/utils';
 
 import { useJobs, useServiceAds, useProfiles } from '@/hooks/useQueries';
 import { getPlatformStats, createProfileReview, getProfileReviews, getProfileContact, getContactAccessConfig, getTopRatedPassConfig, getTopRatedPassContact, incrementProfileViews, setProfileVote, clearProfileVote, getMyProfileVote, getSocialLinks, SOCIAL_PLATFORMS, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, TOP_RATED_PASS_FEE_DEFAULT, TOP_RATED_PASS_HOURS_DEFAULT, type PlatformStats, type ProfileContactResult, type SocialLinks } from '@/lib/database';
@@ -406,16 +406,11 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
   const jobsOverflow = useRowOverflow(jobsRowRef, jobsWithImage.length);
   const servicesOverflow = useRowOverflow(servicesRowRef, servicesWithImage.length);
 
-  // Sort top-rated workers: rating desc, then thumbs-up desc, then reviews desc
+  // Top rated = most positive reviews first (see positiveReviewScore), so a
+  // single perfect score or thumbs-up clicks cannot outrank review volume.
   const topRatedWorkers = useMemo(() => {
     const list = [...workersData];
-    list.sort((a, b) => {
-      const r = (Number(b.rating) || 0) - (Number(a.rating) || 0);
-      if (r !== 0) return r;
-      const l = (Number(b.likes_count) || 0) - (Number(a.likes_count) || 0);
-      if (l !== 0) return l;
-      return (Number(b.reviews_count) || 0) - (Number(a.reviews_count) || 0);
-    });
+    list.sort(compareByPositiveReviews);
     return list;
   }, [workersData]);
 

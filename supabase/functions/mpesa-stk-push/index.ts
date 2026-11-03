@@ -299,8 +299,8 @@ Deno.serve(async (req) => {
           .or('suspended.is.null,suspended.eq.false')
           .is('deleted_at', null)
           .order('rating', { ascending: false, nullsFirst: false })
-          .order('likes_count', { ascending: false, nullsFirst: false })
           .order('reviews_count', { ascending: false, nullsFirst: false })
+          .order('likes_count', { ascending: false, nullsFirst: false })
           .limit(100)
 
         if (topErr) {

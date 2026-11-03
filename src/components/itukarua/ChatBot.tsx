@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, Loader2, ExternalLink, ChevronRight } from 'lucide-react';
 import { createChatMessage, submitChatTranscript, getChatConversation, getConversationId } from '@/lib/database';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl } from '@/lib/supabase';
 
 interface ChatMessage {
   role: 'bot' | 'user' | 'admin';
@@ -10,12 +10,12 @@ interface ChatMessage {
 }
 
 const FAQS = [
-  { id: 'post-job', label: 'How to Post a Job', answer: 'Click "Post a Job" in the menu. Fill in the job details, set your budget, and submit. Employers can post jobs for free.' },
-  { id: 'register', label: 'How to Register', answer: 'Click "Register" and choose your role (Advertiser, Employer, or Jobseeker). Registration is free — jobseekers can upgrade to Premium (KES 100/mo) for unlimited bids.' },
-  { id: 'payments', label: 'Payments & M-Pesa', answer: 'We use M-Pesa. Go to the Pricing page, click Pay, and follow the instructions. You will receive an STK push prompt on your phone to enter your M-Pesa PIN.' },
-  { id: 'bid', label: 'How to Bid', answer: 'Browse jobs and click "Bid on This Job". Enter your price and proposal. The employer will review your bid.' },
-  { id: 'subscription', label: 'Subscription Plans', answer: 'Jobseeker membership is FREE. Premium Membership is KES 100/mo — a 30-day subscription. You can renew from your Dashboard.' },
-  { id: 'contact', label: 'Contact Support', answer: 'You can reach us at info@itukarua.co.ke or call +254 721 219 359.' },
+  { id: 'post-job', label: 'How do I post a job?' },
+  { id: 'payments', label: 'My M-Pesa payment is missing' },
+  { id: 'bid', label: 'What is the bid limit?' },
+  { id: 'subscription', label: 'What does Premium include?' },
+  { id: 'contact', label: 'I need human support' },
+  { id: 'safety', label: 'Report a scam or abuse' },
 ];
 
 const WHATSAPP_URL = 'https://wa.me/254721219359';
@@ -28,7 +28,6 @@ const ChatBot: React.FC = () => {
   const [mode, setMode] = useState<'faq' | 'agent'>('faq');
   const [input, setInput] = useState('');
   const [faqRounds, setFaqRounds] = useState(0);
-  const [lastFaqId, setLastFaqId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
@@ -38,6 +37,7 @@ const ChatBot: React.FC = () => {
   const [showFaqButtons, setShowFaqButtons] = useState(true);
   const [showHelpfulButtons, setShowHelpfulButtons] = useState(false);
   const [showAgentButton, setShowAgentButton] = useState(false);
+  const [adminOnline, setAdminOnline] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
@@ -72,7 +72,9 @@ const ChatBot: React.FC = () => {
             }
             return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
           });
-        } catch {}
+        } catch (error) {
+          console.error('[support-chat] failed to load agent messages', error);
+        }
       }, 3000);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -95,22 +97,50 @@ const ChatBot: React.FC = () => {
         sender_email: userEmail || 'chat@itukarua.co.ke',
         message: transcript || 'No messages',
       });
-    } catch {}
+    } catch (error) {
+      console.error('[support-chat] failed to save transcript', error);
+    }
   }, [transcriptSaved, messages, conversationId, userName, userEmail]);
+
+  const askSupport = async (text: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const history = messages.slice(-10).map(message => ({ role: message.role, text: message.text }));
+    const response = await fetch(`${supabaseUrl}/functions/v1/support-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ message: text, history, conversationId }),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || 'Support request failed');
+    setAdminOnline(Boolean(result?.adminOnline));
+    return result as { type: 'answer' | 'escalated'; text: string; adminOnline?: boolean };
+  };
 
   const handleFaqClick = async (faq: typeof FAQS[0]) => {
     setShowFaqButtons(false);
     setShowHelpfulButtons(false);
     setShowAgentButton(false);
-    setLastFaqId(faq.id);
 
     const userMsg: ChatMessage = { role: 'user', text: faq.label };
     setMessages(prev => [...prev, userMsg]);
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'bot', text: faq.answer }]);
-      setShowHelpfulButtons(true);
-    }, 400);
+    setSending(true);
+    try {
+      const result = await askSupport(faq.label);
+      setMessages(prev => [...prev, { role: 'bot', text: result.text }]);
+      if (result.type === 'escalated') {
+        if (result.adminOnline) await switchToAgent(true);
+        else setShowAgentButton(true);
+      } else setShowHelpfulButtons(true);
+    } catch (error) {
+      console.error('[support-chat] failed', error);
+      setMessages(prev => [...prev, { role: 'bot', text: 'I could not reach support right now. Please try again or use the Contact page.' }]);
+      setShowAgentButton(true);
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleHelpful = (yes: boolean) => {
@@ -129,13 +159,15 @@ const ChatBot: React.FC = () => {
     }
   };
 
-  const switchToAgent = async () => {
+  const switchToAgent = async (live = adminOnline) => {
     setShowHelpfulButtons(false);
     setShowFaqButtons(false);
     setShowAgentButton(false);
     await saveTranscript();
     setMode('agent');
-    setMessages(prev => [...prev, { role: 'bot', text: 'You\'re now chatting with our support team. You can also reach us on WhatsApp for faster replies.' }]);
+    setMessages(prev => [...prev, { role: 'bot', text: live
+      ? 'You\'re now in the live support queue. An available admin can reply here.'
+      : 'Your message is now a support ticket. An admin will reply here when available; you can also use WhatsApp for faster replies.' }]);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -147,15 +179,26 @@ const ChatBot: React.FC = () => {
     const tempId = crypto.randomUUID();
     setMessages(prev => [...prev, { role: 'user', text, id: tempId }]);
     try {
-      await createChatMessage({
-        conversation_id: conversationId,
-        sender_name: userName || 'Chat User',
-        sender_email: userEmail || 'chat@itukarua.co.ke',
-        message: text,
-        role: 'user',
-      });
-    } catch {
+      if (mode === 'faq') {
+        const result = await askSupport(text);
+        setMessages(prev => [...prev, { role: 'bot', text: result.text }]);
+        if (result.type === 'escalated') {
+          if (result.adminOnline) await switchToAgent(true);
+          else setShowAgentButton(true);
+        } else setShowHelpfulButtons(true);
+      } else {
+        await createChatMessage({
+          conversation_id: conversationId,
+          sender_name: userName || 'Chat User',
+          sender_email: userEmail || 'chat@itukarua.co.ke',
+          message: text,
+          role: 'user',
+        });
+      }
+    } catch (error) {
+      console.error('[support-chat] failed', error);
       setMessages(prev => prev.filter(m => m.id !== tempId));
+      setMessages(prev => [...prev, { role: 'bot', text: 'I could not send that right now. Please try again or use the Contact page.' }]);
     } finally {
       setSending(false);
     }
@@ -182,7 +225,9 @@ const ChatBot: React.FC = () => {
               </div>
               <div>
                 <div className="font-semibold text-white text-sm">Itukarua Support</div>
-                <div className="text-[10px] text-green-100">{mode === 'agent' ? 'Online' : 'Typically replies instantly'}</div>
+                <div className="text-[10px] text-green-100">
+                  {mode === 'agent' ? (adminOnline ? 'Admin online' : 'Ticket support') : adminOnline ? 'Admin online' : 'Typically replies instantly'}
+                </div>
               </div>
             </div>
             <button onClick={handleClose} className="p-1 hover:bg-white/20 rounded-full transition-colors"><X className="w-4 h-4 text-white" /></button>
@@ -238,7 +283,7 @@ const ChatBot: React.FC = () => {
               <div className="flex justify-start">
                 <div className="bg-white rounded-lg rounded-bl-sm shadow-sm p-3 max-w-[85%]">
                   <div className="text-xs text-gray-700 mb-2">Need more help?</div>
-                  <button onClick={switchToAgent} className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                  <button onClick={() => switchToAgent()} className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">
                     <span>Talk with an Agent</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -271,22 +316,27 @@ const ChatBot: React.FC = () => {
             <div ref={endRef} />
           </div>
 
-          {mode === 'agent' && (
-            <div className="p-3 border-t border-gray-200 bg-white flex-shrink-0">
-              <div className="flex gap-2">
+          <form
+            className="p-3 border-t border-gray-200 bg-white flex-shrink-0"
+            onSubmit={event => {
+              event.preventDefault();
+              void handleSendMessage();
+            }}
+          >
+              <div className="flex gap-2 items-center">
                 <input
                   ref={inputRef}
                   type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Type your message..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-full text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  placeholder={mode === 'agent' ? 'Reply to support...' : 'Ask a support question...'}
+                  aria-label="Type your support message"
+                  className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-full text-sm focus:ring-2 focus:ring-green-500 outline-none"
                 />
-                <button onClick={handleSendMessage} disabled={sending || !input.trim()} className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors disabled:opacity-50 flex-shrink-0"><Send className="w-4 h-4" /></button>
+                <button type="submit" disabled={sending || !input.trim()} aria-label="Send support message" className="p-2.5 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors disabled:opacity-50 flex-shrink-0"><Send className="w-4 h-4" /></button>
               </div>
-            </div>
-          )}
+            </form>
         </div>
       )}
     </>

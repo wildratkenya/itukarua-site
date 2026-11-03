@@ -3,7 +3,7 @@ import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, S
 import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
-import { isPremiumOrFeatured } from '@/lib/utils';
+import { isPremiumOrFeatured, compareByPositiveReviews } from '@/lib/utils';
 import CertificateViewer from './CertificateViewer';
 import type { MpesaHandler } from '@/lib/mpesa';
 
@@ -156,7 +156,10 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
         limit: 30,
       });
       console.log('[WorkerSearch] getProfiles returned', results?.length, 'results');
-      setWorkers(results || []);
+      // Best-reviewed workers head the list within whatever filter is active.
+      // Unrated workers keep the server's premium-first order (stable sort).
+      const sorted = [...(results || [])].sort(compareByPositiveReviews);
+      setWorkers(sorted);
     } catch (err) {
       console.error('[WorkerSearch] Error fetching workers:', err);
       setWorkers([]);

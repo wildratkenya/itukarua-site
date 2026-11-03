@@ -1,5 +1,6 @@
 ﻿import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
 import { getDeviceId } from './deviceId';
+import { compareByPositiveReviews } from './utils';
 import { isCorporateOnlySlot, type SavedCorporateFeatures } from '@/data/siteData';
 
 /** Escape `%`, `_`, and `\` for PostgREST `ilike` patterns. */
@@ -2080,18 +2081,19 @@ export async function getProfileRanking(profileId: string): Promise<{ rank: numb
   // not in the consent-filtered public listing.
   const { data, error } = await supabase
     .from('public_worker_directory')
-    .select('id, rating, reviews_count')
-    .eq('role', 'jobseeker')
-    .order('rating', { ascending: false, nullsFirst: false })
-    .order('reviews_count', { ascending: false, nullsFirst: false });
+    .select('id, rating, reviews_count, likes_count')
+    .eq('role', 'jobseeker');
   if (error || !data) { console.error('[getProfileRanking]', error); return null; }
-  const idx = data.findIndex(p => p.id === profileId);
+  // Same ordering the public top-rated list uses, so the rank a worker sees
+  // matches their position on the site.
+  const sorted = [...data].sort(compareByPositiveReviews);
+  const idx = sorted.findIndex(p => p.id === profileId);
   if (idx === -1) return null;
   return {
     rank: idx + 1,
-    total: data.length,
-    reviews_count: data[idx].reviews_count || 0,
-    rating: data[idx].rating || 0,
+    total: sorted.length,
+    reviews_count: sorted[idx].reviews_count || 0,
+    rating: sorted[idx].rating || 0,
   };
 }
 

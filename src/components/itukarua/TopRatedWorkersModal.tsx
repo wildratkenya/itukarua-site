@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, Clock, KeyRound, Search, X, Star, Loader2, Shield, Zap, ThumbsUp, ThumbsDown, Users } from 'lucide-react';
 import { getProfiles, getCustomCategories } from '@/lib/database';
 import { optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { isPremiumOrFeatured } from '@/lib/utils';
+import { isPremiumOrFeatured, compareByPositiveReviews } from '@/lib/utils';
 
 interface TopRatedWorkersModalProps {
   isOpen: boolean;
@@ -59,13 +59,9 @@ const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onC
 
   const sorted = React.useMemo(() => {
     const list = [...workers];
-    list.sort((a, b) => {
-      const r = (Number(b.rating) || 0) - (Number(a.rating) || 0);
-      if (r !== 0) return r;
-      const l = (Number(b.likes_count) || 0) - (Number(a.likes_count) || 0);
-      if (l !== 0) return l;
-      return (Number(b.reviews_count) || 0) - (Number(a.reviews_count) || 0);
-    });
+    // Best-reviewed first, so the workers with the most positive reviews head
+    // the list; unrated workers keep the server's premium-first order.
+    list.sort(compareByPositiveReviews);
     return list;
   }, [workers]);
 
@@ -83,7 +79,7 @@ const TopRatedWorkersModal: React.FC<TopRatedWorkersModalProps> = ({ isOpen, onC
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Top Rated Workers</h2>
-            <p className="text-xs text-gray-500">Highest rated, then most thumbs up</p>
+            <p className="text-xs text-gray-500">Ranked by positive reviews</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
         </div>

@@ -204,12 +204,14 @@ const notifRef = useRef<HTMLDivElement>(null);
           setDbJobCategories(dbCats);
           const cats = (userData?.data?.user?.user_metadata?.selected_categories as string[]) || [];
           setSelectedCategories(cats);
+          const allOpenJobs = await getJobs(cats.length > 0 ? { activeOnly: true } : { activeOnly: true, limit: 10 });
           if (cats.length > 0) {
-            const allOpenJobs = await getJobs({ activeOnly: true });
+            // Chosen categories first, then other open jobs so the panel never
+            // goes empty just because nothing matched today.
             const matched = allOpenJobs.filter(j => cats.includes(j.category));
-            setMatchingJobs(matched);
+            const others = allOpenJobs.filter(j => !cats.includes(j.category));
+            setMatchingJobs([...matched, ...others]);
           } else {
-            const allOpenJobs = await getJobs({ activeOnly: true, limit: 10 });
             setMatchingJobs(allOpenJobs);
           }
         } else if (isAdvertiser || isEmployer) {
@@ -906,7 +908,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             <h3 className="font-semibold text-gray-900">Jobs in Your Interests</h3>
                             <p className="text-xs text-gray-500 mt-0.5">
                               {selectedCategories.length > 0
-                                ? `Showing jobs in ${selectedCategories.length} categor${selectedCategories.length === 1 ? 'y' : 'ies'} you selected`
+                                ? 'Jobs in the categories you chose are shown first, then other open jobs'
                                 : 'Browse open jobs matching your skills'}
                             </p>
                           </div>
@@ -916,7 +918,12 @@ const notifRef = useRef<HTMLDivElement>(null);
                           {matchingJobs.slice(0, 8).map(job => (
                             <div key={job.id} onClick={() => onViewJob(job.id)} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border border-gray-50">
                               <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-medium text-gray-900 truncate">{job.title}</h4>
+                                <h4 className="text-sm font-medium text-gray-900 truncate flex items-center gap-1.5">
+                                  <span className="truncate">{job.title}</span>
+                                  {selectedCategories.includes(job.category) && (
+                                    <span className="flex-shrink-0 px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[9px] font-semibold uppercase tracking-wide">Suggested</span>
+                                  )}
+                                </h4>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                                   <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>
                                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(job.created_at).toLocaleDateString()}</span>
