@@ -956,10 +956,7 @@ export async function submitChatTranscript(msg: {
 
 export async function getChatConversation(conversationId: string): Promise<DbMessage[]> {
   const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+    .rpc('read_chat_conversation', { p_conversation_id: conversationId });
   if (error) { console.error('getChatConversation error:', error); return []; }
   return data || [];
 }
