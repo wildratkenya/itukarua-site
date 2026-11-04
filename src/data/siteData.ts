@@ -296,7 +296,7 @@ export const CORPORATE_TIER_FEATURES: Record<string, {
     multiImages: true,
   },
   custom: {
-    slots: ['sitewide_strip', 'category_strip', 'homepage_banner', 'job_listings_top'],
+    slots: ['sitewide_strip', 'category_strip', 'homepage_banner'],
     maxPlacements: 99,
     analyticsDepth: 'full',
     teamSeats: 20,

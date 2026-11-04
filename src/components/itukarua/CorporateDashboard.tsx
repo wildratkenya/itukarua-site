@@ -145,6 +145,14 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   const handleCreateAd = async (files: File[]) => {
     if (!account || !createForm.slot) return;
     if (!requirePayment()) return;
+    if (!tierFeatures.slots.includes(createForm.slot)) {
+      toast({ title: 'Slot not included', description: 'This placement slot is not included in your corporate plan.' });
+      return;
+    }
+    if (ads.length >= tierFeatures.maxPlacements) {
+      toast({ title: 'Placement limit reached', description: `Your plan allows up to ${tierFeatures.maxPlacements} concurrent placements.` });
+      return;
+    }
     setCreatingAd(true);
     try {
       const imageUrls = files.length > 0 ? await uploadImages(files) : [];

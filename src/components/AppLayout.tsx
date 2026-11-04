@@ -773,8 +773,13 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         </div>
       )}
 
-      {['home', 'jobs', 'services', 'contact', 'job-detail', 'service-detail'].includes(currentPage) && (
-        <SitewideAnchorStrip page={currentPage} />
+      {!['admin', 'corporate'].includes(currentPage) && (
+        <>
+          <SitewideAnchorStrip />
+          {['jobs', 'services', 'job-detail', 'service-detail'].includes(currentPage) && (
+            <SitewideAnchorStrip slot="category_strip" />
+          )}
+        </>
       )}
 
       <main className="flex-1">

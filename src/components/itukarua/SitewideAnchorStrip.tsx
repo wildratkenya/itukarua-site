@@ -5,16 +5,8 @@ import { incrementAdClick } from '@/lib/database';
 import { proxyImageUrl } from '@/lib/supabase';
 
 interface SitewideAnchorStripProps {
-  page: string;
+  slot?: 'sitewide_strip' | 'category_strip';
 }
-
-const SLOT_BY_PAGE: Record<string, string> = {
-  home: 'sitewide_strip',
-  jobs: 'category_strip',
-  services: 'category_strip',
-  'job-detail': 'category_strip',
-  'service-detail': 'category_strip',
-};
 
 const TIER_DURATION_MS: Record<string, number> = {
   gold: 7000,
@@ -23,14 +15,12 @@ const TIER_DURATION_MS: Record<string, number> = {
   bronze: 3000,
 };
 
-const SitewideAnchorStrip: React.FC<SitewideAnchorStripProps> = ({ page }) => {
+const SitewideAnchorStrip: React.FC<SitewideAnchorStripProps> = ({ slot = 'sitewide_strip' }) => {
   const [ads, setAds] = useState<any[]>([]);
   const [index, setIndex] = useState(0);
   const [faded, setFaded] = useState(false);
   const [hover, setHover] = useState(false);
   const logged = useRef<Set<string>>(new Set());
-  const slot = SLOT_BY_PAGE[page] || 'sitewide_strip';
-
   useEffect(() => {
     let cancelled = false;
     getAdsForDelivery(slot, undefined, undefined, 10)
