@@ -596,7 +596,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-gray-400">
-                  Don't see a preset that fits? Pick exactly the features you need and we'll quote you.
+                  Don't see a preset that fits? Pick exactly the features and quantities you need.
                 </p>
                 <button
                   onClick={() => { sessionStorage.setItem('advertise_package', 'custom'); onNavigate('advertise'); }}
@@ -606,7 +606,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </button>
               </div>
             <p className="text-xs text-gray-400 mt-6">
-              Phase 1 guiding rates: Bronze from KES 3,000/mo · Silver from KES 6,000/mo · Gold from KES 10,000/mo · Custom from KES 12,000/mo. Ad design & copywriting included.
+              Phase 1 guiding rates: Bronze from KES 3,000/mo · Silver from KES 6,000/mo · Gold from KES 10,000/mo · Custom is calculated from your selected features and quantities. Ad design &amp; copywriting included.
             </p>
           </div>
         </div>

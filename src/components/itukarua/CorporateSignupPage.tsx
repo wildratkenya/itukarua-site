@@ -548,15 +548,6 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
                 </ul>
               </button>
             ))}
-            <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
-              <p className="text-xs text-gray-600">
-                <span className="font-semibold text-gray-900">Need something custom?</span> County-wide scope, event-timed
-                campaigns or extra placements — our team can build a bespoke bundle.
-              </p>
-              <button onClick={() => onNavigate('advertise')} className="mt-2 text-xs font-semibold text-amber-700 hover:underline">
-                Request a custom quote →
-              </button>
-            </div>
           </div>
 
           {/* Details form */}
