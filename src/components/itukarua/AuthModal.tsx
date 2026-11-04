@@ -50,9 +50,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [subscribeToNewsletter, setSubscribeToNewsletter] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  // Kenya DPA treats under-18s as needing guardian consent, which this platform
-  // does not collect, so adults only.
-  const [ageAttested, setAgeAttested] = useState(false);
   // Jobseeker consent to have their contact details shown to paid employers.
   // On by default (unchecked still means no), revoked at any time in settings.
   const [allowContactDisplay, setAllowContactDisplay] = useState(true);
@@ -108,7 +105,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     if (tab === 'signup' && (role === 'jobseeker' || role === 'employer') && selectedCategories.length === 0) errs.categories = 'Select at least one category of interest';
     if (tab === 'signup' && !termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
     if (tab === 'signup' && !privacyAccepted) errs.privacy = 'You must accept the Privacy Policy';
-    if (tab === 'signup' && !ageAttested) errs.age = 'You must confirm that you are 18 or older';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -889,20 +885,6 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
                 </label>
               </div>
               {errors.privacy && <p className="text-red-500 text-xs mb-1 ml-6">{errors.privacy}</p>}
-
-              <div className="flex items-start gap-2 mb-2">
-                <input
-                  type="checkbox"
-                  id="age"
-                  checked={ageAttested}
-                  onChange={e => setAgeAttested(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <label htmlFor="age" className="text-xs text-gray-600">
-                  I confirm that I am <strong>18 years or older</strong>
-                </label>
-              </div>
-              {errors.age && <p className="text-red-500 text-xs mb-2 ml-6">{errors.age}</p>}
 
               {tab === 'signup' && role === 'jobseeker' && (
                 <div className="flex items-start gap-2 mb-2 ml-6">

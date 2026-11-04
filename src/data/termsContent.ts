@@ -1,14 +1,14 @@
 export const TERMS_AND_CONDITIONS = `
-ITUKARUA TERMS AND CONDITIONS
+ITUKARUA KENYA TERMS AND CONDITIONS
 
 Last updated: 30 October 2026 — version 2.0
 
 1. WHO WE ARE
-1.1. Itukarua ("we", "us") operates the website and marketplace at itukarua.co.ke, based in Kikuyu Town, Kiambu County, Kenya. You can reach us at info@itukarua.co.ke or +254 721 219 359.
-1.2. These Terms form a binding agreement between you and Itukarua. By creating an account or using the Platform you accept them. If you do not agree, do not use the Platform.
+1.1. ITUKARUA KENYA ("we", "us") operates the website and marketplace at itukarua.co.ke, based in Kikuyu Town, Kiambu County, Kenya. You can reach us at info@itukarua.co.ke or +254 721 219 359.
+1.2. These Terms form a binding agreement between you and ITUKARUA KENYA. By creating an account or using the Platform you accept them. If you do not agree, do not use the Platform.
 
 2. WHAT THE PLATFORM DOES
-2.1. Itukarua is a noticeboard and marketplace. We let jobseekers, employers and service providers publish listings, find each other, and pay for optional features.
+2.1. ITUKARUA KENYA is a noticeboard and marketplace. We let jobseekers, employers and service providers publish listings, find each other, and pay for optional features.
 2.2. We are not a recruitment agency, an employer, or a party to any agreement between users. Hiring, payment and performance of work happen directly between users, and we do not guarantee the conduct, solvency or honesty of any user.
 2.3. We may remove listings that breach these Terms, the law, or our content rules, and we may suspend accounts that repeatedly breach them.
 
@@ -34,7 +34,7 @@ Last updated: 30 October 2026 — version 2.0
 
 6. YOUR CONTENT
 6.1. You keep ownership of the text, images and documents you upload.
-6.2. You grant Itukarua a worldwide, non-exclusive, royalty-free licence to host, display, resize and distribute that content for the purpose of operating the Platform.
+6.2. You grant ITUKARUA KENYA a worldwide, non-exclusive, royalty-free licence to host, display, resize and distribute that content for the purpose of operating the Platform.
 6.3. You confirm you have the right to publish everything you upload, including photographs of other people.
 6.4. We may remove content that breaches these Terms, and we keep a record of moderation decisions for as long as needed to handle appeals and legal claims.
 
@@ -50,7 +50,7 @@ Last updated: 30 October 2026 — version 2.0
 8.4. Nothing in these Terms limits liability for fraud, death or personal injury caused by negligence, or any liability that Kenyan law does not allow to be excluded.
 
 9. INDEMNITY
-9.1. You agree to indemnify Itukarua against claims, losses and reasonable legal costs arising from content you publish, your breach of these Terms, or your violation of another person's rights.
+9.1. You agree to indemnify ITUKARUA KENYA against claims, losses and reasonable legal costs arising from content you publish, your breach of these Terms, or your violation of another person's rights.
 
 10. SUSPENSION AND TERMINATION
 10.1. You may stop using the Platform and delete your account at any time from Dashboard → Settings → Privacy & Data.
@@ -68,12 +68,12 @@ Last updated: 30 October 2026 — version 2.0
 `.trim();
 
 export const PRIVACY_POLICY = `
-ITUKARUA PRIVACY POLICY
+ITUKARUA KENYA PRIVACY POLICY
 
 Last updated: 30 October 2026 — version 2.0
 
 1. WHO IS RESPONSIBLE FOR YOUR DATA
-1.1. Itukarua, Kikuyu Town, Kiambu County, Kenya is the data controller for the personal data described in this policy.
+1.1. ITUKARUA KENYA, Kikuyu Town, Kiambu County, Kenya is the data controller for the personal data described in this policy.
 1.2. Privacy contact: info@itukarua.co.ke, +254 721 219 359.
 1.3. We process personal data under the Data Protection Act, 2019 (Kenya). Where the GDPR applies to a visitor or member in the EU, we also apply the GDPR.
 
@@ -142,7 +142,7 @@ Under the Data Protection Act, 2019 (and the GDPR where it applies) you may:
 `.trim();
 
 export const COOKIE_POLICY = `
-ITUKARUA COOKIE AND LOCAL STORAGE POLICY
+ITUKARUA KENYA COOKIE AND LOCAL STORAGE POLICY
 
 Last updated: 30 October 2026
 
@@ -171,7 +171,7 @@ Last updated: 30 October 2026
 `.trim();
 
 export const SUBSCRIPTION_TERMS = `
-ITUKARUA SUBSCRIPTION TERMS — JOBSEEKER PREMIUM
+ITUKARUA KENYA SUBSCRIPTION TERMS — JOBSEEKER PREMIUM
 
 Version 2.1 — 4 November 2026
 

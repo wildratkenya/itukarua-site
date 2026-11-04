@@ -41,7 +41,7 @@ const CookieConsent: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <Cookie className="w-5 h-5 text-green-600 shrink-0 hidden sm:block" />
           <p className="text-xs sm:text-sm text-gray-600 leading-relaxed flex-1">
-            We use essential cookies to keep Itukarua secure and working (sign-in, theme, spam protection). With
+            We use essential cookies to keep ITUKARUA KENYA secure and working (sign-in, theme, spam protection). With
             your consent we also measure advert views with a first-party identifier — no third-party tracking. Read our{' '}
             <button type="button" onClick={() => setShowPolicy('cookies')} className="underline text-green-700 hover:text-green-800 font-medium">
               Cookie Policy
