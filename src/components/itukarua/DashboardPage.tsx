@@ -45,6 +45,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualMsg, setManualMsg] = useState<{type: 'ok'|'err', text: string}|null>(null);
   const [publishingJobId, setPublishingJobId] = useState<string | null>(null);
+  const [reactivationEndDate, setReactivationEndDate] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>(user.role);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<DbJob[]>([]);
@@ -496,6 +497,25 @@ const notifRef = useRef<HTMLDivElement>(null);
       setPublishingJobId(null);
       alert(err instanceof Error ? err.message : 'Could not enable this job.');
     }
+  };
+
+  const reactivateUntilSelectedDate = (job: DbJob) => {
+    if (!reactivationEndDate) {
+      alert('Choose a reactivation end date first.');
+      return;
+    }
+    const end = new Date(`${reactivationEndDate}T00:00:00`);
+    const remaining = employerAccessEnd ? employerAccessEnd.getTime() - Date.now() : 0;
+    const days = Math.ceil((end.getTime() - Date.now()) / 86400000);
+    if (days < 1) {
+      alert('Choose a future date.');
+      return;
+    }
+    if (remaining <= 0 || end.getTime() > employerAccessEnd!.getTime()) {
+      alert('The selected date is after your active subscription ends. Choose an earlier date or renew your subscription.');
+      return;
+    }
+    enableJobForFree(job, days);
   };
 
   const handleRetireJob = async (job: DbJob) => {
@@ -1211,14 +1231,18 @@ const notifRef = useRef<HTMLDivElement>(null);
                     <div className="flex flex-wrap gap-2">
                       {employerAccessActive && employerAccessDays > 0 && (
                         <div className="flex flex-wrap items-center gap-2 w-full">
-                          <span className="text-xs text-gray-500">Use subscription for:</span>
-                          {[1, 7, 10, 20, 30].filter(days => days <= employerAccessDays).map(days => (
-                            <button key={days} onClick={(e) => { e.stopPropagation(); enableJobForFree(job, days); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
-                              {days} day{days !== 1 ? 's' : ''}
-                            </button>
-                          ))}
-                          <button onClick={(e) => { e.stopPropagation(); enableJobForFree(job, employerAccessDays); }} className="px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors">
-                            All {employerAccessDays} remaining days
+                          <label className="text-xs text-gray-500" htmlFor={`reactivation-date-${job.id}`}>Reactivate until:</label>
+                          <input
+                            id={`reactivation-date-${job.id}`}
+                            type="date"
+                            min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                            max={employerAccessEnd!.toISOString().slice(0, 10)}
+                            value={reactivationEndDate}
+                            onChange={e => setReactivationEndDate(e.target.value)}
+                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
+                          />
+                          <button onClick={(e) => { e.stopPropagation(); reactivateUntilSelectedDate(job); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                            Reactivate
                           </button>
                         </div>
                       )}
