@@ -368,6 +368,7 @@ export async function getJobs(filters?: {
     query = query
       .in('status', ['open', 'in-progress'])
       .gte('valid_until', new Date().toISOString())
+      .gte('deadline', new Date().toISOString().slice(0, 10))
       .is('retired_at', null);
   }
   if (filters?.postedBy) {
