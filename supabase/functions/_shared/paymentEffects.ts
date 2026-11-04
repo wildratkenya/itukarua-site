@@ -225,6 +225,28 @@ function jobListingDays(payment: PaymentRow): number {
   return 1
 }
 
+async function employerCoverageEnd(supabase: any, userId: string | null): Promise<Date | null> {
+  if (!userId) return null
+  const { data: role } = await supabase
+    .from('profile_roles')
+    .select('expires_at')
+    .eq('user_id', userId)
+    .eq('role', 'employer')
+    .eq('paid', true)
+    .not('expires_at', 'is', null)
+    .order('expires_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (role?.expires_at) return new Date(role.expires_at)
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('subscription_expires_at')
+    .eq('id', userId)
+    .maybeSingle()
+  return profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : null
+}
+
 /**
  * Publish/reactivate a single job ad. Only applies while the application
  * deadline has not passed — deadline-expired ads must be retired/re-posted.
@@ -238,22 +260,41 @@ export async function fulfilJobListing(supabase: any, payment: PaymentRow): Prom
   }
   const { data: job } = await supabase
     .from('jobs')
-    .select('deadline')
+    .select('deadline, posted_by')
     .eq('id', payment.related_job_id)
     .maybeSingle()
   if (!job) {
     throw new Error(`job ${payment.related_job_id} no longer exists; needs a manual refund`)
   }
-  const today = new Date().toISOString().slice(0, 10)
-  if (job.deadline && job.deadline < today) {
+  const now = new Date()
+  const requestedDays = jobListingDays(payment)
+  const coverageEnd = await employerCoverageEnd(supabase, job.posted_by)
+  const requestedEnd = addDays(now, requestedDays)
+  if (coverageEnd && coverageEnd <= now) {
+    throw new Error('Your Employer Access subscription has expired. Renew your subscription before reactivating this job.')
+  }
+  if (coverageEnd && requestedEnd > coverageEnd) {
     throw new Error(
-      `job ${payment.related_job_id} cannot be listed: its application deadline (${job.deadline}) has passed; needs a manual refund`,
+      `This ${requestedDays}-day listing would run past your Employer Access subscription on ${coverageEnd.toISOString().slice(0, 10)}. Add or renew your subscription first.`,
     )
   }
-  const end = addDays(new Date(), jobListingDays(payment)).toISOString()
+  if (!coverageEnd && job.deadline && job.deadline < now.toISOString().slice(0, 10)) {
+    throw new Error(
+      `This job's application deadline (${job.deadline}) has passed. Renew Employer Access to reactivate it, or create a new listing.`,
+    )
+  }
+  const end = requestedEnd.toISOString()
   const { error } = await supabase
     .from('jobs')
-    .update({ valid_until: end, status: 'open', retired_at: null, retired_by: null })
+    .update({
+      valid_until: end,
+      deadline: coverageEnd && job.deadline && job.deadline < now.toISOString().slice(0, 10)
+        ? coverageEnd.toISOString().slice(0, 10)
+        : job.deadline,
+      status: 'open',
+      retired_at: null,
+      retired_by: null,
+    })
     .eq('id', payment.related_job_id)
   if (error) throw new Error(`fulfilJobListing ${payment.related_job_id}: ${error.message}`)
   console.log(`[fulfilment] job ${payment.related_job_id} paid, valid until ${end}`)
@@ -263,13 +304,17 @@ export async function fulfilJobListing(supabase: any, payment: PaymentRow): Prom
 export async function reactivateEmployerJobs(supabase: any, userId: string | null): Promise<void> {
   if (!userId) return
   const today = new Date().toISOString().slice(0, 10)
-  const end = addDays(new Date(), 7).toISOString()
+  const now = new Date()
+  const coverageEnd = await employerCoverageEnd(supabase, userId)
+  const endDate = coverageEnd && coverageEnd < addDays(now, 7) ? coverageEnd : addDays(now, 7)
+  const end = endDate.toISOString()
   await supabase
     .from('jobs')
     .update({ valid_until: end, status: 'open', retired_at: null, retired_by: null })
     .eq('posted_by', userId)
     .eq('status', 'open')
     .gte('deadline', today)
+    .lte('valid_until', end)
     .or('retired_by.is.null,retired_by.eq.employer')
 }
 

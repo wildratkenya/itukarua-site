@@ -460,6 +460,13 @@ const notifRef = useRef<HTMLDivElement>(null);
     days === 1 ? 100 : days === 7 ? 200 : (JOB_LISTING_PLANS.find(p => p.days === days)?.amount ?? 300);
 
   const payToPublishJob = (job: DbJob, days: number) => {
+    if (employerAccessEnd) {
+      const remainingDays = Math.max(0, Math.ceil((employerAccessEnd.getTime() - Date.now()) / 86400000));
+      if (days > remainingDays) {
+        alert(`This ${days}-day listing would run past your Employer Access subscription. You have ${remainingDays} day${remainingDays === 1 ? '' : 's'} left. Add or renew your subscription first.`);
+        return;
+      }
+    }
     const amount = jobPlanAmount(days);
     const label = days === 1 ? '1-Day Job Token' : days === 7 ? 'Employer Weekly Access' : `${days}-Day Job Listing`;
     onOpenMpesa(
