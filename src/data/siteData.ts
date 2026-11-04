@@ -434,11 +434,9 @@ export function effectiveFeaturesFor(account: { tier: string; features?: SavedCo
   return CORPORATE_TIER_FEATURES[account?.tier] || CORPORATE_TIER_FEATURES.bronze;
 }
 
-// Per-feature estimate for a custom bundle. The bundle is rated off the highest
-// standard tier whose slots it fully covers (its anchor price), then add-on
-// increments are charged only for features beyond that tier's slate and for
-// placements/seats beyond that tier's baseline. So a custom bundle equal to Gold
-// rates at Gold's anchor, and extras push it upward honestly.
+// Per-feature estimate for a custom bundle. Custom selections are priced from
+// the published catalog rates: every selected feature is charged, and quantity
+// features are charged for their full selected quantity.
 export const CORPORATE_TIER_ANCHOR_KES: Record<string, number> = {
   bronze: 3000,
   silver: 6000,
@@ -446,38 +444,14 @@ export const CORPORATE_TIER_ANCHOR_KES: Record<string, number> = {
 };
 
 export function estimateCustomBundle(ids: string[], placements: number = 1, teamSeats: number = 1): { monthly: number; equivalence: string } {
-  const has = (id: string) => ids.includes(id);
-  const covers = (tier: string) => (TIER_FEATURE_IDS[tier] || []).every(has);
-  let base: string | null = null;
-  if (covers('gold')) base = 'gold';
-  else if (covers('silver')) base = 'silver';
-  else if (covers('bronze')) base = 'bronze';
-  const baseDef = base ? CORPORATE_TIER_FEATURES[base] : null;
+  const selectedFeatures = ids
+    .map(id => FEATURE_MAP[id])
+    .filter((feature): feature is CorporateFeature => !!feature && !feature.perUnit);
+  const monthly = selectedFeatures.reduce((total, feature) => total + feature.monthly, 0)
+    + Math.max(0, placements) * (FEATURE_MAP.placements?.monthly || 1000)
+    + Math.max(0, teamSeats) * (FEATURE_MAP.team_seats?.monthly || 500);
 
-  let monthly = base ? (CORPORATE_TIER_ANCHOR_KES[base] || 0) : 0;
-  const baseIds = base ? TIER_FEATURE_IDS[base] : [];
-  for (const id of ids) {
-    if (baseIds.includes(id)) continue;
-    const f = FEATURE_MAP[id];
-    if (f && !f.perUnit) monthly += f.monthly;
-  }
-  monthly += Math.max(0, placements - (baseDef ? baseDef.maxPlacements : 1)) * (FEATURE_MAP.placements?.monthly || 1000);
-  monthly += Math.max(0, teamSeats - (baseDef ? baseDef.teamSeats : 1)) * (FEATURE_MAP.team_seats?.monthly || 500);
-
-  let equivalence: string;
-  if (!base) {
-    equivalence = 'Custom';
-  } else {
-    const extras = ids.filter(id => !baseIds.includes(id) && !(FEATURE_MAP[id]?.perUnit));
-    const aboveQuantities = placements > (baseDef?.maxPlacements ?? 0) || teamSeats > (baseDef?.teamSeats ?? 0);
-    if (extras.length === 0 && !aboveQuantities) {
-      equivalence = base === 'gold' ? 'Gold-equivalent' : base === 'silver' ? 'Silver-equivalent' : 'Bronze-based';
-    } else {
-      const label = base === 'gold' ? 'Gold' : base === 'silver' ? 'Silver' : 'Bronze';
-      equivalence = `${label} + add-ons`;
-    }
-  }
-  return { monthly, equivalence };
+  return { monthly, equivalence: 'Custom — per-item estimate' };
 }
 
 /** Effective monthly amount for an account: custom_amount > monthly_price > tier anchor > custom estimate. */

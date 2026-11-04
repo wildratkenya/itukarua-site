@@ -154,7 +154,7 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="font-semibold text-gray-900">Corporate features — see exactly what each tier includes</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Order your bundle, add the right slots and capabilities, and we'll confirm the monthly rate on your quote.</p>
+              <p className="text-xs text-gray-500 mt-0.5">Fixed tiers show their included features. Custom bundles show each selected item's monthly rate and feed the transparent estimate into your quote request.</p>
             </div>
             <span className="text-[11px] text-gray-400">All tiers include delivery tracking & support</span>
           </div>
@@ -213,11 +213,8 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
           {formData.package === 'custom' && (
             <div className="px-6 py-5 border-t border-gray-100">
               <p className="text-sm font-semibold text-gray-900 mb-3">Build your bundle</p>
-              <CorporateFeaturesBuilder tier="custom" features={customBundle} onChange={setCustomBundle} showPricing={false} />
+              <CorporateFeaturesBuilder tier="custom" features={customBundle} onChange={setCustomBundle} showPricing />
               <p className="text-xs text-gray-500 mt-3">Your selection feeds straight into the quote request below.</p>
-              <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-                Estimate: {fmtKES(estimateCustomBundle(customBundle.ids, customBundle.placements, customBundle.team_seats).monthly)}/month
-              </p>
             </div>
           )}
         </div>
