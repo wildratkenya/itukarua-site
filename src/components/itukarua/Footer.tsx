@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, COOKIE_POLICY, SUBSCRIPTION_TERMS } from '@/data/termsContent';
+import { useLegalDocuments } from '@/hooks/useLegalDocuments';
 import { subscribeNewsletter } from '@/lib/database';
 import { KENYA_COUNTIES } from '@/data/siteData';
 import { SITE_URL } from '@/lib/siteConfig';
@@ -15,6 +16,7 @@ const Footer: React.FC<FooterProps> = ({
   onOpenAuth,
   onSearchCounty
 }) => {
+  const legalDocuments = useLegalDocuments();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -92,10 +94,10 @@ const Footer: React.FC<FooterProps> = ({
               <button onClick={() => setShowTerms(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">
-              {TERMS_AND_CONDITIONS}
+              {legalDocuments.terms}
               {'\n\n'}
               <span className="block border-t border-gray-200 my-4" />
-              {SUBSCRIPTION_TERMS}
+              {legalDocuments.subscription}
             </div>
           </div>
         </div>
@@ -109,7 +111,7 @@ const Footer: React.FC<FooterProps> = ({
               <h2 className="text-lg font-bold text-gray-900">Privacy Policy</h2>
               <button onClick={() => setShowPrivacy(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{PRIVACY_POLICY}</div>
+            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{legalDocuments.privacy}</div>
           </div>
         </div>
       )}
@@ -122,7 +124,7 @@ const Footer: React.FC<FooterProps> = ({
               <h2 className="text-lg font-bold text-gray-900">Cookie Policy</h2>
               <button onClick={() => setShowCookies(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{COOKIE_POLICY}</div>
+            <div className="p-6 text-sm text-gray-700 whitespace-pre-line leading-relaxed">{legalDocuments.cookies}</div>
           </div>
         </div>
       )}

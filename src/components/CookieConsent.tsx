@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Cookie, X } from 'lucide-react';
 import { getConsent, setConsent, CONSENT_VERSION } from '@/lib/consent';
-import { PRIVACY_POLICY, COOKIE_POLICY } from '@/data/termsContent';
+import { useLegalDocuments } from '@/hooks/useLegalDocuments';
 
 /**
  * First-visit consent bar for cookies + privacy policy.
@@ -20,6 +20,7 @@ const CookieConsent: React.FC = () => {
   // bar never flashes for users who already accepted.
   const [decided, setDecided] = useState<boolean | null>(null);
   const [showPolicy, setShowPolicy] = useState<'privacy' | 'cookies' | null>(null);
+  const documents = useLegalDocuments();
 
   useEffect(() => {
     setDecided(getConsent() !== null);
@@ -32,7 +33,7 @@ const CookieConsent: React.FC = () => {
 
   if (decided === null || decided === true) return null;
 
-  const policyText = showPolicy === 'privacy' ? PRIVACY_POLICY : COOKIE_POLICY;
+  const policyText = showPolicy === 'privacy' ? documents.privacy : documents.cookies;
   const policyTitle = showPolicy === 'privacy' ? 'Privacy Policy' : 'Cookie Policy';
 
   return (

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen, Share2 } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen, Share2, Settings } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, getSocialLinks, setSocialLink, SOCIAL_PLATFORMS, type SocialLinks, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, getSocialLinks, setSocialLink, SOCIAL_PLATFORMS, type SocialLinks, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice, getPlatformSettings, updatePlatformSetting, getPlatformContent, updatePlatformContent } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
-import { TERMS_AND_CONDITIONS } from '@/data/termsContent';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
 import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
 import CertificateViewer from './CertificateViewer';
@@ -347,6 +347,11 @@ const AdminPage: React.FC = () => {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
   const [emailMsgType, setEmailMsgType] = useState<'ok' | 'err'>('ok');
+  const [platformSettings, setPlatformSettings] = useState<Record<string, number>>({});
+  const [termsEditor, setTermsEditor] = useState(TERMS_AND_CONDITIONS);
+  const [privacyEditor, setPrivacyEditor] = useState(PRIVACY_POLICY);
+  const [legalVersion, setLegalVersion] = useState('2.1');
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -1056,6 +1061,9 @@ const AdminPage: React.FC = () => {
         getCustomCategories('service').then(setCustomServiceCats),
         loadEmailProviders(),
         loadBilling(),
+        getPlatformSettings().then(setPlatformSettings),
+        getPlatformContent('terms').then(content => { if (content) setTermsEditor(content); }),
+        getPlatformContent('privacy').then(content => { if (content) setPrivacyEditor(content); }),
       ]);
 
       // Use individual category lists for modals
@@ -1074,6 +1082,30 @@ const AdminPage: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const savePlatformSettings = async () => {
+    setSettingsSaving(true);
+    try {
+      await Promise.all(Object.entries(platformSettings).map(([key, value]) => updatePlatformSetting(key, value)));
+      toast({ title: 'Saved', description: 'Platform pricing and access settings updated.' });
+    } catch (error: any) {
+      toast({ title: 'Save failed', description: error?.message || 'Could not save platform settings.', variant: 'destructive' });
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const saveLegalDocument = async (key: 'terms' | 'privacy', content: string) => {
+    setSettingsSaving(true);
+    try {
+      await updatePlatformContent(key, content, legalVersion.trim() || '2.1');
+      toast({ title: 'Saved', description: `${key === 'terms' ? 'Terms and Conditions' : 'Privacy Policy'} updated.` });
+    } catch (error: any) {
+      toast({ title: 'Save failed', description: error?.message || 'Could not save legal document.', variant: 'destructive' });
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -2862,6 +2894,7 @@ const AdminPage: React.FC = () => {
                 { id: 'homepage-banners', label: 'Banners', icon: <Images className="w-4 h-4" /> },
                 { id: 'socials', label: 'Socials', icon: <Share2 className="w-4 h-4" /> },
                 { id: 'corporate', label: 'Corporate', icon: <Building2 className="w-4 h-4" /> },
+                ...(currentRole === 'super_admin' ? [{ id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> }] : []),
               ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} title={item.label} className={`w-full flex items-center rounded-lg text-sm font-medium transition-colors ${adminSidebarCollapsed ? 'flex-col gap-1 py-2' : 'justify-start gap-2.5 px-3 py-2.5'} ${activeTab === item.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {item.icon}
@@ -4491,6 +4524,97 @@ const AdminPage: React.FC = () => {
           {activeTab === 'homepage-banners' && renderBannerManager()}
 
           {activeTab === 'socials' && renderSocials()}
+
+          {activeTab === 'settings' && currentRole === 'super_admin' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Platform Fees</CardTitle>
+                  <p className="text-sm text-gray-500">Update prices and access windows used by platform products.</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {[
+                      ['jobseeker_registration_fee', 'Jobseeker Registration', 'Weekly jobseeker subscription fee', 100],
+                      ['employer_weekly_fee', 'Employer Weekly Access', 'Weekly employer access fee', 200],
+                      ['employer_day_fee', 'Employer Day Access', 'One-day employer job access fee', 100],
+                      ['contact_access_fee', 'Contact Access Fee', 'One-day access to a single contact', 100],
+                      ['top_rated_pass_fee', 'Top Rated Day Pass', 'Top-rated worker contact pass fee', 100],
+                      ['advert_10_day_fee', '10-Day Advert', 'Business listing fee', 300],
+                      ['advert_20_day_fee', '20-Day Advert', 'Business listing fee', 500],
+                      ['advert_30_day_fee', '30-Day Advert', 'Business listing fee', 800],
+                    ].map(([key, label, description, fallback]) => (
+                      <div key={key as string} className="rounded-lg border border-gray-200 p-4">
+                        <Label>{label as string}</Label>
+                        <p className="text-xs text-gray-500 mb-2">{description as string}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">KES</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={platformSettings[key as string] ?? fallback}
+                            onChange={e => setPlatformSettings(current => ({ ...current, [key as string]: Math.max(0, Number(e.target.value) || 0) }))}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <Label>Contact Access Window</Label>
+                      <p className="text-xs text-gray-500 mb-2">How long a paid contact unlock lasts</p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={platformSettings.contact_access_window_hours ?? 24}
+                          onChange={e => setPlatformSettings(current => ({ ...current, contact_access_window_hours: Math.max(1, Number(e.target.value) || 1) }))}
+                        />
+                        <span className="text-sm text-gray-500">hours</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <Label>Top Rated Pass Window</Label>
+                      <p className="text-xs text-gray-500 mb-2">How long a top-rated pass remains active</p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={platformSettings.top_rated_pass_hours ?? 24}
+                          onChange={e => setPlatformSettings(current => ({ ...current, top_rated_pass_hours: Math.max(1, Number(e.target.value) || 1) }))}
+                        />
+                        <span className="text-sm text-gray-500">hours</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button onClick={savePlatformSettings} disabled={settingsSaving} className="bg-green-600 hover:bg-green-700">
+                    {settingsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Save Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Legal Documents</CardTitle>
+                  <p className="text-sm text-gray-500">Changes are published to the public Terms and Privacy views after saving.</p>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="max-w-xs">
+                    <Label htmlFor="legal-version">Document version</Label>
+                    <Input id="legal-version" value={legalVersion} onChange={e => setLegalVersion(e.target.value)} placeholder="2.2" />
+                  </div>
+                  <div>
+                    <Label htmlFor="terms-editor">Terms and Conditions</Label>
+                    <Textarea id="terms-editor" value={termsEditor} onChange={e => setTermsEditor(e.target.value)} rows={18} className="mt-2 font-mono text-xs" />
+                    <Button onClick={() => saveLegalDocument('terms', termsEditor)} disabled={settingsSaving} className="mt-3">Save Terms and Conditions</Button>
+                  </div>
+                  <div>
+                    <Label htmlFor="privacy-editor">Privacy Policy</Label>
+                    <Textarea id="privacy-editor" value={privacyEditor} onChange={e => setPrivacyEditor(e.target.value)} rows={18} className="mt-2 font-mono text-xs" />
+                    <Button onClick={() => saveLegalDocument('privacy', privacyEditor)} disabled={settingsSaving} className="mt-3">Save Privacy Policy</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {activeTab === 'corporate' && (
             <>

@@ -1831,7 +1831,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                         <Zap className="w-5 h-5 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-white mb-1">Premium</h3>
-                      <p className="text-xs text-green-100 mb-4">KES 100/month — Unlimited bids, messaging, analytics & more</p>
+                      <p className="text-xs text-green-100 mb-4">KES 100/week — Unlimited bids, messaging, analytics & more</p>
                       <ul className="space-y-2 mb-5 flex-1">
                         {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
                           <li key={j} className="flex items-start gap-2 text-sm text-white/95">
@@ -2071,7 +2071,7 @@ const notifRef = useRef<HTMLDivElement>(null);
               <h3 className="font-semibold text-gray-900 mb-4">Platform Fees</h3>
               <div className="space-y-4">
                 {[
-                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Monthly subscription fee', val: 100, suffix: 'KES' },
+                  { key: 'jobseeker_registration_fee', label: 'Jobseeker Registration', desc: 'Weekly subscription fee', val: 100, suffix: 'KES' },
                   { key: 'contact_access_fee', label: 'Contact Access Fee', desc: 'One-day access to a single contact', val: 100, suffix: 'KES' },
                   { key: 'contact_access_window_hours', label: 'Contact Access Window', desc: 'How long a paid contact unlock lasts', val: 24, suffix: 'hours' },
                 ].map((fee) => (
@@ -2346,4 +2346,3 @@ const notifRef = useRef<HTMLDivElement>(null);
 };
 
 export default DashboardPage;
-

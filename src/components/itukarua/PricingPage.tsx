@@ -6,6 +6,7 @@ import BoostProductModal from './BoostProductModal';
 import type { MpesaHandler } from '@/lib/mpesa';
 import { hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
 import { setSubscriptionIntent } from '@/lib/checkoutIntent';
+import { usePlatformPricing } from '@/hooks/usePlatformPricing';
 
 interface PricingUser {
   id: string;
@@ -28,6 +29,17 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
   const [showComparison, setShowComparison] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<typeof PRICING_PLANS.advertPlans[number] | null>(null);
   const [boostOpen, setBoostOpen] = useState(false);
+  const pricing = usePlatformPricing();
+  const plans = {
+    ...PRICING_PLANS,
+    jobseekerPremium: { ...PRICING_PLANS.jobseekerPremium, price: pricing.jobseeker },
+    employerSubscription: { ...PRICING_PLANS.employerSubscription, price: pricing.employerWeekly },
+    singleJobPost: { ...PRICING_PLANS.singleJobPost, price: pricing.employerDay },
+    advertPlans: PRICING_PLANS.advertPlans.map((plan, index) => ({
+      ...plan,
+      price: [pricing.advert10Day, pricing.advert20Day, pricing.advert30Day][index] ?? plan.price,
+    })),
+  };
   const isJobseeker = user?.role === 'jobseeker';
   const isRegisteredEmployer = user?.role === 'employer';
 
@@ -56,7 +68,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
   // visitor signs up first — the chosen plan is remembered and the M-Pesa
   // prompt opens as soon as the account exists (see AppLayout).
   const handlePremiumSubscribe = () => {
-    const plan = PRICING_PLANS.jobseekerPremium;
+    const plan = plans.jobseekerPremium;
     if (!user) {
       setSubscriptionIntent({ kind: 'subscription', role: 'jobseeker', amount: plan.price, days: plan.days });
       onStayAfterLogin?.();
@@ -98,7 +110,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
     <div className="min-h-screen bg-gray-50">
       <SEO
         title="Pricing Plans - Jobs, Services & Adverts"
-        description="Choose the plan that works for you. Jobseeker subscriptions from KES 100/month, employer plans from KES 500/month, advert packages from KES 300. All payments via M-Pesa."
+        description="Choose the plan that works for you. Jobseeker subscriptions from KES 100/week, employer plans from KES 200/week, advert packages from KES 300. All payments via M-Pesa."
         canonical="/pricing"
       />
 
@@ -194,7 +206,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   </div>
                 </div>
                 <div className="flex items-baseline gap-1 mt-4 mb-6">
-                  <span className="text-5xl font-extrabold text-white">KES {PRICING_PLANS.jobseekerPremium.price}</span>
+                  <span className="text-5xl font-extrabold text-white">KES {plans.jobseekerPremium.price}</span>
                   <span className="text-green-100/80 font-medium">{PRICING_PLANS.jobseekerPremium.period}</span>
                 </div>
                 <p className="text-sm text-green-100/90 mb-6 -mt-2">KES 100 for 7 days of bidding &amp; messaging access. No automatic renewal.</p>
@@ -217,7 +229,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </button>
                 <div className="mt-4 pt-4 border-t border-white/20 space-y-1.5 text-[11px] leading-relaxed text-green-50/90">
                   <p className="font-bold text-white uppercase tracking-wide text-[10px]">Subscription terms</p>
-                  <p>KES {PRICING_PLANS.jobseekerPremium.price} covers 7 days from the day M-Pesa confirms payment.</p>
+                  <p>KES {plans.jobseekerPremium.price} covers 7 days from the day M-Pesa confirms payment.</p>
                   <p>No auto-renewal: when the 7 days end, access drops to the Free plan until you pay again.</p>
                   <p>Payments are non-refundable once the subscription is active. If M-Pesa charges you but activation fails, contact support for a reversal.</p>
                 </div>
@@ -304,7 +316,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                     <Briefcase className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-extrabold text-gray-900">{PRICING_PLANS.singleJobPost.name}</h3>
+                    <h3 className="text-2xl font-extrabold text-gray-900">{plans.singleJobPost.name}</h3>
                     <p className="text-xs text-gray-400 font-medium">No commitment needed</p>
                   </div>
                 </div>
@@ -314,7 +326,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </div>
                 <p className="text-sm text-gray-500 mb-6 -mt-2">One day of access — unlock contacts for a single job for 24 hours</p>
                 <ul className="space-y-3 mb-8 flex-1">
-                  {PRICING_PLANS.singleJobPost.features.map((f, j) => (
+                  {plans.singleJobPost.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-gray-700">
                       <span className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Check className="w-3 h-3 text-blue-600" />
@@ -349,7 +361,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                     <Shield className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-extrabold text-white">{PRICING_PLANS.employerSubscription.name}</h3>
+                    <h3 className="text-2xl font-extrabold text-white">{plans.employerSubscription.name}</h3>
                     <p className="text-xs text-blue-100/80 font-medium">Unlimited — best for repeat hiring</p>
                   </div>
                 </div>
@@ -359,7 +371,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </div>
                 <p className="text-sm text-blue-100/90 mb-6 -mt-2">Post unlimited jobs & access all jobseekers in your category</p>
                 <ul className="space-y-3 mb-8 flex-1">
-                  {PRICING_PLANS.employerSubscription.features.map((f, j) => (
+                  {plans.employerSubscription.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-white/95">
                       <span className="w-5 h-5 rounded-full bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Check className="w-3 h-3 text-blue-200" />
@@ -397,7 +409,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
             <p className="text-gray-500 text-lg">Reach the local community with targeted business listings</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {PRICING_PLANS.advertPlans.map((plan, i) => (
+            {plans.advertPlans.map((plan, i) => (
               <div
                 key={i}
                 className={`relative bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 flex flex-col ${

@@ -7,7 +7,7 @@ import type { Page } from './Header';
 import { compressImage } from '@/lib/imageUtils';
 import { DOCUMENTS_BUCKET } from '@/lib/documents';
 import { subscribeNewsletter, updateProfile, getCustomCategories } from '@/lib/database';
-import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, SUBSCRIPTION_TERMS } from '@/data/termsContent';
+import { useLegalDocuments } from '@/hooks/useLegalDocuments';
 import type { MpesaHandler } from '@/lib/mpesa';
 import { peekSubscriptionIntent, clearSubscriptionIntent, type SubscriptionIntent } from '@/lib/checkoutIntent';
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/consent';
@@ -63,6 +63,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [emailSent, setEmailSent] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  const legalDocuments = useLegalDocuments();
 
   useEffect(() => {
     if (isOpen) getCustomCategories('job').then(setDbJobCategories);
@@ -835,11 +836,11 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
                 }}
                 className="h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 text-[11px] leading-relaxed text-gray-600 bg-gray-50 mb-3"
               >
-                <pre className="whitespace-pre-wrap font-sans">{TERMS_AND_CONDITIONS}</pre>
+                <pre className="whitespace-pre-wrap font-sans">{legalDocuments.terms}</pre>
                 <div className="border-t border-gray-200 my-4" />
-                <pre className="whitespace-pre-wrap font-sans">{SUBSCRIPTION_TERMS}</pre>
+                <pre className="whitespace-pre-wrap font-sans">{legalDocuments.subscription}</pre>
                 <div className="border-t border-gray-200 my-4" />
-                <pre className="whitespace-pre-wrap font-sans">{PRIVACY_POLICY}</pre>
+                <pre className="whitespace-pre-wrap font-sans">{legalDocuments.privacy}</pre>
               </div>
 
               {/* Terms checkbox */}

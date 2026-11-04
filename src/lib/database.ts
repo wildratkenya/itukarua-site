@@ -1906,6 +1906,26 @@ export async function updatePlatformSetting(key: string, value: number): Promise
   if (error) throw error;
 }
 
+export async function getPlatformContent(key: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('platform_content')
+    .select('content')
+    .eq('key', key)
+    .maybeSingle();
+  if (error) {
+    console.error('getPlatformContent error:', error);
+    return null;
+  }
+  return data?.content || null;
+}
+
+export async function updatePlatformContent(key: string, content: string, version: string): Promise<void> {
+  const { error } = await supabase
+    .from('platform_content')
+    .upsert({ key, content, version, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 export interface AdBannerSettings {
   horizontalLoopSeconds: number;
   horizontalDirection: 'left' | 'right';
