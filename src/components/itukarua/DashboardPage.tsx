@@ -486,9 +486,9 @@ const notifRef = useRef<HTMLDivElement>(null);
   };
 
   // Covered by an active Employer Access subscription — enable at no extra charge.
-  const enableJobForFree = async (job: DbJob) => {
+  const enableJobForFree = async (job: DbJob, days?: number) => {
     try {
-      const res = await employerReactivateJob(job.id);
+      const res = await employerReactivateJob(job.id, days);
       setPublishingJobId(null);
       reloadJobs();
       alert(`"${job.title}" reactivated for ${res.granted_days} day${res.granted_days !== 1 ? 's' : ''} - live until ${new Date(res.valid_until).toLocaleDateString()}.`);
@@ -1210,9 +1210,17 @@ const notifRef = useRef<HTMLDivElement>(null);
                     )}
                     <div className="flex flex-wrap gap-2">
                       {employerAccessActive && employerAccessDays > 0 && (
-                        <button onClick={(e) => { e.stopPropagation(); enableJobForFree(job); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
-                          Reactivate for {employerAccessDays} day{employerAccessDays !== 1 ? 's' : ''} (until {employerAccessEnd!.toLocaleDateString()})
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2 w-full">
+                          <span className="text-xs text-gray-500">Use subscription for:</span>
+                          {[1, 7, 10, 20, 30].filter(days => days <= employerAccessDays).map(days => (
+                            <button key={days} onClick={(e) => { e.stopPropagation(); enableJobForFree(job, days); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                              {days} day{days !== 1 ? 's' : ''}
+                            </button>
+                          ))}
+                          <button onClick={(e) => { e.stopPropagation(); enableJobForFree(job, employerAccessDays); }} className="px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors">
+                            All {employerAccessDays} remaining days
+                          </button>
+                        </div>
                       )}
                       {JOB_LISTING_PLANS.map(p => (
                         <button key={p.id} onClick={(e) => { e.stopPropagation(); payToPublishJob(job, p.days); }} className="px-3 py-1.5 border border-green-300 text-green-700 text-xs font-semibold rounded-lg hover:bg-green-50 transition-colors">

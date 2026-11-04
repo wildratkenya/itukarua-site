@@ -502,8 +502,8 @@ const JOB_LOCKED_COLUMNS = ['valid_until', 'featured', 'boost_until', 'posted_by
 
 // Reactivate a job under an active Employer Access subscription. The RPC
 // enforces ownership + coverage and caps the window at the subscription end.
-export async function employerReactivateJob(jobId: string): Promise<{ id: string; valid_until: string; status: string; granted_days: number }> {
-  const { data, error } = await supabase.rpc('employer_reactivate_job', { p_job: jobId });
+export async function employerReactivateJob(jobId: string, days?: number): Promise<{ id: string; valid_until: string; status: string; granted_days: number }> {
+  const { data, error } = await supabase.rpc('employer_reactivate_job', { p_job: jobId, p_days: days ?? null });
   if (error) throw new Error(error.message);
   return data as { id: string; valid_until: string; status: string; granted_days: number };
 }

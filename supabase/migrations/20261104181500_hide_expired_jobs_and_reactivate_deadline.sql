@@ -17,7 +17,9 @@ SELECT
   (SELECT coalesce(sum(amount), 0) FROM public.payments WHERE status = 'completed') AS total_payments,
   (SELECT count(DISTINCT location) FROM public.profiles WHERE location IS NOT NULL AND location <> '') AS counties_served;
 
-CREATE OR REPLACE FUNCTION public.employer_reactivate_job(p_job uuid)
+DROP FUNCTION IF EXISTS public.employer_reactivate_job(uuid);
+
+CREATE OR REPLACE FUNCTION public.employer_reactivate_job(p_job uuid, p_days integer DEFAULT NULL)
 RETURNS TABLE (id uuid, valid_until timestamptz, status text, granted_days integer)
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -27,6 +29,7 @@ DECLARE
   v_owner uuid;
   v_coverage_end timestamptz;
   v_days integer;
+  v_requested_days integer;
   v_valid_until timestamptz;
   v_row public.jobs;
 BEGIN
@@ -57,13 +60,21 @@ BEGIN
   END IF;
 
   v_days := LEAST(30, GREATEST(1, CEIL(EXTRACT(EPOCH FROM (v_coverage_end - now())) / 86400)::int));
+  v_requested_days := COALESCE(p_days, v_days);
+  IF v_requested_days < 1 THEN
+    RAISE EXCEPTION 'Choose at least 1 day to reactivate this job.';
+  END IF;
+  IF v_requested_days > v_days THEN
+    RAISE EXCEPTION 'You have % subscription day(s) remaining. Choose a shorter reactivation period or renew your subscription first.', v_days;
+  END IF;
+  v_days := v_requested_days;
   v_valid_until := LEAST(now() + make_interval(days => v_days), v_coverage_end);
 
   PERFORM set_config('app.sanctioned_job_reactivation', '1', true);
 
   UPDATE public.jobs
   SET valid_until = v_valid_until,
-      deadline = GREATEST(COALESCE(deadline, current_date), v_valid_until::date),
+      deadline = v_valid_until::date,
       status = 'open',
       retired_at = NULL,
       retired_by = NULL
@@ -74,4 +85,4 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.employer_reactivate_job(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.employer_reactivate_job(uuid, integer) TO authenticated;
