@@ -821,13 +821,33 @@ export async function sendPaymentReceipt(supabase: any, payment: PaymentRow, mpe
       .select('email, full_name')
       .eq('id', payment.user_id)
       .maybeSingle()
-    const recipient = profile?.email
+    let recipient = profile?.email
+    let corporateInvoice: any = null
+    if (payment.payment_type === 'corporate' && payment.related_account_id) {
+      const { data: account } = await supabase
+        .from('corporate_accounts')
+        .select('company_name, billing_email, contact_email')
+        .eq('id', payment.related_account_id)
+        .maybeSingle()
+      recipient = account?.billing_email || account?.contact_email || recipient
+      if (payment.related_invoice_id) {
+        const { data: invoice } = await supabase
+          .from('corporate_invoices')
+          .select('invoice_no, period_start, period_end, amount, paid_at')
+          .eq('id', payment.related_invoice_id)
+          .maybeSingle()
+        corporateInvoice = invoice
+      }
+    }
     if (!recipient) return
 
     const label = paymentLabel(payment.payment_type)
     const amount = Number(payment.amount || 0).toLocaleString()
     const ref = mpesaRef || payment.mpesa_ref || 'Pending'
     const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    const corporateRows = corporateInvoice ? `
+      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Invoice Number</td><td style="padding:12px">${escapeHtml(corporateInvoice.invoice_no || '—')}</td></tr>
+      <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Billing Period</td><td style="padding:12px">${escapeHtml(`${corporateInvoice.period_start || '—'} to ${corporateInvoice.period_end || '—'}`)}</td></tr>` : ''
     const html = `
 <!DOCTYPE html>
 <html>
@@ -845,6 +865,7 @@ export async function sendPaymentReceipt(supabase: any, payment: PaymentRow, mpe
       <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Payment Type</td><td style="padding:12px">${escapeHtml(label)}</td></tr>
       <tr><td style="padding:12px;background:#f9fafb;font-weight:600">M-Pesa Reference</td><td style="padding:12px">${escapeHtml(ref)}</td></tr>
       <tr><td style="padding:12px;background:#f9fafb;font-weight:600">Account Reference</td><td style="padding:12px">${escapeHtml(payment.description || payment.checkout_request_id || 'ITUKARUA')}</td></tr>
+      ${corporateRows}
     </table>
     <a href="${SITE_URL}" style="display:inline-block;margin-top:20px;padding:10px 24px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Continue on Itukarua →</a>
   </td></tr>

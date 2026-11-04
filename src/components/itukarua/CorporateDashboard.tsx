@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Building2, LayoutDashboard, BarChart3, User, Receipt, Users, Plus, X, Upload, Eye, EyeOff, Loader2, Zap, Crown, Settings, LogOut, ChevronDown, ChevronUp, ExternalLink, Trash2, Save } from 'lucide-react';
 import { supabase, proxyRequest, proxyTable, proxyImageUrl } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
-import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, adminResetPassword, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
+import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, issueCorporateInvoice, adminResetPassword, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
 import { effectiveFeaturesFor, corporateMonthlyAmount, type EffectiveCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { compressImage } from '@/lib/imageUtils';
@@ -61,8 +61,10 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   const isOwner = !!members.find(m => m.profile_id === user.id && m.member_role === 'owner');
   // The account's payment state is owned by the server: a placement can only be
   // created and served once the invoice for the current period is settled.
-  const isPaid = (account?.payment_status || 'unpaid') === 'paid';
+  const accountExpired = !!account?.next_billing_date && new Date(`${account.next_billing_date}T23:59:59Z`).getTime() < Date.now();
+  const isPaid = (account?.payment_status || 'unpaid') === 'paid' && !accountExpired;
   const outstandingInvoice = invoices.find(inv => inv.status === 'issued' || inv.status === 'overdue') || null;
+  const [renewing, setRenewing] = useState(false);
 
   const loadAccount = useCallback(async () => {
     try {
@@ -140,6 +142,27 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     });
     setActiveTab('billing');
     return false;
+  };
+
+  const requestRenewal = async () => {
+    if (!account) return;
+    setRenewing(true);
+    try {
+      await issueCorporateInvoice({ accountId: account.id, send: true });
+      await loadInvoices();
+      toast({ title: 'Renewal invoice ready', description: 'The invoice was sent to your billing email. Pay it below to reactivate your account.' });
+    } catch (err: any) {
+      toast({ title: 'Could not create renewal invoice', description: err.message, variant: 'destructive' });
+    } finally {
+      setRenewing(false);
+    }
+  };
+
+  const printReceipt = (inv: any) => {
+    const popup = window.open('', '_blank', 'noopener,noreferrer,width=760,height=760');
+    if (!popup) return;
+    popup.document.write(`<html><head><title>Itukarua Receipt ${inv.invoice_no || ''}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111827}h1{color:#047857}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:12px;border:1px solid #e5e7eb}td:first-child{font-weight:600;background:#f9fafb;width:40%}.print{margin-top:24px;padding:10px 18px;background:#047857;color:white;border:0;border-radius:6px;cursor:pointer}@media print{.print{display:none}}</style></head><body><h1>Itukarua Payment Receipt</h1><p>${account?.company_name || ''}</p><table><tr><td>Invoice</td><td>${inv.invoice_no || '—'}</td></tr><tr><td>Amount paid</td><td>KES ${Number(inv.amount || 0).toLocaleString()}</td></tr><tr><td>Billing period</td><td>${inv.period_start || '—'} to ${inv.period_end || '—'}</td></tr><tr><td>M-Pesa reference</td><td>${inv.mpesa_ref || '—'}</td></tr><tr><td>Paid on</td><td>${inv.paid_at ? new Date(inv.paid_at).toLocaleString('en-KE') : '—'}</td></tr></table><button class="print" onclick="window.print()">Print receipt</button></body></html>`);
+    popup.document.close();
   };
 
   const handleCreateAd = async (files: File[]) => {
@@ -340,6 +363,12 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                 )}
               </p>
             </div>
+            <div className="flex items-center gap-2 flex-wrap">
+            {!outstandingInvoice && (
+              <button onClick={requestRenewal} disabled={renewing} className="flex items-center justify-center gap-2 px-4 py-2 border border-green-600 text-green-700 hover:bg-green-50 text-sm font-semibold rounded-lg transition-colors">
+                {renewing ? 'Preparing...' : 'Generate renewal invoice'}
+              </button>
+            )}
             {outstandingInvoice && (
               <button
                 onClick={() => onOpenMpesa(Number(outstandingInvoice.amount), `Corporate Payment — ${account?.company_name}`, 'ITK-CORP', 'corporate', undefined, undefined, undefined, () => { loadInvoices(); loadAccount(); loadAds(); }, false, false, undefined, '', account?.id, outstandingInvoice.id)}
@@ -348,6 +377,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                 <Zap className="w-4 h-4" /> Pay KES {Number(outstandingInvoice.amount || 0).toLocaleString()} now
               </button>
             )}
+            </div>
           </div>
         )}
 
@@ -538,7 +568,9 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
                               >Pay Now</button>
                             ) : (
-                              <span className="text-xs text-gray-300">—</span>
+                              <button onClick={() => printReceipt(inv)} className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50">
+                                <Receipt className="w-3 h-3" /> Print receipt
+                              </button>
                             )}
                           </td>
                         </tr>

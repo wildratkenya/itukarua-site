@@ -634,6 +634,12 @@ const AdminPage: React.FC = () => {
   const toggleCorporateActive = async (acct: DbCorporateAccount) => {
     setCorporateSuspendingId(acct.id);
     try {
+      const expired = !!acct.next_billing_date && new Date(`${acct.next_billing_date}T23:59:59Z`).getTime() < Date.now();
+      if (!acct.is_active && (acct.payment_status !== 'paid' || expired)) {
+        await handleCorporateInvoiceAction(acct.id, acct.company_name, null, 'send');
+        toast({ title: 'Renewal invoice sent', description: `${acct.company_name} must pay the renewal invoice before activation.` });
+        return;
+      }
       await proxyTable('corporate_accounts').update({ is_active: !acct.is_active }, 'id', acct.id);
       setCorporateAccounts(prev => prev.map(a => a.id === acct.id ? { ...a, is_active: !acct.is_active } : a));
       if (selectedCorporate?.id === acct.id) setSelectedCorporate({ ...selectedCorporate, is_active: !acct.is_active });
@@ -4719,6 +4725,11 @@ const AdminPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <Button size="sm" variant="outline" onClick={() => setSelectedCorporate(acct)}>Manage</Button>
+                              {!acct.is_active && (acct.payment_status !== 'paid' || (!!acct.next_billing_date && new Date(`${acct.next_billing_date}T23:59:59Z`).getTime() < Date.now())) && (
+                                <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={corpInvoiceBusy === acct.id} onClick={() => handleCorporateInvoiceAction(acct.id, acct.company_name, null, 'send')}>
+                                  {corpInvoiceBusy === acct.id ? '...' : 'Renew & Invoice'}
+                                </Button>
+                              )}
                               <RowMoreMenu label="Actions">
                                 <DropdownMenuItem disabled={corporateSuspendingId === acct.id} onClick={() => toggleCorporateActive(acct)}>
                                   {acct.is_active ? 'Pause account' : 'Activate account'}
@@ -5941,8 +5952,8 @@ const AdminPage: React.FC = () => {
                   )); })()}
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, null, 'preview')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Preview Invoice'}</Button>
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, null, 'send')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Send Invoice'}</Button>
+                  <Button size="sm" variant="outline" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, null, 'preview')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Preview Renewal'}</Button>
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={corpInvoiceBusy === selectedCorporate.id} onClick={() => handleCorporateInvoiceAction(selectedCorporate.id, selectedCorporate.company_name, null, 'send')}>{corpInvoiceBusy === selectedCorporate.id ? '...' : 'Send Renewal Invoice'}</Button>
                 </div>
               </div>
 

@@ -2565,6 +2565,10 @@ export interface DbCorporateInvoice {
   issued_at: string | null;
   created_at: string;
   updated_at: string;
+  invoice_no?: string | null;
+  mpesa_ref?: string | null;
+  paid_at?: string | null;
+  sent_to?: string | null;
   company_name?: string;
 }
 
