@@ -424,9 +424,9 @@ export function effectiveFeaturesFor(account: { tier: string; features?: SavedCo
     const slots = SLOT_FEATURE_IDS.filter((sid) => has(sid)).map((sid) => sid.slice('slot_'.length));
     return {
       slots,
-      maxPlacements: Math.max(1, saved.placements && saved.placements > 0 ? saved.placements : Math.min(1, slots.length) || 1),
+      maxPlacements: has('placements') ? Math.max(1, saved.placements || 1) : 0,
       analyticsDepth: has('full_analytics') ? 'full' : 'basic',
-      teamSeats: Math.max(1, saved.team_seats && saved.team_seats > 0 ? saved.team_seats : 1),
+      teamSeats: has('team_seats') ? Math.max(1, saved.team_seats || 1) : 0,
       featured: has('featured'),
       multiImages: has('multi_images'),
     };

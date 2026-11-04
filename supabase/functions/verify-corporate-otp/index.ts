@@ -62,10 +62,10 @@ Deno.serve(async (req) => {
       throw new Error('This signup is no longer valid. Please start over.')
     }
     const customIds = Array.isArray(data.features)
-      ? data.features.filter((id: unknown) => typeof id === 'string')
+      ? data.features.filter((id: unknown) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(FEATURE_MONTHLY_KES, id))
       : []
-    const customPlacements = Math.min(99, Math.max(1, Number(data.placements) || 1))
-    const customTeamSeats = Math.min(99, Math.max(1, Number(data.team_seats) || 1))
+    const customPlacements = customIds.includes('placements') ? Math.min(99, Math.max(1, Number(data.placements) || 1)) : 0
+    const customTeamSeats = customIds.includes('team_seats') ? Math.min(99, Math.max(1, Number(data.team_seats) || 1)) : 0
     const customPrice = tier === 'custom'
       ? estimateCustomBundle(customIds, customPlacements, customTeamSeats).monthly
       : null

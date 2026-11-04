@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import SEO from '@/lib/seo';
-import { CheckCircle, Send, Crown, Sparkles, Shield, Phone, Check } from 'lucide-react';
+import { CheckCircle, Send, Crown, Sparkles, Phone, Check } from 'lucide-react';
 import { supabaseUrl, supabaseKey, supabase } from '@/lib/supabase';
 import { CORPORATE_PACKAGES, FEATURE_CATALOG, FEATURE_GROUPS, TIER_FEATURE_IDS, CORPORATE_TIER_FEATURES, estimateCustomBundle, type SavedCorporateFeatures } from '@/data/siteData';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
@@ -59,7 +59,7 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
     else if (!/^\+?[0-9\s-]{9,}$/.test(formData.phone.trim())) errs.phone = 'Enter a valid phone number';
     if (!formData.email.trim()) errs.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
-    if (!formData.message.trim()) errs.message = 'Tell us a little about your goals';
+    if (formData.package !== 'custom' && !formData.message.trim()) errs.message = 'Tell us a little about your goals';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -131,7 +131,9 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
           <p className="flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-amber-300 mb-2"><Crown className="w-4 h-4" /> Corporate & Community Placements</p>
           <h1 className="text-3xl lg:text-4xl font-bold mb-3">Advertise Your Business</h1>
           <p className="text-gray-300 max-w-2xl text-sm lg:text-base">
-            Tell us about your organisation and we'll craft a placement around your goals — we handle the copy, imagery and scheduling. A tailored, no-obligation quote follows within one working day.
+            {formData.package === 'custom'
+              ? 'Select the placements and capabilities you need, then complete the same verified corporate registration and M-Pesa invoice flow used by the fixed plans.'
+              : "Tell us about your organisation and we'll craft a placement around your goals — we handle the copy, imagery and scheduling. A tailored, no-obligation quote follows within one working day."}
           </p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-8">
             {CORPORATE_PACKAGES.map(pkg => (
@@ -221,7 +223,7 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
             <div className="px-6 py-5 border-t border-gray-100">
               <p className="text-sm font-semibold text-gray-900 mb-3">Build your bundle</p>
               <CorporateFeaturesBuilder tier="custom" features={customBundle} onChange={setCustomBundle} showPricing />
-              <p className="text-xs text-gray-500 mt-3">Your selection feeds straight into the quote request below.</p>
+              <p className="text-xs text-gray-500 mt-3">Your selected features and quantities are carried into the corporate registration and invoice flow.</p>
             </div>
           )}
         </div>
@@ -230,14 +232,6 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 border border-gray-100">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-green-600" /> What happens next</h3>
-              <ol className="space-y-3 text-sm text-gray-600">
-                <li className="flex gap-2"><span className="w-5 h-5 rounded-full bg-green-100 text-green-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">1</span> We receive your request and review your goals.</li>
-                <li className="flex gap-2"><span className="w-5 h-5 rounded-full bg-green-100 text-green-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">2</span> A tailored quote is emailed or sent on WhatsApp within 1 working day.</li>
-                <li className="flex gap-2"><span className="w-5 h-5 rounded-full bg-green-100 text-green-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">3</span> Once agreed, we design & launch your placement — no effort on your side.</li>
-              </ol>
-            </div>
             <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-100">
               <p className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" /> Leading rates (Phase 1)</p>
               <ul className="space-y-1.5 text-sm text-gray-600">
@@ -245,7 +239,11 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
                   <li key={k} className="flex justify-between"><span className="capitalize font-medium text-gray-700">{k}</span><span className="text-gray-500">{v}</span></li>
                 ))}
               </ul>
-              <p className="text-xs text-gray-500 mt-3">Monthly placements. Ad design & copy included. Pay via M-Pesa after your quote is confirmed.</p>
+              <p className="text-xs text-gray-500 mt-3">
+                {formData.package === 'custom'
+                  ? 'Your selected features are shown on the invoice. Pay via M-Pesa after email verification.'
+                  : 'Monthly placements. Ad design & copy included. Pay via M-Pesa after your quote is confirmed.'}
+              </p>
             </div>
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <h3 className="font-semibold text-gray-900 mb-2">Prefer to talk?</h3>
@@ -277,15 +275,15 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
                 <input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="you@company.co.ke" className={`w-full px-4 py-2.5 rounded-lg border ${errors.email ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 outline-none text-sm`} />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
               </div>
-              <div>
+              {formData.package !== 'custom' && <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Desired start date</label>
                 <input type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-sm" />
-              </div>
-              <div className="sm:col-span-2">
+              </div>}
+              {formData.package !== 'custom' && <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">About your goals *</label>
                 <textarea value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} rows={4} placeholder="Where are you based, who do you want to reach, and what would success look like?" className={`w-full px-4 py-2.5 rounded-lg border ${errors.message ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 outline-none text-sm`} />
                 {errors.message && <p className="text-xs text-red-500 mt-1">{errors.message}</p>}
-              </div>
+              </div>}
             </div>
             <button type="submit" disabled={loading} className="w-full mt-6 py-3.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
               {loading ? 'Sending…' : (<><Send className="w-4 h-4" /> {formData.package === 'custom' ? 'Continue to verification and invoice' : 'Request My Quote'}</>)}

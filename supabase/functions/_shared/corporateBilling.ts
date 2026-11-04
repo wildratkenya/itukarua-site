@@ -63,9 +63,9 @@ export function effectivenessFor(account: { tier?: string; features?: CorpFeatur
     const slots = (TIER_SLOTS.custom).filter((s) => has(`slot_${s}`))
     return {
       slots,
-      maxPlacements: Math.max(1, saved.placements && saved.placements > 0 ? saved.placements : 1),
+      maxPlacements: ids.includes('placements') ? Math.max(1, saved.placements || 1) : 0,
       analyticsDepth: has('full_analytics') ? 'full' : 'basic',
-      teamSeats: Math.max(1, saved.team_seats && saved.team_seats > 0 ? saved.team_seats : 1),
+      teamSeats: ids.includes('team_seats') ? Math.max(1, saved.team_seats || 1) : 0,
       featured: has('featured'),
       multiImages: has('multi_images'),
     }
