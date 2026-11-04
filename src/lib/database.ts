@@ -2605,6 +2605,27 @@ export async function getCorporateMembers(accountId: string): Promise<DbCorporat
   return rows.map((r: any) => ({ ...r, full_name: r.profiles?.full_name, email: r.profiles?.email })) as DbCorporateMember[];
 }
 
+export async function updateCorporateOwnerProfile(
+  accountId: string,
+  profile: { company_name: string; contact_person: string; contact_phone: string; contact_email: string; billing_email: string },
+): Promise<DbCorporateAccount> {
+  const { data, error } = await supabase.rpc('corporate_owner_update_account', {
+    p_account_id: accountId,
+    p_company_name: profile.company_name,
+    p_contact_person: profile.contact_person,
+    p_contact_phone: profile.contact_phone,
+    p_contact_email: profile.contact_email,
+    p_billing_email: profile.billing_email,
+  });
+  if (error) throw error;
+  return data as DbCorporateAccount;
+}
+
+export async function updateCorporateMemberName(memberId: string, fullName: string): Promise<void> {
+  const { error } = await supabase.rpc('corporate_owner_update_member_name', { p_member_id: memberId, p_full_name: fullName });
+  if (error) throw error;
+}
+
 export async function getCorporateAccountAds(accountId: string) {
   const { data, error } = await supabase
     .from('advertisements')

@@ -520,6 +520,8 @@ const AdminPage: React.FC = () => {
   const [corpInvoices, setCorpInvoices] = useState<Record<string, DbCorporateInvoice[]>>({});
   const [corpInvoiceBusy, setCorpInvoiceBusy] = useState<string | null>(null);
   const [corpInvoiceMsg, setCorpInvoiceMsg] = useState('');
+  const [ownerEmailDraft, setOwnerEmailDraft] = useState('');
+  const [ownerEmailBusy, setOwnerEmailBusy] = useState(false);
 
   const loadCorporateInvoices = async () => {
     try {
@@ -665,6 +667,31 @@ const AdminPage: React.FC = () => {
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'Failed to send reset email', variant: 'destructive' });
     }
+  };
+
+  const changeCorporateOwnerEmail = async (acct: DbCorporateAccount) => {
+    const email = ownerEmailDraft.trim();
+    if (!email || !email.includes('@')) {
+      toast({ title: 'Invalid email', description: 'Enter a valid new owner login email.', variant: 'destructive' });
+      return;
+    }
+    setOwnerEmailBusy(true);
+    try {
+      const owner = corporateMembersByAccount[acct.id]?.find(m => m.member_role === 'owner');
+      if (!owner) throw new Error('Corporate owner not found');
+      const token = await ensureValidToken();
+      const res = await fetch(`${supabaseUrl}/functions/v1/change-corporate-owner-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ account_id: acct.id, email }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Could not change owner email');
+      toast({ title: 'Confirmation sent', description: `A confirmation email was sent to ${email}. The owner login changes after confirmation.` });
+      setOwnerEmailDraft('');
+    } catch (err: any) {
+      toast({ title: 'Owner email change failed', description: err.message, variant: 'destructive' });
+    } finally { setOwnerEmailBusy(false); }
   };
 
   const deleteCorporateAccount = async (acct: DbCorporateAccount) => {
@@ -5830,6 +5857,14 @@ const AdminPage: React.FC = () => {
                     <p><span className="text-gray-500">Contact email:</span> {selectedCorporate.contact_email || '—'}</p>
                     <p><span className="text-gray-500">Billing email:</span> {selectedCorporate.billing_email || '—'}</p>
                     {selectedCorporate.notes && <p><span className="text-gray-500">Notes:</span> {selectedCorporate.notes}</p>}
+                    <div className="pt-2 mt-2 border-t border-gray-200">
+                      <p className="text-gray-500 mb-1">Owner login email</p>
+                      <div className="flex gap-2">
+                        <Input value={ownerEmailDraft} onChange={e => setOwnerEmailDraft(e.target.value)} placeholder={(corporateMembersByAccount[selectedCorporate.id] || []).find(m => m.member_role === 'owner')?.email || 'owner@example.com'} type="email" />
+                        <Button size="sm" disabled={ownerEmailBusy || !ownerEmailDraft.trim()} onClick={() => changeCorporateOwnerEmail(selectedCorporate)}>{ownerEmailBusy ? '...' : 'Request change'}</Button>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">Admin-only. The new address must confirm before it becomes the login email.</p>
+                    </div>
                   </div>
                   <div className="col-span-2 bg-white rounded-lg border border-gray-100 p-3">
                     <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">Included features</p>
@@ -5931,6 +5966,18 @@ const AdminPage: React.FC = () => {
                     ))}
                   </div>
                 )}
+              </div>
+
+              <div className="border-t border-gray-100 pt-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Team members</h4>
+                <div className="space-y-2">
+                  {(corporateMembersByAccount[selectedCorporate.id] || []).map(member => (
+                    <div key={member.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl">
+                      <div className="flex-1 min-w-0"><p className="font-semibold text-sm truncate">{member.full_name || 'Team member'}</p><p className="text-xs text-gray-500 truncate">{member.email}{member.member_role === 'owner' ? ' · owner' : ''}</p></div>
+                      {member.member_role !== 'owner' && <Button size="sm" variant="outline" onClick={() => removeCorporateMember(member)}>Remove</Button>}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="border-t border-gray-100 pt-4">

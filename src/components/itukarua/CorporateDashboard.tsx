@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Building2, LayoutDashboard, BarChart3, User, Receipt, Users, Plus, X, Upload, Eye, EyeOff, Loader2, Zap, Crown, Settings, LogOut, ChevronDown, ChevronUp, ExternalLink, Trash2, Save } from 'lucide-react';
 import { supabase, proxyRequest, proxyTable, proxyImageUrl } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
-import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, issueCorporateInvoice, adminResetPassword, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
+import { getMyCorporateAccount, getCorporateMembers, getCorporateAccountAds, getCorporateAdAnalytics, getCorporateInvoices, issueCorporateInvoice, updateCorporateOwnerProfile, updateCorporateMemberName, adminResetPassword, type DbCorporateAccount, type DbCorporateMember, type AdAnalyticsByAd } from '@/lib/database';
 import { effectiveFeaturesFor, corporateMonthlyAmount, type EffectiveCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { compressImage } from '@/lib/imageUtils';
@@ -51,6 +51,8 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
   // Add member state
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberForm, setMemberForm] = useState({ email: '', password: '', full_name: '' });
+  const [editingMember, setEditingMember] = useState<DbCorporateMember | null>(null);
+  const [memberEditForm, setMemberEditForm] = useState({ full_name: '', email: '', password: '' });
   const [addingMember, setAddingMember] = useState(false);
   const [showResetPw, setShowResetPw] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ id: string | null; email: string } | null>(null);
@@ -214,13 +216,8 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
     if (!account) return;
     setSavingProfile(true);
     try {
-      const { error } = await proxyTable('corporate_accounts').update({
-        company_name: profileForm.company_name, contact_person: profileForm.contact_person,
-        contact_phone: profileForm.contact_phone, contact_email: profileForm.contact_email,
-        billing_email: profileForm.billing_email,
-      }, 'id', account.id);
-      if (error) throw error;
-      setAccount(prev => prev ? { ...prev, ...profileForm } as DbCorporateAccount : prev);
+      const saved = await updateCorporateOwnerProfile(account.id, profileForm);
+      setAccount(saved);
     } catch (err: any) { alert(err.message); }
     finally { setSavingProfile(false); }
   };
@@ -252,6 +249,33 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
       if (error) throw error;
       await loadMembers();
     } catch (err: any) { alert(err.message); }
+  };
+
+  const handleSaveMemberName = async () => {
+    if (!editingMember) return;
+    try {
+      await updateCorporateMemberName(editingMember.id, editingMember.full_name || '');
+      setEditingMember(null);
+      await loadMembers();
+    } catch (err: any) { toast({ title: 'Could not update team member', description: err.message, variant: 'destructive' }); }
+  };
+
+  const handleSaveMember = async () => {
+    if (!editingMember || !account) return;
+    try {
+      const { supabaseUrl, supabaseKey, ensureValidToken } = await import('@/lib/supabase');
+      const token = await ensureValidToken();
+      const res = await fetch(`${supabaseUrl}/functions/v1/update-corporate-member`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ member_id: editingMember.id, full_name: memberEditForm.full_name, email: memberEditForm.email, password: memberEditForm.password || undefined }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Could not update team member');
+      setEditingMember(null);
+      await loadMembers();
+      toast({ title: 'Team member updated', description: result.email_confirmation_required ? 'The new email must be confirmed before it can be used to sign in.' : 'Changes saved.' });
+    } catch (err: any) { toast({ title: 'Could not update team member', description: err.message, variant: 'destructive' }); }
   };
 
   const handleSetMemberPassword = async () => {
@@ -608,8 +632,11 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                         <button onClick={() => { setResetTarget({ id: m.profile_id, email: m.email }); setResetPw(''); setShowResetPw(true); }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Set password</button>
                       </>
                     )}
-                    {m.member_role !== 'owner' && m.profile_id !== user.id && (
-                      <button onClick={() => handleRemoveMember(m.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    {m.member_role !== 'owner' && m.profile_id !== user.id && isOwner && (
+                      <>
+                        <button onClick={() => { setEditingMember(m); setMemberEditForm({ full_name: m.full_name || '', email: m.email || '', password: '' }); }} className="px-2.5 py-1 text-[11px] font-semibold border border-gray-300 rounded-lg hover:bg-gray-50">Edit</button>
+                        <button onClick={() => handleRemoveMember(m.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -688,6 +715,23 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
                 className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
                 {addingMember ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</> : 'Add Member'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setEditingMember(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Edit Team Member</h2>
+              <button onClick={() => setEditingMember(null)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input value={memberEditForm.full_name} onChange={e => setMemberEditForm(p => ({ ...p, full_name: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Login Email</label><input type="email" value={memberEditForm.email} onChange={e => setMemberEditForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /><p className="text-[11px] text-gray-500 mt-1">Changing email requires confirmation at the new address.</p></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">New Password (optional)</label><input type="password" value={memberEditForm.password} onChange={e => setMemberEditForm(p => ({ ...p, password: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+              <button onClick={handleSaveMember} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg">Save Member Changes</button>
             </div>
           </div>
         </div>
