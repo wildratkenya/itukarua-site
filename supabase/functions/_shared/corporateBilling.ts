@@ -331,8 +331,7 @@ export async function corporateReportRows(
 /**
  * Apply a full corporate renewal: mark the matching invoice paid (when found),
  * advance next_billing_date by one period, and extend every placement's billing
- * window so ads resume serving. Never touches is_active (admin suspension stays
- * an explicit admin decision).
+ * window so ads resume serving and activate the account after payment.
  */
 export async function renewCorporate(
   supabase: any,
@@ -383,7 +382,7 @@ export async function renewCorporate(
   // is allowed to serve. Both writes are the server's, never the member's.
   const { error: accErr } = await supabase
     .from('corporate_accounts')
-    .update({ next_billing_date: nextIso, payment_status: 'paid', paid_at: paidAt })
+    .update({ next_billing_date: nextIso, payment_status: 'paid', paid_at: paidAt, is_active: true })
     .eq('id', accountId)
   if (accErr) throw new Error('renewCorporate account update: ' + accErr.message)
 
