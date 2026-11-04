@@ -4561,6 +4561,58 @@ const AdminPage: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                    <div className="md:col-span-2">
+                      <h3 className="text-sm font-semibold text-gray-900 border-t border-gray-100 pt-5">Corporate Packages</h3>
+                      <p className="text-xs text-gray-500 mt-1 mb-3">Starting monthly prices shown for Bronze, Silver and Gold corporate accounts.</p>
+                    </div>
+                    {[
+                      ['corporate_bronze_monthly', 'Bronze package', 'Starting monthly price', 3000],
+                      ['corporate_silver_monthly', 'Silver package', 'Starting monthly price', 6000],
+                      ['corporate_gold_monthly', 'Gold package', 'Starting monthly price', 10000],
+                    ].map(([key, label, description, fallback]) => (
+                      <div key={key as string} className="rounded-lg border border-gray-200 p-4">
+                        <Label>{label as string}</Label>
+                        <p className="text-xs text-gray-500 mb-2">{description as string}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">KES</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={platformSettings[key as string] ?? fallback}
+                            onChange={e => setPlatformSettings(current => ({ ...current, [key as string]: Math.max(0, Number(e.target.value) || 0) }))}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="md:col-span-2">
+                      <h3 className="text-sm font-semibold text-gray-900 border-t border-gray-100 pt-5">Custom Placement &amp; Feature Pricing</h3>
+                      <p className="text-xs text-gray-500 mt-1 mb-3">Monthly Custom prices used when calculating a selected bundle. Quantity items are charged per placement or seat.</p>
+                    </div>
+                    {[
+                      ['corporate_sitewide_strip_monthly', 'Site-wide strip', 3000],
+                      ['corporate_category_strip_monthly', 'Jobs & Services strip', 3000],
+                      ['corporate_homepage_banner_monthly', 'Homepage carousel', 4000],
+                      ['corporate_job_listings_top_monthly', 'Corporate Top Banner', 2000],
+                      ['corporate_featured_monthly', 'Featured + priority delivery', 2000],
+                      ['corporate_full_analytics_monthly', 'Full analytics dashboard', 1500],
+                      ['corporate_multi_images_monthly', 'Multi-image creatives', 1000],
+                      ['corporate_placements_unit_monthly', 'Concurrent placements (per unit)', 1000],
+                      ['corporate_team_seats_unit_monthly', 'Team seats (per seat)', 500],
+                    ].map(([key, label, fallback]) => (
+                      <div key={key as string} className="rounded-lg border border-gray-200 p-4">
+                        <Label>{label as string}</Label>
+                        <p className="text-xs text-gray-500 mb-2">Custom monthly price</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">KES</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={platformSettings[key as string] ?? fallback}
+                            onChange={e => setPlatformSettings(current => ({ ...current, [key as string]: Math.max(0, Number(e.target.value) || 0) }))}
+                          />
+                        </div>
+                      </div>
+                    ))}
                     <div className="rounded-lg border border-gray-200 p-4">
                       <Label>Contact Access Window</Label>
                       <p className="text-xs text-gray-500 mb-2">How long a paid contact unlock lasts</p>
