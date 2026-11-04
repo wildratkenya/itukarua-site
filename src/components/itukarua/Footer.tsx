@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Phone, Mail, Facebook, Twitter, Send, X } from 'lucide-react';
 import type { Page } from './Header';
-import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, COOKIE_POLICY, SUBSCRIPTION_TERMS } from '@/data/termsContent';
 import { useLegalDocuments } from '@/hooks/useLegalDocuments';
 import { subscribeNewsletter } from '@/lib/database';
 import { KENYA_COUNTIES } from '@/data/siteData';

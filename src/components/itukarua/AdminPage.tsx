@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
-import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '@/data/termsContent';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, SUBSCRIPTION_TERMS } from '@/data/termsContent';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
 import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
 import CertificateViewer from './CertificateViewer';
@@ -350,6 +350,7 @@ const AdminPage: React.FC = () => {
   const [platformSettings, setPlatformSettings] = useState<Record<string, number>>({});
   const [termsEditor, setTermsEditor] = useState(TERMS_AND_CONDITIONS);
   const [privacyEditor, setPrivacyEditor] = useState(PRIVACY_POLICY);
+  const [subscriptionEditor, setSubscriptionEditor] = useState(SUBSCRIPTION_TERMS);
   const [legalVersion, setLegalVersion] = useState('2.1');
   const [settingsSaving, setSettingsSaving] = useState(false);
 
@@ -1064,6 +1065,7 @@ const AdminPage: React.FC = () => {
         getPlatformSettings().then(setPlatformSettings),
         getPlatformContent('terms').then(content => { if (content) setTermsEditor(content); }),
         getPlatformContent('privacy').then(content => { if (content) setPrivacyEditor(content); }),
+        getPlatformContent('subscription').then(content => { if (content) setSubscriptionEditor(content); }),
       ]);
 
       // Use individual category lists for modals
@@ -1097,11 +1099,12 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const saveLegalDocument = async (key: 'terms' | 'privacy', content: string) => {
+  const saveLegalDocument = async (key: 'terms' | 'privacy' | 'subscription', content: string) => {
     setSettingsSaving(true);
     try {
       await updatePlatformContent(key, content, legalVersion.trim() || '2.1');
-      toast({ title: 'Saved', description: `${key === 'terms' ? 'Terms and Conditions' : 'Privacy Policy'} updated.` });
+      const labels = { terms: 'Terms and Conditions', privacy: 'Privacy Policy', subscription: 'Subscription Terms' };
+      toast({ title: 'Saved', description: `${labels[key]} updated.` });
     } catch (error: any) {
       toast({ title: 'Save failed', description: error?.message || 'Could not save legal document.', variant: 'destructive' });
     } finally {
@@ -4594,7 +4597,7 @@ const AdminPage: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Legal Documents</CardTitle>
-                  <p className="text-sm text-gray-500">Changes are published to the public Terms and Privacy views after saving.</p>
+                  <p className="text-sm text-gray-500">These documents are used by the footer, signup flows, and subscription screens after saving.</p>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="max-w-xs">
@@ -4610,6 +4613,11 @@ const AdminPage: React.FC = () => {
                     <Label htmlFor="privacy-editor">Privacy Policy</Label>
                     <Textarea id="privacy-editor" value={privacyEditor} onChange={e => setPrivacyEditor(e.target.value)} rows={18} className="mt-2 font-mono text-xs" />
                     <Button onClick={() => saveLegalDocument('privacy', privacyEditor)} disabled={settingsSaving} className="mt-3">Save Privacy Policy</Button>
+                  </div>
+                  <div>
+                    <Label htmlFor="subscription-editor">Subscription and Paid Services Terms</Label>
+                    <Textarea id="subscription-editor" value={subscriptionEditor} onChange={e => setSubscriptionEditor(e.target.value)} rows={18} className="mt-2 font-mono text-xs" />
+                    <Button onClick={() => saveLegalDocument('subscription', subscriptionEditor)} disabled={settingsSaving} className="mt-3">Save Subscription Terms</Button>
                   </div>
                 </CardContent>
               </Card>
