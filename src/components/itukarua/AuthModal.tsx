@@ -8,6 +8,7 @@ import { compressImage } from '@/lib/imageUtils';
 import { DOCUMENTS_BUCKET } from '@/lib/documents';
 import { subscribeNewsletter, updateProfile, getCustomCategories } from '@/lib/database';
 import { useLegalDocuments } from '@/hooks/useLegalDocuments';
+import { usePlatformPricing } from '@/hooks/usePlatformPricing';
 import type { MpesaHandler } from '@/lib/mpesa';
 import { peekSubscriptionIntent, clearSubscriptionIntent, type SubscriptionIntent } from '@/lib/checkoutIntent';
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/consent';
@@ -64,6 +65,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
   const [forgotMode, setForgotMode] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const legalDocuments = useLegalDocuments();
+  const platformPricing = usePlatformPricing();
+  const premiumPrice = platformPricing.jobseeker;
+  const employerWeeklyPrice = platformPricing.employerWeekly;
+  const employerDayPrice = platformPricing.employerDay;
 
   useEffect(() => {
     if (isOpen) getCustomCategories('job').then(setDbJobCategories);
@@ -382,7 +387,7 @@ data: {
                 <div className="border-2 border-green-500 bg-green-50 rounded-xl p-5 relative">
                   <span className="absolute -top-2.5 right-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
                   <p className="font-bold text-gray-900">Premium</p>
-                  <p className="text-xs text-gray-500">KES {PRICING_PLANS.jobseekerPremium.price} · {PRICING_PLANS.jobseekerPremium.days} days</p>
+                  <p className="text-xs text-gray-500">KES {premiumPrice} · {PRICING_PLANS.jobseekerPremium.days} days</p>
                   <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
                     <li>• Unlimited job bids</li>
                     <li>• Priority visibility & featured badge</li>
@@ -394,11 +399,11 @@ data: {
                       setShowPlanChoice(false);
                       setChosenRole(null);
                       onClose();
-                      onOpenMpesa?.(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined, { metadata: { kind: 'subscription', role: 'jobseeker', days: PRICING_PLANS.jobseekerPremium.days } });
+                      onOpenMpesa?.(premiumPrice, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined, { metadata: { kind: 'subscription', role: 'jobseeker', days: PRICING_PLANS.jobseekerPremium.days } });
                     }}
                     className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Pay KES {PRICING_PLANS.jobseekerPremium.price} via M-Pesa
+                    Pay KES {premiumPrice} via M-Pesa
                   </button>
                   <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">No auto-renewal — access runs for {PRICING_PLANS.jobseekerPremium.days} days from payment. Non-refundable once active.</p>
                 </div>
@@ -418,7 +423,7 @@ data: {
                 <div className="border-2 border-green-500 bg-green-50 rounded-xl p-5 relative">
                   <span className="absolute -top-2.5 left-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-3xl font-extrabold text-green-700">KES {PRICING_PLANS.employerSubscription.price}</span>
+                    <span className="text-3xl font-extrabold text-green-700">KES {employerWeeklyPrice}</span>
                     <Crown className="w-6 h-6 text-green-600" />
                   </div>
                   <p className="font-bold text-gray-900">{PRICING_PLANS.employerSubscription.name}</p>
@@ -434,16 +439,16 @@ data: {
                       setShowPlanChoice(false);
                       setChosenRole(null);
                       onClose();
-                      onOpenMpesa?.(PRICING_PLANS.employerSubscription.price, 'Employer Weekly Access', 'EMP-WK', 'registration');
+                      onOpenMpesa?.(employerWeeklyPrice, 'Employer Weekly Access', 'EMP-WK', 'registration');
                     }}
                     className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Pay KES {PRICING_PLANS.employerSubscription.price} via M-Pesa
+                    Pay KES {employerWeeklyPrice} via M-Pesa
                   </button>
                 </div>
                 <div className="border-2 rounded-xl p-5 border-blue-300 bg-blue-50">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-3xl font-extrabold text-blue-700">KES {PRICING_PLANS.singleJobPost.price}</span>
+                    <span className="text-3xl font-extrabold text-blue-700">KES {employerDayPrice}</span>
                     <Zap className="w-6 h-6 text-blue-600" />
                   </div>
                   <p className="font-bold text-gray-900">{PRICING_PLANS.singleJobPost.name}</p>
@@ -459,11 +464,11 @@ data: {
                       setShowPlanChoice(false);
                       setChosenRole(null);
                       onClose();
-                      onOpenMpesa?.(PRICING_PLANS.singleJobPost.price, 'Worker Day Access', 'EMP-DAY', 'employer_day_access');
+                      onOpenMpesa?.(employerDayPrice, 'Worker Day Access', 'EMP-DAY', 'employer_day_access');
                     }}
                     className="mt-4 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    Pay KES {PRICING_PLANS.singleJobPost.price} via M-Pesa
+                    Pay KES {employerDayPrice} via M-Pesa
                   </button>
                 </div>
               </div>
