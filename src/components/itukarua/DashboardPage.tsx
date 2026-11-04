@@ -1255,6 +1255,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                 )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {!isAdmin && <button onClick={(e) => { e.stopPropagation(); sessionStorage.setItem('edit_job_id', job.id); onNavigate('post-job'); }} className="px-3 py-1.5 border border-blue-200 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-50 transition-colors">Edit</button>}
                   {canEnable && publishingJobId !== job.id && (
                     <button onClick={(e) => { e.stopPropagation(); setPublishingJobId(job.id); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Publish / Reactivate</button>
                   )}
@@ -1684,6 +1685,9 @@ const notifRef = useRef<HTMLDivElement>(null);
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-2">
+                    <button onClick={() => { sessionStorage.setItem('edit_service_ad_id', sa.id); onNavigate('post-advert'); }} className="px-4 py-2 border border-blue-200 text-blue-700 text-sm font-semibold rounded-lg hover:bg-blue-50 transition-colors">
+                      Edit
+                    </button>
                       {(status === 'unpaid' || status === 'expired') ? (
                         <button onClick={() => setRenewAd(sa)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
                           {status === 'unpaid' ? 'Pay now' : 'Renew'}

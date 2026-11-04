@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle, Upload, Loader2, X, Shield } from 'lucide-react
 import { supabase } from '@/lib/supabase';
 import { LOCATIONS, PRICING_PLANS, KENYA_COUNTIES } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
-import { createServiceAd, getCustomCategories, hasEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
+import { createServiceAd, getServiceAdById, updateServiceAd, getCustomCategories, hasEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier } from '@/lib/database';
 import { serviceAdImageCap } from '@/lib/adLifecycle';
 import AdvertPlanPicker from './AdvertPlanPicker';
 import type { AdvertPlan } from './AdvertPlanPicker';
@@ -41,8 +41,25 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
   const [dbCats, setDbCats] = useState<string[]>([]);
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({ facebook: '', instagram: '', x: '', linkedin: '' });
   const [imgNote, setImgNote] = useState('');
+  const [editingAdId, setEditingAdId] = useState<string | null>(null);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
 
   useEffect(() => { getCustomCategories('service').then(setDbCats); }, []);
+
+  useEffect(() => {
+    const id = sessionStorage.getItem('edit_service_ad_id');
+    if (!id) return;
+    sessionStorage.removeItem('edit_service_ad_id');
+    setEditingAdId(id);
+    getServiceAdById(id).then(ad => {
+      if (!ad || ad.owner_id !== user?.id) return;
+      setFormData({ businessName: ad.business_name, category: ad.category, description: ad.description, location: ad.location, county: ad.county || '', subcounty: ad.subcounty || '', contact: ad.contact, website: ad.destination_url || '', plan: ad.plan === '10-day' ? '10-Day Advert' : ad.plan === '20-day' ? '20-Day Advert' : '30-Day Advert' });
+      const images = ad.images?.length ? ad.images : (ad.image ? [ad.image] : []);
+      setExistingImages(images);
+      setImagePreviews(images);
+      setSocialLinks({ facebook: ad.social_links?.facebook || '', instagram: ad.social_links?.instagram || '', x: ad.social_links?.x || '', linkedin: ad.social_links?.linkedin || '' });
+    }).catch(err => setServerError(err instanceof Error ? err.message : 'Could not load this advert.'));
+  }, [user?.id]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem('advert_selected_plan');
@@ -174,12 +191,29 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
         : null;
       const websiteRaw = formData.website.trim();
       const website = websiteRaw ? (/^https?:\/\//i.test(websiteRaw) ? websiteRaw : `https://${websiteRaw}`) : undefined;
+      if (editingAdId) {
+        await updateServiceAd(editingAdId, {
+          business_name: formData.businessName,
+          description: formData.description,
+          category: formData.category,
+          image: [...existingImages, ...imageUrls][0] || undefined,
+          images: [...existingImages, ...imageUrls],
+          location: formData.location,
+          county: formData.county || undefined,
+          subcounty: formData.subcounty || undefined,
+          contact: formData.contact,
+          destination_url: website,
+          social_links: socialPayload,
+        });
+        onNavigate('dashboard');
+        return;
+      }
       const ad = await createServiceAd({
         business_name: formData.businessName,
         description: formData.description,
         category: formData.category,
         image: imageUrls[0] || undefined,
-        images: imageUrls.length > 0 ? imageUrls : undefined,
+        images: [...existingImages, ...imageUrls],
         location: formData.location,
         county: formData.county || undefined,
         subcounty: formData.subcounty || undefined,
@@ -234,7 +268,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <button onClick={() => onNavigate('services')} className="flex items-center gap-2 text-green-200 hover:text-white mb-4 transition-colors"><ArrowLeft className="w-4 h-4" /> Back to Services</button>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">Advertise Your Business</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-white">{editingAdId ? 'Edit Service Advert' : 'Advertise Your Business'}</h1>
           <p className="text-green-100 mt-1">Reach the local community with your products and services</p>
         </div>
       </div>
@@ -403,7 +437,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ onNavigate, user, onOpe
             <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
               <div>{selectedPlan && <p className="text-sm text-gray-500">Total: <span className="font-bold text-green-700 text-lg">KES {selectedPlan.price}</span></p>}</div>
               <button type="submit" disabled={loading} className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : uploadingImages ? 'Uploading Images...' : 'Submit & Pay via M-Pesa'}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : uploadingImages ? 'Uploading Images...' : editingAdId ? 'Save Advert Changes' : 'Submit & Pay via M-Pesa'}
               </button>
             </div>
           </form>

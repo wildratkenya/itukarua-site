@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, CheckCircle, Loader2, Upload, X, Mail, Shield, Phone, Zap, Briefcase } from 'lucide-react';
 import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { getSubcounties } from '@/data/kenyaLocations';
-import { createJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement, employerReactivateJob, JOB_LISTING_PLANS } from '@/lib/database';
+import { createJob, getJobById, updateJob, getCustomCategories, notifyJobseekersOfNewJob, checkSubscriptionActive, countRecentSingleJobs, hasEntitlement, employerReactivateJob, JOB_LISTING_PLANS } from '@/lib/database';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import type { Page } from './Header';
@@ -35,6 +35,8 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
   const [recentSingleCount, setRecentSingleCount] = useState(0);
   const [showUpsell, setShowUpsell] = useState(false);
   const [jobPublished, setJobPublished] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
 
   // OTP state
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
@@ -44,7 +46,19 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
   const [otpResendTimer, setOtpResendTimer] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  useEffect(() => { getCustomCategories('job').then(setDbCats); }, []);
+  useEffect(() => {
+    getCustomCategories('job').then(setDbCats);
+    const id = sessionStorage.getItem('edit_job_id');
+    if (!id) return;
+    sessionStorage.removeItem('edit_job_id');
+    setEditingJobId(id);
+    getJobById(id).then(job => {
+      if (!job || job.posted_by !== user?.id) return;
+      setFormData({ title: job.title, category: job.category, description: job.description, location: job.location, county: job.county || '', subcounty: job.subcounty || '', budgetMin: String(job.budget_min), budgetMax: String(job.budget_max), deadline: job.deadline, urgent: !!job.urgent });
+      setExistingImages(job.images || []);
+      setImagePreviews(job.images || []);
+    }).catch(err => setServerError(err instanceof Error ? err.message : 'Could not load this job.'));
+  }, [user?.id]);
 
   const [employerLocked, setEmployerLocked] = useState(false);
   const [gateChecked, setGateChecked] = useState(false);
@@ -80,7 +94,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
     if (!formData.budgetMin) errs.budgetMin = 'Enter minimum budget';
     if (!formData.budgetMax) errs.budgetMax = 'Enter maximum budget';
     if (!formData.deadline) errs.deadline = 'Set a deadline';
-    else if (formData.deadline < new Date().toISOString().split('T')[0]) errs.deadline = 'Choose today or a later date — a past deadline cannot be published';
+    else if (!editingJobId && formData.deadline < new Date().toISOString().split('T')[0]) errs.deadline = 'Choose today or a later date — a past deadline cannot be published';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -145,8 +159,14 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
         posted_by: user.id,
         posted_by_name: user.name,
         urgent: formData.urgent,
-        images: imageUrls.length > 0 ? imageUrls : undefined,
+        images: [...existingImages, ...imageUrls],
       };
+
+      if (editingJobId) {
+        await updateJob(editingJobId, jobData);
+        onNavigate('dashboard');
+        return;
+      }
 
       const { data: { session } } = await supabase.auth.getSession();
       const headers: Record<string, string> = {
@@ -503,7 +523,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
       <div className="bg-gradient-to-r from-green-700 to-green-800 py-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <button onClick={() => onNavigate('jobs')} className="flex items-center gap-2 text-green-200 hover:text-white mb-4 transition-colors"><ArrowLeft className="w-4 h-4" /> Back to Jobs</button>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">Post a New Job</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-white">{editingJobId ? 'Edit Job' : 'Post a New Job'}</h1>
           <p className="text-green-100 mt-1">Describe your job and let local workers bid on it</p>
         </div>
       </div>
@@ -632,7 +652,7 @@ const PostJobPage: React.FC<PostJobPageProps> = ({ onNavigate, user, onOpenAuth,
 
             <div className="pt-4 border-t border-gray-100">
               <button type="submit" disabled={loading} className="w-full sm:w-auto px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post Job'}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : editingJobId ? 'Save Job Changes' : 'Post Job'}
               </button>
             </div>
           </form>

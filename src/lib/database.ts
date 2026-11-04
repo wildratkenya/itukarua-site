@@ -143,6 +143,7 @@ export interface DbServiceAd {
   county?: string;
   subcounty?: string;
   contact: string;
+  destination_url?: string | null;
   plan: '10-day' | '20-day' | '30-day';
   /** NULL until the advert is paid for. See createServiceAd. */
   expiry_date: string | null;
