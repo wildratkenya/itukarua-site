@@ -532,7 +532,13 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
               >
                 <div className="flex items-center justify-between mb-1">
                   <p className="font-bold text-gray-900">{p.tier}</p>
-                  <p className="text-xs font-semibold text-amber-700">From KES {CORPORATE_TIER_ANCHOR_KES[p.id].toLocaleString()}/mo</p>
+                  <p className="text-xs font-semibold text-amber-700">
+                    {p.id === 'custom'
+                      ? customFeatures
+                        ? `From KES ${estimateCustomBundle(customFeatures.ids, customFeatures.placements, customFeatures.team_seats).monthly.toLocaleString()}/mo`
+                        : 'Per-item pricing'
+                      : `From KES ${(CORPORATE_TIER_ANCHOR_KES[p.id] || 0).toLocaleString()}/mo`}
+                  </p>
                 </div>
                 <p className="text-xs text-gray-500 mb-2">{p.headline}</p>
                 <ul className="text-[11px] text-gray-600 space-y-0.5">
