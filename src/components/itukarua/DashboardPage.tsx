@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search, Send, Trash2 } from 'lucide-react';
 import { downloadMyData, deleteMyAccount } from '@/lib/account';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getJobViewHistoryForJob, getServiceViewHistoryForAd, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
@@ -99,6 +99,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [profileViewHistory, setProfileViewHistory] = useState<{ view_date: string; view_count: number }[]>([]);
   const [jobViewHistory, setJobViewHistory] = useState<{ view_date: string; view_count: number }[]>([]);
   const [totalJobViews, setTotalJobViews] = useState(0);
+  const [selectedAnalyticsJobId, setSelectedAnalyticsJobId] = useState<string>('all');
+  const [selectedAnalyticsServiceId, setSelectedAnalyticsServiceId] = useState<string>('all');
+  const [serviceViewHistory, setServiceViewHistory] = useState<{ view_date: string; view_count: number }[]>([]);
   const [siteTraffic, setSiteTraffic] = useState<{ date: string; visitors: number; page_views: number }[]>([]);
   const [userRanking, setUserRanking] = useState<{ rank: number; total: number; reviews_count: number; rating: number } | null>(null);
 const notifRef = useRef<HTMLDivElement>(null);
@@ -172,7 +175,9 @@ const notifRef = useRef<HTMLDivElement>(null);
         } else if (isAdvertiser) {
           setSubscriptionActive(results[offset] || false);
           setSubscriptionDays(results[offset + 1] || 0);
-          setMyServiceAds(results[offset + 2] || []);
+          const ownedServiceAds = results[offset + 2] || [];
+          setMyServiceAds(ownedServiceAds);
+          if (ownedServiceAds.length > 0) setSelectedAnalyticsServiceId(current => current === 'all' ? ownedServiceAds[0].id : current);
         } else {
           setJobs(results[offset] || []);
           setReceivedBids(results[offset + 1] || []);
@@ -245,6 +250,16 @@ const notifRef = useRef<HTMLDivElement>(null);
     };
     load();
   }, [user.id, user.role, selectedRole, isAdmin, isJobseeker, isAdvertiser, isEmployer]);
+
+  useEffect(() => {
+    if (selectedAnalyticsJobId === 'all' || !selectedAnalyticsJobId) return;
+    getJobViewHistoryForJob(selectedAnalyticsJobId, 30).then(setJobViewHistory);
+  }, [selectedAnalyticsJobId]);
+
+  useEffect(() => {
+    if (selectedAnalyticsServiceId === 'all' || !selectedAnalyticsServiceId) return;
+    getServiceViewHistoryForAd(selectedAnalyticsServiceId, 30).then(setServiceViewHistory);
+  }, [selectedAnalyticsServiceId]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -1121,8 +1136,55 @@ const notifRef = useRef<HTMLDivElement>(null);
 
 {/* Analytics Section */}
             <div className="space-y-4">
-              {!isAdmin && !isJobseeker && !isAdvertiser && jobViewHistory.length > 0 && (
-                <JobViewsChart data={jobViewHistory} total={totalJobViews} />
+              {!isAdmin && !isJobseeker && !isAdvertiser && jobs.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-600" htmlFor="job-analytics-filter">Job analytics</label>
+                  <select
+                    id="job-analytics-filter"
+                    value={selectedAnalyticsJobId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setSelectedAnalyticsJobId(id);
+                      if (id === 'all') {
+                        getJobViewHistory(user.id, 30).then(setJobViewHistory);
+                        setTotalJobViews(jobs.reduce((sum, job) => sum + Number(job.views || 0), 0));
+                      } else {
+                        const selected = jobs.find(job => job.id === id);
+                        setTotalJobViews(Number(selected?.views || 0));
+                      }
+                    }}
+                    className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  >
+                    <option value="all">All jobs</option>
+                    {jobs.map(job => <option key={job.id} value={job.id}>{job.title}</option>)}
+                  </select>
+                  <JobViewsChart
+                    data={jobViewHistory}
+                    total={totalJobViews}
+                    title={selectedAnalyticsJobId === 'all' ? 'Your Job Views' : `Job Views — ${jobs.find(job => job.id === selectedAnalyticsJobId)?.title || 'Selected job'}`}
+                  />
+                </div>
+              )}
+              {isAdvertiser && myServiceAds.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-600" htmlFor="service-analytics-filter">Service analytics</label>
+                  <select
+                    id="service-analytics-filter"
+                    value={selectedAnalyticsServiceId}
+                    onChange={e => setSelectedAnalyticsServiceId(e.target.value)}
+                    className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  >
+                    <option value="all">All services</option>
+                    {myServiceAds.map(ad => <option key={ad.id} value={ad.id}>{ad.business_name}</option>)}
+                  </select>
+                  <JobViewsChart
+                    data={serviceViewHistory}
+                    total={selectedAnalyticsServiceId === 'all'
+                      ? myServiceAds.reduce((sum, ad) => sum + Number(ad.views_count || 0), 0)
+                      : Number(myServiceAds.find(ad => ad.id === selectedAnalyticsServiceId)?.views_count || 0)}
+                    title={selectedAnalyticsServiceId === 'all' ? 'Your Service Views' : `Service Views — ${myServiceAds.find(ad => ad.id === selectedAnalyticsServiceId)?.business_name || 'Selected service'}`}
+                  />
+                </div>
               )}
               {(isJobseeker ? subscriptionActive : true) && profileViewHistory.length > 0 && (
                 <ProfileViewsChart data={profileViewHistory} total={user.profile?.profile_views || 0} />
@@ -1167,7 +1229,7 @@ const notifRef = useRef<HTMLDivElement>(null);
               );
             }).map(job => {
               const st = jobStateBadge(job);
-              const canEnable = st.key === 'disabled' || st.key === 'retired';
+              const canEnable = st.key === 'disabled' || st.key === 'retired' || (st.key === 'deadline_lapsed' && employerAccessActive);
               return (
               <div key={job.id} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-green-200 transition-all">
                 <div onClick={() => onViewJob(job.id)} className="cursor-pointer flex items-center justify-between">
@@ -1188,7 +1250,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                   <p className="mt-3 text-xs text-gray-500">This ad was retired by the system after its deadline lapsed. Re-post it to list again.</p>
                 )}
 
-                {st.key === 'deadline_lapsed' && (
+                {st.key === 'deadline_lapsed' && !employerAccessActive && (
                   <p className="mt-3 text-xs text-gray-500">The application deadline has passed, so this ad cannot be published or reactivated. Re-post it with a new deadline to list it again.</p>
                 )}
 
@@ -1208,11 +1270,14 @@ const notifRef = useRef<HTMLDivElement>(null);
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
                     </>
                   )}
-                  {st.key === 'deadline_lapsed' && (
+                  {st.key === 'deadline_lapsed' && !employerAccessActive && (
                     <>
                       <button onClick={(e) => { e.stopPropagation(); onNavigate('post-job'); }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors">Re-post</button>
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>
                     </>
+                  )}
+                  {st.key === 'deadline_lapsed' && employerAccessActive && publishingJobId !== job.id && (
+                    <button onClick={(e) => { e.stopPropagation(); setPublishingJobId(job.id); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">Revive with subscription</button>
                   )}
                   {(st.key === 'serving' || st.key === 'disabled' || st.key === 'retired') && (
                     <button onClick={(e) => { e.stopPropagation(); handleDeleteJobPost(job); }} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors">Delete</button>

@@ -5,13 +5,14 @@ import { Briefcase, Download } from 'lucide-react';
 interface Props {
   data: { view_date: string; view_count: number }[];
   total: number;
+  title?: string;
 }
 
 type Period = 'day' | 'week' | 'month';
 
 const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-const JobViewsChart: React.FC<Props> = ({ data, total }) => {
+const JobViewsChart: React.FC<Props> = ({ data, total, title = 'Your Job Views' }) => {
   const [period, setPeriod] = useState<Period>('month');
 
   const windowData = useMemo(() => {
@@ -48,7 +49,7 @@ const JobViewsChart: React.FC<Props> = ({ data, total }) => {
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <Briefcase className="w-4 h-4 text-blue-600" />
           </div>
-          <h3 className="font-semibold text-gray-900">Your Job Views</h3>
+          <h3 className="font-semibold text-gray-900">{title}</h3>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{rangeLabel}</span>

@@ -2064,6 +2064,18 @@ export async function getJobViewHistory(employerId: string, days = 30): Promise<
   return data.map((r: any) => ({ view_date: r.view_date, view_count: Number(r.view_count) }));
 }
 
+export async function getJobViewHistoryForJob(jobId: string, days = 30): Promise<{ view_date: string; view_count: number }[]> {
+  const { data, error } = await supabase.rpc('get_job_view_history_for_job', { p_job_id: jobId, p_days: days });
+  if (error || !data) { console.error('[getJobViewHistoryForJob]', error); return []; }
+  return data.map((r: any) => ({ view_date: r.view_date, view_count: Number(r.view_count) }));
+}
+
+export async function getServiceViewHistoryForAd(adId: string, days = 30): Promise<{ view_date: string; view_count: number }[]> {
+  const { data, error } = await supabase.rpc('get_service_view_history_for_ad', { p_ad_id: adId, p_days: days });
+  if (error || !data) { console.error('[getServiceViewHistoryForAd]', error); return []; }
+  return data.map((r: any) => ({ view_date: r.view_date, view_count: Number(r.view_count) }));
+}
+
 export async function getTotalJobViews(employerId: string): Promise<number> {
   const { data, error } = await supabase.rpc('get_total_job_views', { p_profile_id: employerId });
   if (error || data == null) { console.error('[getTotalJobViews]', error); return 0; }
