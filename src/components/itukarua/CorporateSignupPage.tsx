@@ -4,6 +4,7 @@ import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
 import { CORPORATE_PACKAGES, CORPORATE_TIER_ANCHOR_KES } from '@/data/siteData';
 import type { Page } from './Header';
 import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT, suggestPassword } from '@/lib/password';
+import { useLegalDocuments } from '@/hooks/useLegalDocuments';
 
 interface CorporateSignupPageProps {
   onNavigate: (page: Page) => void;
@@ -38,6 +39,8 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     confirmPassword: '',
   });
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsScrolledToBottom, setTermsScrolledToBottom] = useState(false);
+  const [privacyScrolledToBottom, setPrivacyScrolledToBottom] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,6 +57,9 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const serverErrorRef = useRef<HTMLDivElement | null>(null);
   const otpErrorRef = useRef<HTMLDivElement | null>(null);
+  const termsScrollRef = useRef<HTMLDivElement | null>(null);
+  const privacyScrollRef = useRef<HTMLDivElement | null>(null);
+  const legalDocuments = useLegalDocuments();
 
   // Bring the error message into view so it is never hidden below the fold
   useEffect(() => {
@@ -87,7 +93,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Invalid email';
     if (!form.password || form.password.length < MIN_PASSWORD_LENGTH) errs.password = PASSWORD_TOO_SHORT;
     if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
-    if (!termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
+    if (!termsAccepted) errs.terms = 'Read both documents and accept the Terms & Conditions and Privacy Policy';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -647,16 +653,43 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
                   </div>
                 </div>
 
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-gray-800">Read the Terms &amp; Conditions and Privacy Policy before accepting</p>
+                  <div
+                    ref={termsScrollRef}
+                    onScroll={e => {
+                      const el = e.currentTarget;
+                      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setTermsScrolledToBottom(true);
+                    }}
+                    className="max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-3 text-xs text-gray-600 whitespace-pre-wrap"
+                  >
+                    {legalDocuments.terms}
+                  </div>
+                  <p className="text-[11px] text-gray-400">{termsScrolledToBottom ? 'Terms & Conditions read.' : 'Scroll to the end of the Terms & Conditions.'}</p>
+                  <div
+                    ref={privacyScrollRef}
+                    onScroll={e => {
+                      const el = e.currentTarget;
+                      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setPrivacyScrolledToBottom(true);
+                    }}
+                    className="max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-3 text-xs text-gray-600 whitespace-pre-wrap"
+                  >
+                    {legalDocuments.privacy}
+                  </div>
+                  <p className="text-[11px] text-gray-400">{privacyScrolledToBottom ? 'Privacy Policy read.' : 'Scroll to the end of the Privacy Policy.'}</p>
+                </div>
+
                 <div className="flex items-start gap-2">
                   <input
                     type="checkbox"
                     id="cs-terms"
                     checked={termsAccepted}
+                    disabled={!termsScrolledToBottom || !privacyScrolledToBottom}
                     onChange={e => setTermsAccepted(e.target.checked)}
                     className="w-4 h-4 mt-0.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                   />
-                  <label htmlFor="cs-terms" className="text-xs text-gray-600">
-                    I agree to the <strong>Terms &amp; Conditions</strong> and <strong>Privacy Policy</strong> of Itukarua, and confirm my organization
+                  <label htmlFor="cs-terms" className={`text-xs ${termsScrolledToBottom && privacyScrolledToBottom ? 'text-gray-600' : 'text-gray-400'}`}>
+                    I agree to the <strong>Terms &amp; Conditions</strong> and <strong>Privacy Policy</strong> of ITUKARUA KENYA, and confirm my organization
                     is authorised to open this corporate account.
                   </label>
                 </div>

@@ -17,6 +17,7 @@ Last updated: 30 October 2026 — version 2.0
 3.2. You must give accurate information and keep it up to date. One person or business may not maintain duplicate accounts to evade limits or suspensions.
 3.3. You are responsible for your password and for activity under your account. Passwords must be at least 12 characters. Tell us immediately at info@itukarua.co.ke if you believe your account is compromised.
 3.4. Two-factor authentication with an authenticator app is required for staff and administrator accounts, and is available on request for any account.
+3.5. Corporate accounts may be opened only by an authorized representative of the named organization. The person registering confirms that they have authority to submit the organization's information, accept these Terms, and instruct ITUKARUA KENYA to provide corporate services.
 
 4. ACCEPTABLE USE
 4.1. Do not post false, misleading, discriminatory or fraudulent listings, or impersonate anyone.
@@ -32,37 +33,44 @@ Last updated: 30 October 2026 — version 2.0
 5.4. Except where the law requires otherwise, fees for a product that has already been activated are non-refundable, because access is granted immediately. Nothing in these Terms removes rights you have under the Consumer Protection Act, 2012.
 5.5. We may change prices and features for future purchases. A change never shortens a period you have already paid for.
 
-6. YOUR CONTENT
+6. CORPORATE ACCOUNT VERIFICATION AND PAYMENT
+6.1. A corporate applicant must provide an organization name, a login email, and any contact or billing details requested during signup. We send a one-time verification code to the login email before the account can proceed to payment.
+6.2. Verification confirms control of the submitted email address; it does not by itself prove incorporation, licensing, ownership, or authority. ITUKARUA KENYA may request additional organization or representative documents before activating or continuing a corporate placement.
+6.3. Corporate plans and custom placements are quoted or priced according to the selected tier, features, placement scope, duration, and any agreed extras. A displayed starting price is not a final custom quote.
+6.4. Corporate payment is made through an M-Pesa STK push or another M-Pesa payment instruction shown by ITUKARUA KENYA. The account or placement is activated only after the payment is confirmed and any required verification is complete.
+6.5. If verification fails, the organization cannot be reasonably confirmed, or the requested placement cannot be delivered, ITUKARUA KENYA may decline or suspend the corporate account and will refund an undelivered payment where required by law.
+
+7. YOUR CONTENT
 6.1. You keep ownership of the text, images and documents you upload.
 6.2. You grant ITUKARUA KENYA a worldwide, non-exclusive, royalty-free licence to host, display, resize and distribute that content for the purpose of operating the Platform.
 6.3. You confirm you have the right to publish everything you upload, including photographs of other people.
 6.4. We may remove content that breaches these Terms, and we keep a record of moderation decisions for as long as needed to handle appeals and legal claims.
 
-7. PRIVACY AND DATA PROTECTION
+8. PRIVACY AND DATA PROTECTION
 7.1. Our Privacy Policy explains what personal data we collect, why, where it is stored and for how long. It forms part of these Terms.
 7.2. We process personal data in line with the Data Protection Act, 2019 and, where it applies, the EU General Data Protection Regulation (GDPR).
 7.3. You may withdraw consent, request a copy of your data, or erase your account at any time from your dashboard or by contacting info@itukarua.co.ke.
 
-8. LIABILITY
+9. LIABILITY
 8.1. The Platform is provided "as is". To the extent permitted by law, we exclude implied warranties of fitness for a particular purpose and uninterrupted availability.
 8.2. We are not liable for the acts or omissions of users, including non-payment, unsafe working conditions, or misrepresentation in a listing.
 8.3. To the extent permitted by law, our total liability for any claim relating to a paid product is limited to the amount you paid for that product in the twelve months before the claim.
 8.4. Nothing in these Terms limits liability for fraud, death or personal injury caused by negligence, or any liability that Kenyan law does not allow to be excluded.
 
-9. INDEMNITY
+10. INDEMNITY
 9.1. You agree to indemnify ITUKARUA KENYA against claims, losses and reasonable legal costs arising from content you publish, your breach of these Terms, or your violation of another person's rights.
 
-10. SUSPENSION AND TERMINATION
+11. SUSPENSION AND TERMINATION
 10.1. You may stop using the Platform and delete your account at any time from Dashboard → Settings → Privacy & Data.
 10.2. We may suspend or terminate an account that breaches these Terms, poses a security risk, or is required to be removed by law. Where it is reasonable to do so, we will tell you why and give you a chance to respond.
 10.3. Deleting your account does not cancel a payment already made for an activated product, and does not remove records we must keep by law.
 
-11. DISPUTES AND GOVERNING LAW
+12. DISPUTES AND GOVERNING LAW
 11.1. Please contact us first at info@itukarua.co.ke; most issues are resolved that way.
 11.2. If informal resolution fails, disputes are subject to mediation in Kenya and then to the exclusive jurisdiction of the Kenyan courts.
 11.3. These Terms are governed by the laws of the Republic of Kenya.
 
-12. CHANGES
+13. CHANGES
 12.1. We may update these Terms. Material changes are announced on the Platform and take effect when we publish the new version.
 12.2. If you do not accept a material change, stop using the Platform and delete your account before the change takes effect. Continued use after the effective date means you accept the new version.
 `.trim();
