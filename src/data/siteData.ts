@@ -448,8 +448,8 @@ export function estimateCustomBundle(ids: string[], placements: number = 1, team
     .map(id => FEATURE_MAP[id])
     .filter((feature): feature is CorporateFeature => !!feature && !feature.perUnit);
   const monthly = selectedFeatures.reduce((total, feature) => total + feature.monthly, 0)
-    + Math.max(0, placements) * (FEATURE_MAP.placements?.monthly || 1000)
-    + Math.max(0, teamSeats) * (FEATURE_MAP.team_seats?.monthly || 500);
+    + (ids.includes('placements') ? Math.max(0, placements) * (FEATURE_MAP.placements?.monthly || 1000) : 0)
+    + (ids.includes('team_seats') ? Math.max(0, teamSeats) * (FEATURE_MAP.team_seats?.monthly || 500) : 0);
 
   return { monthly, equivalence: 'Custom — per-item estimate' };
 }

@@ -82,23 +82,10 @@ export function effectivenessFor(account: { tier?: string; features?: CorpFeatur
 }
 
 export function estimateCustomBundle(ids: string[], placements = 1, teamSeats = 1): { monthly: number; equivalence: string } {
-  const has = (id: string) => ids.includes(id)
-  const covers = (tier: string) => (TIER_FEATURE_IDS[tier] || []).every(has)
-  let base: string | null = null
-  if (covers('gold')) base = 'gold'
-  else if (covers('silver')) base = 'silver'
-  else if (covers('bronze')) base = 'bronze'
-  const baseDef = base ? TIER_DEFAULTS[base] : null
-
-  let monthly = base ? (CORPORATE_TIER_ANCHOR_KES[base] || 0) : 0
-  const baseIds = base ? TIER_FEATURE_IDS[base] : []
-  for (const id of ids) {
-    if (baseIds.includes(id)) continue
-    monthly += FEATURE_MONTHLY_KES[id] || 0
-  }
-  monthly += Math.max(0, placements - (baseDef ? baseDef.maxPlacements : 1)) * (FEATURE_MONTHLY_KES.placements || 1000)
-  monthly += Math.max(0, teamSeats - (baseDef ? baseDef.teamSeats : 1)) * (FEATURE_MONTHLY_KES.team_seats || 500)
-  return { monthly, equivalence: base ? (base.charAt(0).toUpperCase() + base.slice(1) + ' + add-ons') : 'Custom' }
+  const monthly = ids.reduce((total, id) => total + (id === 'placements' || id === 'team_seats' ? 0 : FEATURE_MONTHLY_KES[id] || 0), 0)
+    + (ids.includes('placements') ? Math.max(0, placements) * (FEATURE_MONTHLY_KES.placements || 1000) : 0)
+    + (ids.includes('team_seats') ? Math.max(0, teamSeats) * (FEATURE_MONTHLY_KES.team_seats || 500) : 0)
+  return { monthly, equivalence: 'Custom — per-item estimate' }
 }
 
 const CUSTOM_TIER_ID = 'custom'

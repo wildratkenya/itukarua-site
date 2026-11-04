@@ -38,9 +38,9 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [customBundle, setCustomBundle] = useState<SavedCorporateFeatures>(() => ({
-    ids: [...TIER_FEATURE_IDS.gold, 'slot_job_listings_top'],
-    placements: 4,
-    team_seats: 5,
+    ids: [],
+    placements: 0,
+    team_seats: 0,
   }));
 
   useEffect(() => {
@@ -81,11 +81,6 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
     }
     setLoading(true);
     let effectiveMessage = formData.message;
-    if (formData.package === 'custom') {
-      const est = estimateCustomBundle(customBundle.ids, customBundle.placements, customBundle.team_seats);
-      const names = customBundle.ids.map(id => FEATURE_CATALOG.find(f => f.id === id)?.label || id).join(', ');
-      effectiveMessage = `${formData.message}\n\nCustom bundle request:\n- Features: ${names}\n- Placements: ${customBundle.placements}\n- Team seats: ${customBundle.team_seats}\n- Estimated: ${fmtKES(est.monthly)}/month (${est.equivalence})`;
-    }
     try {
       await supabase.from('advert_leads').insert({
         company: formData.company,
@@ -296,9 +291,7 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
               {loading ? 'Sending…' : (<><Send className="w-4 h-4" /> {formData.package === 'custom' ? 'Continue to verification and invoice' : 'Request My Quote'}</>)}
             </button>
             <p className="text-[11px] text-gray-400 mt-3 text-center">
-              {formData.package === 'custom'
-                ? `Your estimated invoice is ${fmtKES(estimateCustomBundle(customBundle.ids, customBundle.placements, customBundle.team_seats).monthly)}/month. Verify your organization, then pay the invoice by M-Pesa STK.`
-                : 'No payment now. We confirm the price before anything is created.'}
+              {formData.package === 'custom' ? 'Verify your organization, then pay the invoice by M-Pesa STK.' : 'No payment now. We confirm the price before anything is created.'}
             </p>
           </form>
         </div>

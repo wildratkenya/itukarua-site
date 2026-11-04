@@ -23,7 +23,7 @@ interface Props {
 
 // Shared builder for the corporate features catalog. Fixed tiers show their
 // included features read-only; the Custom tier is an interactive checklist with
-// a live aggregate estimate so a bundle can be rated ("from KES X/mo").
+// a live itemized estimate.
 export function CorporateFeaturesBuilder({ tier, features, onChange, showPricing = true }: Props) {
   const isCustom = tier === 'custom';
   const fixed = CORPORATE_TIER_FEATURES[tier] || CORPORATE_TIER_FEATURES.bronze;
@@ -37,7 +37,12 @@ export function CorporateFeaturesBuilder({ tier, features, onChange, showPricing
   const toggle = (id: string, checked: boolean) => {
     if (!isCustom) return;
     const next = checked ? [...features.ids, id] : features.ids.filter((x) => x !== id);
-    onChange({ ...features, ids: next });
+    const quantityDefaults = id === 'placements'
+      ? { placements: checked ? Math.max(1, features.placements || 1) : 0 }
+      : id === 'team_seats'
+        ? { team_seats: checked ? Math.max(1, features.team_seats || 1) : 0 }
+        : {};
+    onChange({ ...features, ids: next, ...quantityDefaults });
   };
 
   const setQty = (id: 'placements' | 'team_seats', value: number) => {
