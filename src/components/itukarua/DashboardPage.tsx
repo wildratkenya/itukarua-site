@@ -558,7 +558,7 @@ const notifRef = useRef<HTMLDivElement>(null);
       if (deadlineLapsed) return { key: 'deadline_lapsed', label: 'Deadline passed', cls: 'bg-amber-100 text-amber-700' };
       return { key: 'disabled', label: 'Disabled', cls: 'bg-gray-100 text-gray-600' };
     }
-    if (deadlineLapsed) return { key: 'closed', label: 'Application closed', cls: 'bg-amber-100 text-amber-700' };
+    if (deadlineLapsed) return { key: 'deadline_lapsed', label: 'Application closed', cls: 'bg-amber-100 text-amber-700' };
     return { key: 'serving', label: 'Serving', cls: 'bg-green-100 text-green-700' };
   };
 

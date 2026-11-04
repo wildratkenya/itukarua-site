@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, employerReactivateJob, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
 import type { Page } from './Header';
@@ -57,6 +57,8 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [weeklyBidCount, setWeeklyBidCount] = useState(0);
   const [viewingBidder, setViewingBidder] = useState<DbProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [reactivationEndDate, setReactivationEndDate] = useState('');
+  const [reactivating, setReactivating] = useState(false);
 
   const isEmployer = user?.role === 'employer' || !!user?.entitlements?.some(e => e.role === 'employer');
   const hasJobAccess = isEmployer && (subscriptionActive || dayTokenAccess);
@@ -149,6 +151,33 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 
   const daysLeft = Math.max(0, Math.ceil((new Date(job.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
   const applicationsClosed = !!job.deadline && job.deadline < new Date().toISOString().split('T')[0];
+  const employerEntitlement = user?.entitlements?.find(e => e.role === 'employer' && e.paid && e.expires_at && new Date(e.expires_at).getTime() > Date.now());
+  const employerAccessEnd = employerEntitlement?.expires_at
+    ? new Date(employerEntitlement.expires_at)
+    : user?.profile?.subscription_expires_at && new Date(user.profile.subscription_expires_at).getTime() > Date.now()
+      ? new Date(user.profile.subscription_expires_at)
+      : null;
+  const canReviveJob = user?.id === job.posted_by && applicationsClosed && subscriptionActive && !!employerAccessEnd;
+  const reviveJob = async () => {
+    if (!reactivationEndDate || !employerAccessEnd) return;
+    const end = new Date(`${reactivationEndDate}T00:00:00`);
+    const days = Math.ceil((end.getTime() - Date.now()) / 86400000);
+    if (days < 1 || end.getTime() > employerAccessEnd.getTime()) {
+      alert('Choose a future date within your active Employer Access subscription.');
+      return;
+    }
+    setReactivating(true);
+    try {
+      await employerReactivateJob(job.id, days);
+      const refreshed = await getJobById(job.id);
+      setJob(refreshed);
+      setReactivationEndDate('');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not reactivate this job.');
+    } finally {
+      setReactivating(false);
+    }
+  };
 
   const sortedBids = [...bids].sort((a, b) => {
     if (sortBids === 'rating') return (b.bidder_rating || 0) - (a.bidder_rating || 0);
@@ -398,6 +427,31 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
             <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {bids.length} bids</span>
             <CorporateBadge accountId={job.corporate_account_id} />
           </div>
+          {canReviveJob && (
+            <div className="mt-5 max-w-xl rounded-lg bg-white/10 border border-white/20 p-4">
+              <p className="text-sm font-semibold text-white">Applications are closed for this job.</p>
+              <p className="mt-1 text-xs text-green-100">Choose a new application deadline within your active Employer Access subscription to list it again.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={reactivationEndDate}
+                  min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                  max={employerAccessEnd!.toISOString().slice(0, 10)}
+                  onChange={e => setReactivationEndDate(e.target.value)}
+                  className="rounded-md border-0 px-3 py-2 text-sm text-gray-900"
+                  aria-label="New application deadline"
+                />
+                <button
+                  type="button"
+                  onClick={reviveJob}
+                  disabled={reactivating || !reactivationEndDate}
+                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50 disabled:opacity-50"
+                >
+                  {reactivating ? 'Reactivating...' : 'Reactivate job'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -913,4 +967,3 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
 };
 
 export default JobDetailPage;
-
