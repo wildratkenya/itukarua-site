@@ -76,6 +76,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
   const isContactAccess = paymentType === 'contact_access';
   const isTopRatedPass = paymentType === 'top_rated_day_pass';
   const isTokenProduct = isContactAccess || isTopRatedPass;
+  const isJobseekerSubscription = metadata?.kind === 'subscription' && metadata?.role === 'jobseeker';
 
   const planFor = (p: 'weekly' | 'day') => {
     if (p === 'day') {
@@ -424,7 +425,18 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                     </button>
                   )}
                   <div>
-                    <p className="text-sm text-gray-500 mb-3">Enter your M-Pesa phone number and we'll send a payment prompt directly to your phone.</p>
+                    {isJobseekerSubscription && (
+                      <div className="mb-5 rounded-xl border border-green-200 bg-green-50 p-4">
+                        <h3 className="text-sm font-bold text-green-900">Premium jobseeker benefits</h3>
+                        <ul className="mt-2 space-y-1.5 text-xs text-green-800">
+                          <li className="flex gap-2"><Check className="h-3.5 w-3.5 flex-shrink-0" /> Unlimited job bids</li>
+                          <li className="flex gap-2"><Check className="h-3.5 w-3.5 flex-shrink-0" /> Direct messaging with employers</li>
+                          <li className="flex gap-2"><Check className="h-3.5 w-3.5 flex-shrink-0" /> Priority profile visibility and analytics</li>
+                        </ul>
+                        <p className="mt-3 text-xs font-medium text-green-900">KES 100 • access for 30 days from confirmed payment • no automatic renewal</p>
+                      </div>
+                    )}
+                    <p className="text-sm text-gray-500 mb-3">Enter your M-Pesa phone number and  we'll send a payment prompt directly to your phone.</p>
                     <div className="space-y-3">
                       <div>
                         <input

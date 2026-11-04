@@ -197,7 +197,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   <span className="text-5xl font-extrabold text-white">KES {PRICING_PLANS.jobseekerPremium.price}</span>
                   <span className="text-green-100/80 font-medium">{PRICING_PLANS.jobseekerPremium.period}</span>
                 </div>
-                <p className="text-sm text-green-100/90 mb-6 -mt-2">Monthly subscription for bidding &amp; messaging</p>
+                <p className="text-sm text-green-100/90 mb-6 -mt-2">KES 100 for 30 days of bidding &amp; messaging access. No automatic renewal.</p>
                 <ul className="space-y-3 mb-8 flex-1">
                   {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-white/95">

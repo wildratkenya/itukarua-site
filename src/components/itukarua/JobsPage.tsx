@@ -93,12 +93,12 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
 
   // Client-side sort
   const jobs = useMemo(() => {
-    let sorted = [...allJobs];
+    const sorted = [...allJobs];
     if (preferredCategories.length > 0) {
       sorted.sort((a, b) => {
         const aMatch = preferredCategories.includes(a.category) ? 0 : 1;
         const bMatch = preferredCategories.includes(b.category) ? 0 : 1;
-        if (aMatch !== bMatch) return aMatch - bMatch;
+        if (sortBy !== 'newest' && aMatch !== bMatch) return aMatch - bMatch;
         switch (sortBy) {
           case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
           case 'budget-high': return b.budget_max - a.budget_max;
@@ -115,11 +115,33 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
         case 'urgent': sorted.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)); break;
       }
     }
+    if (sortBy === 'newest') return sorted;
+
     const isBoosted = (j: DbJob) => j.featured && j.boost_until && new Date(j.boost_until).getTime() > Date.now();
     const boosted = sorted.filter(isBoosted);
     const rest = sorted.filter(j => !isBoosted(j));
     return [...boosted, ...rest];
   }, [allJobs, sortBy, preferredCategories]);
+
+  const visibleJobs = useMemo(() => {
+    const normalizedLocation = locationDebounced.trim().toLocaleLowerCase();
+    const normalizedCounty = county.trim().toLocaleLowerCase();
+    if (!normalizedLocation && !normalizedCounty) return jobs;
+
+    return jobs.filter(job => {
+      const matchesCounty = !normalizedCounty || (job.county || '').trim().toLocaleLowerCase() === normalizedCounty;
+      const locationValues = [job.location, job.subcounty]
+        .filter(Boolean)
+        .map(value => value!.trim().toLocaleLowerCase());
+      const matchesLocation = !normalizedLocation || locationValues.some(value =>
+        value.split(',').some(part => {
+          const segment = part.trim();
+          return segment === normalizedLocation || segment.startsWith(`${normalizedLocation} `);
+        }),
+      );
+      return matchesCounty && matchesLocation;
+    });
+  }, [jobs, locationDebounced, county]);
 
   const mapJob = (j: DbJob) => ({
     id: j.id,
@@ -271,7 +293,14 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
         <div className="flex gap-6 items-start">
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-6">
-              <p className="text-sm text-gray-500">Showing <span className="font-semibold text-gray-900">{jobs.length}</span> jobs</p>
+              <p className="text-sm text-gray-500">
+                Showing <span className="font-semibold text-gray-900">{visibleJobs.length}</span> jobs
+                {(county || locationDebounced) && (
+                  <span className="ml-2 text-gray-400">
+                    matching {[locationDebounced, county].filter(Boolean).join(', ')}
+                  </span>
+                )}
+              </p>
             </div>
 
             {showListLoading ? (
@@ -288,9 +317,9 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
                   </div>
                 ))}
               </div>
-            ) : jobs.length > 0 ? (
+            ) : visibleJobs.length > 0 ? (
               <div className="flex flex-col gap-3">
-                {jobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} compact />)}
+                {visibleJobs.map(job => <JobCard key={job.id} job={mapJob(job)} onViewJob={onViewJob} compact />)}
                 {hasNextPage && (
                   <button
                     onClick={() => fetchNextPage()}
@@ -305,7 +334,11 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
               <div className="text-center py-16">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><Search className="w-7 h-7 text-gray-400" /></div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No jobs found</h3>
-                <p className="text-sm text-gray-500 mb-4">Try adjusting your search or filters</p>
+                <p className="text-sm text-gray-500 mb-4">
+                  {(county || locationDebounced)
+                    ? `No jobs found matching ${[locationDebounced, county].filter(Boolean).join(', ')}.`
+                    : 'Try adjusting your search or filters'}
+                </p>
                 <button onClick={clearFilters} className="px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">Clear Filters</button>
               </div>
             )}

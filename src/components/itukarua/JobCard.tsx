@@ -87,7 +87,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewJob, compact }) => {
           <div className="flex items-center gap-3 mt-1">
             <span className="flex items-center gap-1 text-[11px] text-gray-500">
               <MapPin className="w-3 h-3 text-green-600" />
-              {job.county || ''}
+              {[job.location, job.subcounty, job.county].filter(Boolean).join(', ')}
             </span>
             {postedLabel && (
               <span className="hidden sm:flex items-center gap-1 text-[11px] text-gray-500">
