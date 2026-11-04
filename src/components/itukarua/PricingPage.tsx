@@ -58,7 +58,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
   const handlePremiumSubscribe = () => {
     const plan = PRICING_PLANS.jobseekerPremium;
     if (!user) {
-      setSubscriptionIntent({ kind: 'subscription', role: 'jobseeker', amount: plan.price, days: 30 });
+      setSubscriptionIntent({ kind: 'subscription', role: 'jobseeker', amount: plan.price, days: plan.days });
       onStayAfterLogin?.();
       onOpenAuth?.('signup', 'jobseeker');
       return;
@@ -69,7 +69,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
       'PREM-NEW',
       'registration',
       undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined,
-      { metadata: { kind: 'subscription', role: 'jobseeker', days: 30 } },
+      { metadata: { kind: 'subscription', role: 'jobseeker', days: plan.days } },
     );
   };
 
@@ -197,7 +197,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                   <span className="text-5xl font-extrabold text-white">KES {PRICING_PLANS.jobseekerPremium.price}</span>
                   <span className="text-green-100/80 font-medium">{PRICING_PLANS.jobseekerPremium.period}</span>
                 </div>
-                <p className="text-sm text-green-100/90 mb-6 -mt-2">KES 100 for 30 days of bidding &amp; messaging access. No automatic renewal.</p>
+                <p className="text-sm text-green-100/90 mb-6 -mt-2">KES 100 for 7 days of bidding &amp; messaging access. No automatic renewal.</p>
                 <ul className="space-y-3 mb-8 flex-1">
                   {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-3 text-sm text-white/95">
@@ -217,8 +217,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ onOpenMpesa, onOpenEmployerPa
                 </button>
                 <div className="mt-4 pt-4 border-t border-white/20 space-y-1.5 text-[11px] leading-relaxed text-green-50/90">
                   <p className="font-bold text-white uppercase tracking-wide text-[10px]">Subscription terms</p>
-                  <p>KES {PRICING_PLANS.jobseekerPremium.price} covers 30 days from the day M-Pesa confirms payment.</p>
-                  <p>No auto-renewal: when the 30 days end, access drops to the Free plan until you pay again.</p>
+                  <p>KES {PRICING_PLANS.jobseekerPremium.price} covers 7 days from the day M-Pesa confirms payment.</p>
+                  <p>No auto-renewal: when the 7 days end, access drops to the Free plan until you pay again.</p>
                   <p>Payments are non-refundable once the subscription is active. If M-Pesa charges you but activation fails, contact support for a reversal.</p>
                 </div>
               </div>

@@ -433,7 +433,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
                           <li className="flex gap-2"><Check className="h-3.5 w-3.5 flex-shrink-0" /> Direct messaging with employers</li>
                           <li className="flex gap-2"><Check className="h-3.5 w-3.5 flex-shrink-0" /> Priority profile visibility and analytics</li>
                         </ul>
-                        <p className="mt-3 text-xs font-medium text-green-900">KES 100 • access for 30 days from confirmed payment • no automatic renewal</p>
+                        <p className="mt-3 text-xs font-medium text-green-900">KES 100 • access for 7 days from confirmed payment • no automatic renewal</p>
                       </div>
                     )}
                     <p className="text-sm text-gray-500 mb-3">Enter your M-Pesa phone number and  we'll send a payment prompt directly to your phone.</p>

@@ -173,11 +173,11 @@ Last updated: 30 October 2026
 export const SUBSCRIPTION_TERMS = `
 ITUKARUA SUBSCRIPTION TERMS — JOBSEEKER PREMIUM
 
-Version 2.0 — 30 October 2026
+Version 2.1 — 4 November 2026
 
 1. WHAT YOU BUY
-1.1. Premium is a 30-day jobseeker subscription priced at KES 100 unless the Pricing page shows a different price at checkout.
-1.2. The subscription starts when M-Pesa confirms your payment and ends 30 days later, at the same time of day.
+1.1. Premium is a 7-day jobseeker subscription priced at KES 100 unless the Pricing page shows a different price at checkout.
+1.2. The subscription starts when M-Pesa confirms your payment and ends 7 days later, at the same time of day.
 1.3. Premium includes unlimited job bids, direct messaging with employers, priority visibility in employer searches, ratings and recommendations, profile analytics, a featured badge, and WhatsApp contact for employers.
 
 2. PAYMENT
@@ -188,8 +188,8 @@ Version 2.0 — 30 October 2026
 
 3. NO AUTO-RENEWAL
 3.1. Premium does not renew automatically. We never charge your number without a new request that you approve.
-3.2. When the 30 days end, your account returns to the Free plan. Your profile, bids and messages are kept.
-3.3. Paying again before expiry extends the current end date by 30 days rather than replacing it.
+3.2. When the 7 days end, your account returns to the Free plan. Your profile, bids and messages are kept.
+3.3. Paying again before expiry extends the current end date by 7 days rather than replacing it.
 
 4. REFUNDS
 4.1. Once Premium is active, the payment is non-refundable, because access is granted immediately.

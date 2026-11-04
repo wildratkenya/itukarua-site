@@ -92,7 +92,7 @@ export const PRICING_PLANS = {
   jobseeker: {
     name: 'Jobseeker Registration',
     price: 100,
-    period: '/mo • 30-day subscription',
+    period: '/week • 7-day subscription',
     features: [
       'Create professional profile',
       'Bid on unlimited jobs',
@@ -117,7 +117,8 @@ export const PRICING_PLANS = {
   jobseekerPremium: {
     name: 'Premium',
     price: 100,
-    period: '/month • 30-day subscription',
+    period: '/week • 7-day subscription',
+    days: 7,
     features: [
       'Unlimited job bids',
       'Direct messaging with employers',
@@ -497,4 +498,3 @@ export function corporateMonthlyAmount(account: {
   }
   return CORPORATE_TIER_ANCHOR_KES.bronze;
 }
-

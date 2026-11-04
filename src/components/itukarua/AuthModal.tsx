@@ -385,7 +385,7 @@ data: {
                 <div className="border-2 border-green-500 bg-green-50 rounded-xl p-5 relative">
                   <span className="absolute -top-2.5 right-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
                   <p className="font-bold text-gray-900">Premium</p>
-                  <p className="text-xs text-gray-500">KES {PRICING_PLANS.jobseekerPremium.price} · 30 days</p>
+                  <p className="text-xs text-gray-500">KES {PRICING_PLANS.jobseekerPremium.price} · {PRICING_PLANS.jobseekerPremium.days} days</p>
                   <ul className="text-xs text-gray-600 mt-3 space-y-1.5">
                     <li>• Unlimited job bids</li>
                     <li>• Priority visibility & featured badge</li>
@@ -397,13 +397,13 @@ data: {
                       setShowPlanChoice(false);
                       setChosenRole(null);
                       onClose();
-                      onOpenMpesa?.(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined, { metadata: { kind: 'subscription', role: 'jobseeker', days: 30 } });
+                      onOpenMpesa?.(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker', undefined, undefined, { metadata: { kind: 'subscription', role: 'jobseeker', days: PRICING_PLANS.jobseekerPremium.days } });
                     }}
                     className="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
                     Pay KES {PRICING_PLANS.jobseekerPremium.price} via M-Pesa
                   </button>
-                  <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">No auto-renewal — access runs for 30 days from payment. Non-refundable once active.</p>
+                  <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">No auto-renewal — access runs for {PRICING_PLANS.jobseekerPremium.days} days from payment. Non-refundable once active.</p>
                 </div>
               </div>
               <p className="text-[10px] text-gray-400 text-center">You can upgrade or switch plans anytime from your dashboard.</p>
@@ -943,7 +943,7 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
 
 {!emailSent && tab === 'signup' && role === 'jobseeker' && (
             <p className="text-xs text-center text-gray-500">
-              Jobseeker membership is <span className="font-semibold text-green-700">FREE</span>. Premium Membership is <span className="font-semibold text-green-700">KES {PRICING_PLANS.jobseekerPremium.price} for 30 days</span> — no auto-renewal. Register now to start bidding on jobs and connecting with employers.{' '}
+              Jobseeker membership is <span className="font-semibold text-green-700">FREE</span>. Premium Membership is <span className="font-semibold text-green-700">KES {PRICING_PLANS.jobseekerPremium.price} for {PRICING_PLANS.jobseekerPremium.days} days</span> — no auto-renewal. Register now to start bidding on jobs and connecting with employers.{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -966,4 +966,3 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
 };
 
 export default AuthModal;
-

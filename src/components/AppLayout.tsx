@@ -758,7 +758,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
                   onClick={() => {
                     const spec = rolePaymentSpec(subNotice.role);
                     if (spec.employerChooser) handleOpenEmployerPayment();
-                    else handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined, undefined, false, true, subNotice.expiredAt, subNotice.role as import('@/lib/database').EntitlementRole);
+                    else handleOpenMpesa(spec.amount, spec.description, spec.accountRef, spec.paymentType, undefined, undefined, undefined, undefined, false, true, subNotice.expiredAt, subNotice.role as import('@/lib/database').EntitlementRole, undefined, undefined, { metadata: { kind: 'subscription', role: 'jobseeker', days: 7 } });
                   }}
                   className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors"
                 >
