@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Mail, Shield, Building2, Crown, Phone, User, Zap } from 'lucide-react';
 import { supabase, supabaseUrl, supabaseKey } from '@/lib/supabase';
-import { CORPORATE_PACKAGES, CORPORATE_TIER_ANCHOR_KES } from '@/data/siteData';
+import { CORPORATE_PACKAGES, CORPORATE_TIER_ANCHOR_KES, estimateCustomBundle, type SavedCorporateFeatures } from '@/data/siteData';
 import type { Page } from './Header';
 import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT, suggestPassword } from '@/lib/password';
 import { useLegalDocuments } from '@/hooks/useLegalDocuments';
@@ -15,7 +15,7 @@ interface CorporateSignupPageProps {
 
 type Step = 'details' | 'otp' | 'payment' | 'success';
 
-const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold'] as const;
+const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold', 'custom'] as const;
 type Tier = typeof SELF_SERVE_TIERS[number];
 
 interface PendingInvoice {
@@ -48,6 +48,7 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
   const [accountId, setAccountId] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<PendingInvoice | null>(null);
   const [paying, setPaying] = useState(false);
+  const [customFeatures, setCustomFeatures] = useState<SavedCorporateFeatures | null>(null);
 
   // OTP state
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
@@ -73,6 +74,21 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
   useEffect(() => {
     const saved = sessionStorage.getItem('corporate_signup_tier') as Tier | null;
     if (saved && SELF_SERVE_TIERS.includes(saved)) setTier(saved);
+    const prefill = sessionStorage.getItem('corporate_signup_prefill');
+    if (prefill) {
+      try {
+        const values = JSON.parse(prefill);
+        setForm(current => ({ ...current, ...values }));
+      } catch {
+        setServerError('We could not restore your registration details. Please enter them again.');
+      }
+      sessionStorage.removeItem('corporate_signup_prefill');
+    }
+    const savedFeatures = sessionStorage.getItem('corporate_signup_features');
+    if (savedFeatures) {
+      try { setCustomFeatures(JSON.parse(savedFeatures)); } catch { setCustomFeatures(null); }
+      sessionStorage.removeItem('corporate_signup_features');
+    }
     sessionStorage.removeItem('corporate_signup_tier');
   }, []);
 
@@ -84,7 +100,9 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
   }, [otpResendTimer]);
 
   const pkg = CORPORATE_PACKAGES.find(p => p.id === tier) || CORPORATE_PACKAGES[0];
-  const anchor = CORPORATE_TIER_ANCHOR_KES[tier];
+  const anchor = tier === 'custom' && customFeatures
+    ? estimateCustomBundle(customFeatures.ids, customFeatures.placements, customFeatures.team_seats).monthly
+    : CORPORATE_TIER_ANCHOR_KES[tier] || CORPORATE_TIER_ANCHOR_KES.bronze;
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -128,6 +146,9 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
           contact_email: form.contact_email.trim() || undefined,
           billing_email: form.billing_email.trim() || undefined,
           password: form.password,
+          features: tier === 'custom' ? customFeatures?.ids : undefined,
+          placements: tier === 'custom' ? customFeatures?.placements : undefined,
+          team_seats: tier === 'custom' ? customFeatures?.team_seats : undefined,
         }),
       });
       const otpResult = await res.json().catch(() => ({}));
@@ -264,6 +285,9 @@ const CorporateSignupPage: React.FC<CorporateSignupPageProps> = ({ onNavigate, o
           contact_email: form.contact_email.trim() || undefined,
           billing_email: form.billing_email.trim() || undefined,
           password: form.password,
+          features: tier === 'custom' ? customFeatures?.ids : undefined,
+          placements: tier === 'custom' ? customFeatures?.placements : undefined,
+          team_seats: tier === 'custom' ? customFeatures?.team_seats : undefined,
         }),
       });
       const payload = await res.json().catch(() => ({}));

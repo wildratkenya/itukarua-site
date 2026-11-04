@@ -2,6 +2,7 @@ import { createServiceClient } from '../_shared/smtp.ts'
 import { sendCorporateWelcomeEmail } from '../_shared/corporateWelcome.ts'
 import {
   CORPORATE_TIER_ANCHOR_KES,
+  estimateCustomBundle,
   composeCorporateMonthlyInvoice,
   ensureCorporateInvoiceEmail,
   issueCorporateInvoice,
@@ -12,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold']
+const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold', 'custom']
 
 // 10-character password from an unambiguous alphabet.
 function generateTempPassword(): string {
@@ -60,6 +61,14 @@ Deno.serve(async (req) => {
     if (!SELF_SERVE_TIERS.includes(tier) || !companyName) {
       throw new Error('This signup is no longer valid. Please start over.')
     }
+    const customIds = Array.isArray(data.features)
+      ? data.features.filter((id: unknown) => typeof id === 'string')
+      : []
+    const customPlacements = Math.min(99, Math.max(1, Number(data.placements) || 1))
+    const customTeamSeats = Math.min(99, Math.max(1, Number(data.team_seats) || 1))
+    const customPrice = tier === 'custom'
+      ? estimateCustomBundle(customIds, customPlacements, customTeamSeats).monthly
+      : null
 
     const chosenPassword = (providedPassword && String(providedPassword).length >= 6) ? String(providedPassword) : (data.password && String(data.password).length >= 6 ? String(data.password) : null)
     const tempPassword = chosenPassword || generateTempPassword()
@@ -93,7 +102,8 @@ Deno.serve(async (req) => {
         contact_phone: data.contact_phone || null,
         contact_email: data.contact_email || data.email,
         billing_email: data.billing_email || null,
-        monthly_price: CORPORATE_TIER_ANCHOR_KES[tier] || null,
+        monthly_price: customPrice || CORPORATE_TIER_ANCHOR_KES[tier] || null,
+        features: tier === 'custom' ? { ids: customIds, placements: customPlacements, team_seats: customTeamSeats } : null,
         next_billing_date: todayIso,
         payment_status: 'unpaid',
         verified_at: new Date().toISOString(),

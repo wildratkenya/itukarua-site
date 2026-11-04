@@ -5,17 +5,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold']
+const SELF_SERVE_TIERS = ['bronze', 'silver', 'gold', 'custom']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const body = await req.json()
-    const { email, tier, company_name, contact_person, contact_phone, contact_email, billing_email, password } = body
+    const { email, tier, company_name, contact_person, contact_phone, contact_email, billing_email, password, features, placements, team_seats } = body
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('A valid email is required')
-    if (!tier || !SELF_SERVE_TIERS.includes(tier)) throw new Error('Self-service signup is available for Bronze, Silver and Gold tiers only. Custom bundles are quoted.')
+    if (!tier || !SELF_SERVE_TIERS.includes(tier)) throw new Error('Select a valid corporate package.')
+    if (tier === 'custom' && (!Array.isArray(features) || features.length === 0)) throw new Error('Select at least one custom placement or feature.')
     if (!company_name || !String(company_name).trim()) throw new Error('Company name is required')
     if (password !== undefined && password !== null && String(password).length < 6) throw new Error('Password must be at least 6 characters')
 
@@ -76,6 +77,9 @@ Deno.serve(async (req) => {
         contact_email: contact_email ? String(contact_email).trim() : null,
         billing_email: billing_email ? String(billing_email).trim() : null,
         password: password ? String(password) : null,
+        features: tier === 'custom' ? features : null,
+        placements: tier === 'custom' ? placements : null,
+        team_seats: tier === 'custom' ? team_seats : null,
       },
       expires_at,
     })
