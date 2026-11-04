@@ -13,7 +13,7 @@ Last updated: 30 October 2026 — version 2.0
 2.3. We may remove listings that breach these Terms, the law, or our content rules, and we may suspend accounts that repeatedly breach them.
 
 3. ELIGIBILITY AND ACCOUNTS
-3.1. You must be at least 18 years old. We do not knowingly allow accounts for children, and we do not collect guardian consent for minors.
+3.1. You must be 18 years or older. We do not knowingly allow accounts for children, and we do not collect guardian consent for minors.
 3.2. You must give accurate information and keep it up to date. One person or business may not maintain duplicate accounts to evade limits or suspensions.
 3.3. You are responsible for your password and for activity under your account. Passwords must be at least 12 characters. Tell us immediately at info@itukarua.co.ke if you believe your account is compromised.
 3.4. Two-factor authentication with an authenticator app is required for staff and administrator accounts, and is available on request for any account.
@@ -130,7 +130,7 @@ Under the Data Protection Act, 2019 (and the GDPR where it applies) you may:
 9.2. We do not use third-party advertising cookies, cross-site trackers, or retargeting pixels. See the Cookie Policy for the exact keys.
 
 10. CHILDREN
-10.1. The Platform is for adults aged 18 and over. We do not knowingly collect data from children. If you believe a child has created an account, contact us and we will remove it.
+10.1. The Platform is for people 18 years or older. We do not knowingly collect data from children. If you believe a child has created an account, contact us and we will remove it.
 
 11. SECURITY
 11.1. We use row-level security in the database, private storage buckets with signed URLs, server-side payment verification, rate limiting, a 12-character minimum password policy, optional two-factor authentication, and least-privilege access for staff.
