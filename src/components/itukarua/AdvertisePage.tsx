@@ -66,19 +66,13 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
     if (formData.package === 'custom') {
       sessionStorage.setItem('corporate_signup_tier', 'custom');
       sessionStorage.setItem('corporate_signup_features', JSON.stringify(customBundle));
-      sessionStorage.setItem('corporate_signup_prefill', JSON.stringify({
-        company_name: formData.company,
-        contact_person: formData.contact_name,
-        contact_phone: formData.phone,
-        email: formData.email,
-      }));
       onNavigate?.('corporate-signup');
       return;
     }
+    if (!validate()) return;
     setLoading(true);
     let effectiveMessage = formData.message;
     try {
@@ -253,8 +247,15 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6 lg:p-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">{formData.package === 'custom' ? 'Register and request invoice' : 'Request a quote'}</h2>
-            <div className="grid sm:grid-cols-2 gap-4">
+            {formData.package === 'custom' ? (
+              <div className="text-center py-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Register and request invoice</h2>
+                <p className="text-sm text-gray-500 max-w-md mx-auto">
+                  Continue to the full corporate registration form to enter your login, contact and billing details,
+                  accept the legal documents, verify your email and receive your customized invoice.
+                </p>
+              </div>
+            ) : <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Company / Organisation *</label>
                 <input value={formData.company} onChange={e => setFormData({ ...formData, company: e.target.value })} placeholder="e.g. Ndeiya Dairy Co-operative" className={`w-full px-4 py-2.5 rounded-lg border ${errors.company ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 outline-none text-sm`} />
@@ -284,12 +285,12 @@ const AdvertisePage: React.FC<AdvertisePageProps> = ({ onNavigate }) => {
                 <textarea value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} rows={4} placeholder="Where are you based, who do you want to reach, and what would success look like?" className={`w-full px-4 py-2.5 rounded-lg border ${errors.message ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 outline-none text-sm`} />
                 {errors.message && <p className="text-xs text-red-500 mt-1">{errors.message}</p>}
               </div>}
-            </div>
+            </div>}
             <button type="submit" disabled={loading} className="w-full mt-6 py-3.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
-              {loading ? 'Sending…' : (<><Send className="w-4 h-4" /> {formData.package === 'custom' ? 'Continue to verification and invoice' : 'Request My Quote'}</>)}
+              {loading ? 'Sending…' : (<><Send className="w-4 h-4" /> {formData.package === 'custom' ? 'Continue to corporate registration' : 'Request My Quote'}</>)}
             </button>
             <p className="text-[11px] text-gray-400 mt-3 text-center">
-              {formData.package === 'custom' ? 'Verify your organization, then pay the invoice by M-Pesa STK.' : 'No payment now. We confirm the price before anything is created.'}
+              {formData.package === 'custom' ? 'Your selected features will be carried into the invoice.' : 'No payment now. We confirm the price before anything is created.'}
             </p>
           </form>
         </div>
