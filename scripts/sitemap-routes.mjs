@@ -20,6 +20,7 @@
 export const SITEMAP_ROUTES = [
   { path: '/', changefreq: 'daily', priority: 1.0 },
   { path: '/advertise', changefreq: 'weekly', priority: 0.6 },
+  { path: '/day-pass', changefreq: 'weekly', priority: 0.5 },
 ];
 
 /**
