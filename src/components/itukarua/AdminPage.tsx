@@ -30,6 +30,7 @@ import { TERMS_AND_CONDITIONS, PRIVACY_POLICY, SUBSCRIPTION_TERMS } from '@/data
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter';
 import { buildBillingInvoiceHtml, buildBillingInvoiceText, billingAccountRef, billingNote } from '@/lib/billing';
 import CertificateViewer from './CertificateViewer';
+import { downloadPaymentReceipt } from '@/lib/paymentReceipt';
 import SignedDocumentImage from './SignedDocumentImage';
 import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 
@@ -3633,6 +3634,11 @@ const AdminPage: React.FC = () => {
                               <TableCell className="text-xs">{new Date(payment.created_at).toLocaleString()}</TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
+                                  {payment.status === 'completed' && (
+                                    <Button size="sm" variant="outline" onClick={() => downloadPaymentReceipt(payment)} className="text-xs whitespace-nowrap">
+                                      <Receipt className="w-3.5 h-3.5 mr-1" /> PDF Receipt
+                                    </Button>
+                                  )}
                                   {(payment.status === 'pending_verification' || (payment.payment_type === 'manual_submission' && payment.status === 'pending')) && (
                                     <Button size="sm" onClick={() => verifyManualPayment(payment)} disabled={verifyingPaymentId === payment.id} className="bg-emerald-600 hover:bg-emerald-700 text-xs">
                                       {verifyingPaymentId === payment.id ? 'Verifying...' : 'Verify & Approve'}

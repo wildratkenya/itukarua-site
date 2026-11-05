@@ -600,7 +600,13 @@ Deno.serve(async (req) => {
       // contact-access redemption token, and this endpoint is unauthenticated.
       return json({
         success: true,
+        payment_id: payment.id,
         status: payment.status,
+        amount: payment.amount,
+        payment_type: payment.payment_type,
+        description: payment.description,
+        mpesa_phone: payment.mpesa_phone,
+        created_at: payment.created_at,
         mpesa_ref: payment.mpesa_ref,
         access_expires_at: payment.access_expires_at ?? null,
       })

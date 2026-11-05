@@ -9,6 +9,7 @@ import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/li
 import { IMAGES, KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
 import { compressImage } from '@/lib/imageUtils';
 import { DOCUMENTS_BUCKET } from '@/lib/documents';
+import { downloadPaymentReceipt } from '@/lib/paymentReceipt';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import MpesaModal from './MpesaModal';
@@ -339,7 +340,7 @@ const notifRef = useRef<HTMLDivElement>(null);
     setPrivacyMessage('');
     try {
       await downloadMyData();
-      setPrivacyMessage('Your data file has been downloaded.');
+      setPrivacyMessage('Your data PDF has been downloaded.');
     } catch (err: any) {
       setPrivacyMessage(err.message || 'Could not prepare your data. Please try again.');
     } finally {
@@ -1525,7 +1526,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">KES {p.amount.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.mpesa_ref || '-'}</td>
-                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' || p.status === 'pending_verification' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="px-4 py-3"><div className="flex items-center gap-2"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : (p.status === 'pending' || (p.status as any) === 'pending_verification') ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>{p.status === 'completed' && <button type="button" onClick={() => downloadPaymentReceipt(p)} className="text-green-700 hover:text-green-900 text-xs font-medium whitespace-nowrap">Download PDF</button>}</div></td>
                           </tr>
                         ))}
                       </tbody>
@@ -1572,7 +1573,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">KES {p.amount.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.mpesa_ref || '-'}</td>
-                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : p.status === 'pending' || p.status === 'pending_verification' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="px-4 py-3"><div className="flex items-center gap-2"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : (p.status === 'pending' || (p.status as any) === 'pending_verification') ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>{p.status === 'completed' && <button type="button" onClick={() => downloadPaymentReceipt(p)} className="text-green-700 hover:text-green-900 text-xs font-medium whitespace-nowrap">Download PDF</button>}</div></td>
                           </tr>
                         ))}
                       </tbody>
@@ -1616,7 +1617,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">KES {p.amount.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.mpesa_ref || '-'}</td>
-                            <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : (p.status === 'pending' || (p.status as any) === 'pending_verification') ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="px-4 py-3"><div className="flex items-center gap-2"><span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'completed' ? 'bg-green-100 text-green-700' : (p.status === 'pending' || (p.status as any) === 'pending_verification') ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>{p.status === 'completed' && <button type="button" onClick={() => downloadPaymentReceipt(p)} className="text-green-700 hover:text-green-900 text-xs font-medium whitespace-nowrap">Download PDF</button>}</div></td>
                           </tr>
                         ))}
                       </tbody>
@@ -2138,7 +2139,7 @@ const notifRef = useRef<HTMLDivElement>(null);
             <div className="bg-white rounded-xl p-6 border border-gray-100">
               <h3 className="font-semibold text-gray-900 mb-2">Privacy & Data</h3>
               <p className="text-xs text-gray-500 mb-4">
-                Download a copy of everything we hold about you, or erase your account. Erasure removes your profile, documents, messages and bids; payment records are kept for five years as required by the Tax Procedures Act, 2015.
+                Download a PDF containing the information you provided, or erase your account. Erasure removes your profile, documents, messages and bids; payment records are kept for five years as required by the Tax Procedures Act, 2015.
               </p>
               <button onClick={handleExportData} disabled={exportingData} className="px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                 {exportingData ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Download my data

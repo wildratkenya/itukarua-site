@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Phone, CheckCircle, Clock, Copy, Check, AlertCircle, Key, Zap, Crown, CalendarX2, Info, Download } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { PRICING_PLANS } from '@/data/siteData';
+import { downloadPaymentReceipt } from '@/lib/paymentReceipt';
 
 interface MpesaModalProps {
   isOpen: boolean;
@@ -169,6 +170,16 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
           setTransactionId(data.mpesa_ref || `MPE${Date.now().toString().slice(-8)}`);
           setAccessExpiresAt(expiresAt);
           setStep('success');
+          downloadPaymentReceipt({
+            id: data.payment_id || checkoutRequestId,
+            amount: data.amount ?? effective.amount,
+            payment_type: data.payment_type ?? effective.paymentType,
+            description: data.description ?? effective.description,
+            mpesa_ref: data.mpesa_ref || '',
+            mpesa_phone: data.mpesa_phone || phone,
+            status: 'completed',
+            created_at: data.created_at || new Date().toISOString(),
+          });
           // Hand the token over as soon as fulfilment is confirmed, so closing
           // this tab cannot lose it. The success screen still shows/downloads it.
           if (issuedToken) onTokenIssued?.(issuedToken, expiresAt);
