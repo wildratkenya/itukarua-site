@@ -137,6 +137,26 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onSearch, onOpenW
               </div>
             )}
 
+            {/* Find a Worker — surfaced on mobile, where the hero's How It Works
+                cards (which carry this button on desktop) are hidden. */}
+            {onOpenWorkerSearch && (
+              <button
+                onClick={onOpenWorkerSearch}
+                className="lg:hidden mb-3 w-full flex items-center justify-between gap-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <Users className="w-5 h-5 text-green-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-white font-semibold text-base">Find a Worker</p>
+                    <p className="text-gray-400 text-xs">Search jobseekers by skill</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-green-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
+
             <div className="flex items-center justify-between gap-3 mb-2">
               {/* Quick action buttons, hidden below lg.
 
