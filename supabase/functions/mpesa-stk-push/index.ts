@@ -514,9 +514,10 @@ Deno.serve(async (req) => {
       }
 
       if (settled !== 0) {
+        const failureReason = ResultDesc || (verdict && verdict.resultCode !== undefined ? 'Daraja result code ' + verdict.resultCode : null)
         await supabase
           .from('payments')
-          .update({ status: 'failed', mpesa_ref: verdict?.mpesaRef || mpesaRef || null, updated_at: new Date().toISOString() })
+          .update({ status: 'failed', mpesa_ref: failureReason || verdict?.mpesaRef || mpesaRef || null, updated_at: new Date().toISOString() })
           .eq('id', payment.id)
           .neq('status', 'completed')
         console.error('[STK Callback] payment failed:', settled, ResultDesc)
@@ -585,9 +586,10 @@ Deno.serve(async (req) => {
               const { data: fresh } = await supabase.from('payments').select('*').eq('id', payment.id).maybeSingle()
               payment = (fresh as PaymentRow) || { ...payment, status: 'completed' }
             } else if (queried && queried.resultCode !== 0 && queried.resultCode !== 1037) {
+              const stkFailureReason = queried.mpesaRef || ('Daraja result code ' + queried.resultCode)
               await supabase
                 .from('payments')
-                .update({ status: 'failed', mpesa_ref: payment.mpesa_ref, updated_at: new Date().toISOString() })
+                .update({ status: 'failed', mpesa_ref: stkFailureReason, updated_at: new Date().toISOString() })
                 .eq('id', payment.id)
                 .eq('status', 'pending')
               payment = { ...payment, status: 'failed' }
