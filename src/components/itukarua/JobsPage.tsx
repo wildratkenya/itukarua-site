@@ -290,7 +290,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
       <JobListingsTopBanner />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-6">
               <p className="text-sm text-gray-500">
@@ -343,7 +343,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ onViewJob, onNavigate, initialSearc
               </div>
             )}
           </div>
-          <aside className="hidden lg:block w-64 xl:w-72 flex-shrink-0 sticky top-6">
+          <aside className="w-full lg:w-64 xl:w-72 flex-shrink-0 lg:sticky lg:top-6">
             <VerticalAdRail />
           </aside>
         </div>

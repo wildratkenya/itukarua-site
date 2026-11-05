@@ -204,7 +204,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
       <JobListingsTopBanner />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
           <div className="flex-1 min-w-0">
             <p className="text-sm text-gray-500 mb-6">Showing <span className="font-semibold text-gray-900">{services.length}</span> businesses & services</p>
             {showListLoading ? (
@@ -244,7 +244,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate, onViewService, 
               </div>
             )}
           </div>
-          <aside className="hidden lg:block w-64 xl:w-72 flex-shrink-0 sticky top-6">
+          <aside className="w-full lg:w-64 xl:w-72 flex-shrink-0 lg:sticky lg:top-6">
             <VerticalAdRail />
           </aside>
         </div>
