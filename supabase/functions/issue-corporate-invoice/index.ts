@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createServiceClient } from '../_shared/smtp.ts'
-import { composeCorporateMonthlyInvoice, ensureCorporateInvoiceEmail, issueCorporateInvoice, renewCorporate } from '../_shared/corporateBilling.ts'
+import { composeCorporateMonthlyInvoice, ensureCorporateInvoiceEmail, extendCorporateBilling, issueCorporateInvoice, renewCorporate } from '../_shared/corporateBilling.ts'
 import { corsHeadersFor } from '../_shared/cors.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -73,6 +73,20 @@ Deno.serve(async (req) => {
       }
       if (!accountId) return json({ error: 'account_id or invoice_id required' }, 400, cors)
       const result = await renewCorporate(adminSupabase, accountId, { invoiceId, mpesaRef })
+      return json({ ok: true, ...result }, 200, cors)
+    }
+
+    // Admin "Add days": complimentary window extension. Never records a
+    // payment or touches invoices — that stays with mark_paid / M-Pesa.
+    if (action === 'add_days') {
+      if (!caller.isAdmin) return json({ error: 'Admins only' }, 403, cors)
+      const accountId = accountIds[0] || null
+      if (!accountId) return json({ error: 'account_id required' }, 400, cors)
+      const days = Number(body.days)
+      if (!Number.isInteger(days) || days < 1 || days > 365) {
+        return json({ error: 'days must be an integer between 1 and 365' }, 400, cors)
+      }
+      const result = await extendCorporateBilling(adminSupabase, accountId, days)
       return json({ ok: true, ...result }, 200, cors)
     }
 

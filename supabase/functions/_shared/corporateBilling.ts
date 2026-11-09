@@ -398,6 +398,55 @@ export async function renewCorporate(
   return { invoiceUpdated, nextBillingDate: nextIso }
 }
 
+/**
+ * Admin "Add days": a complimentary billing-window extension, not a renewal.
+ * Advances next_billing_date by N days (never discarding time left on a live
+ * account), reactivates the account and extends every placement so the gifted
+ * window is actually usable — the placement guard and the public serving
+ * policy both require payment_status = 'paid' / payment_confirmed = true.
+ *
+ * Deliberately does NOT touch invoices, paid_at or mpesa_ref: no money changed
+ * hands, so no payment is recorded. Outstanding invoices stay outstanding and
+ * the client renewal workflow (invoice → M-Pesa → renewCorporate) is unchanged.
+ */
+export async function extendCorporateBilling(
+  supabase: any,
+  accountId: string,
+  days: number,
+): Promise<{ nextBillingDate: string; days: number }> {
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    throw new Error('days must be an integer between 1 and 365')
+  }
+  const { data: account } = await supabase
+    .from('corporate_accounts')
+    .select('id, next_billing_date')
+    .eq('id', accountId)
+    .single()
+  if (!account) throw new Error('Corporate account not found')
+
+  const baseRaw = account.next_billing_date ? new Date(`${account.next_billing_date}T00:00:00Z`) : new Date()
+  const today = new Date()
+  const base = baseRaw.getTime() > today.getTime() ? baseRaw : today
+  const nextIso = addDays(base, days).toISOString().slice(0, 10)
+
+  const { error: accErr } = await supabase
+    .from('corporate_accounts')
+    .update({ next_billing_date: nextIso, payment_status: 'paid', is_active: true })
+    .eq('id', accountId)
+  if (accErr) throw new Error('extendCorporateBilling account update: ' + accErr.message)
+
+  const { error: confErr } = await supabase
+    .from('advertisements')
+    .update({ payment_confirmed: true })
+    .eq('corporate_account_id', accountId)
+  if (confErr) throw new Error('extendCorporateBilling payment_confirmed: ' + confErr.message)
+
+  const { error: extErr } = await supabase.rpc('extend_corporate_ads', { p_account_id: accountId, p_days: days })
+  if (extErr) throw new Error('extend_corporate_ads failed: ' + extErr.message)
+
+  return { nextBillingDate: nextIso, days }
+}
+
 // ─── Invoice composer (shared by issue-corporate-invoice + cron) ───────────
 
 export interface MonthlyInvoiceResult {

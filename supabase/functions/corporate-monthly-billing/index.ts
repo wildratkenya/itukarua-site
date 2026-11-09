@@ -147,7 +147,11 @@ Deno.serve(async (req) => {
           if (outstanding.status === 'issued') {
             await supabase.from('corporate_invoices').update({ status: 'overdue' }).eq('id', outstanding.id).eq('status', 'issued')
           }
-          if (account.payment_status !== 'overdue') {
+          // The invoice is overdue regardless, but the account only flips
+          // when its own window has lapsed — an admin "Add days" extension
+          // keeps the account serving even while an older invoice is owed.
+          const windowLapsed = nextMs === 0 || nextMs <= nowMs
+          if (windowLapsed && account.payment_status !== 'overdue') {
             await supabase.from('corporate_accounts').update({ payment_status: 'overdue' }).eq('id', account.id)
           }
         }

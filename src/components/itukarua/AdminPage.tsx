@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, PanelLeftClose, PanelRightOpen, Share2, Settings } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, Briefcase, Newspaper, CreditCard, MessageSquare, Tags, Mail, Search, Upload, X, Plus, Send, Eye, EyeOff, Receipt, Building2, Inbox, Zap, ChevronDown, ChevronUp, MoreVertical, Images, CalendarPlus, PanelLeftClose, PanelRightOpen, Share2, Settings } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
-import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, getSocialLinks, setSocialLink, SOCIAL_PLATFORMS, type SocialLinks, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice, getPlatformSettings, updatePlatformSetting, getPlatformContent, updatePlatformContent } from '@/lib/database';
+import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, addCorporateBillingDays, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, getSocialLinks, setSocialLink, SOCIAL_PLATFORMS, type SocialLinks, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice, getPlatformSettings, updatePlatformSetting, getPlatformContent, updatePlatformContent } from '@/lib/database';
 
 import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
@@ -483,7 +483,7 @@ const AdminPage: React.FC = () => {
     try {
       const turningOn = !ad.active;
       if (turningOn && ad.billing_end && new Date(ad.billing_end).getTime() <= Date.now()) {
-        toast({ title: 'Cannot activate an expired advert', description: 'Add Days to renew billing first.', variant: 'destructive' });
+        toast({ title: 'Cannot activate an expired advert', description: "Open Manage → Billing and use Add days to extend the billing window first.", variant: 'destructive' });
         return;
       }
       await proxyTable('advertisements').update({ active: turningOn }, 'id', ad.id);
@@ -523,6 +523,8 @@ const AdminPage: React.FC = () => {
   const [corpInvoiceMsg, setCorpInvoiceMsg] = useState('');
   const [ownerEmailDraft, setOwnerEmailDraft] = useState('');
   const [ownerEmailBusy, setOwnerEmailBusy] = useState(false);
+  const [corpDaysInput, setCorpDaysInput] = useState(30);
+  const [addingCorpDays, setAddingCorpDays] = useState(false);
 
   const loadCorporateInvoices = async () => {
     try {
@@ -651,6 +653,26 @@ const AdminPage: React.FC = () => {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setCorporateSuspendingId(null);
+    }
+  };
+
+  // Admin "Add days": complimentary extension only — never records a payment.
+  // The server advances the account window, reactivates it and extends every
+  // placement; invoices and the client renewal workflow stay untouched.
+  const addCorporateDays = async (daysOverride?: number) => {
+    if (!selectedCorporate) return;
+    const days = Math.max(1, Math.min(365, Math.floor(Number(daysOverride ?? corpDaysInput) || 30)));
+    setAddingCorpDays(true);
+    try {
+      const res = await addCorporateBillingDays(selectedCorporate.id, days);
+      const next = typeof res?.nextBillingDate === 'string' ? res.nextBillingDate : null;
+      setSelectedCorporate(prev => prev ? { ...prev, next_billing_date: next || prev.next_billing_date, payment_status: 'paid', is_active: true } : prev);
+      toast({ title: 'Days added', description: `${selectedCorporate.company_name} extended by ${days} day${days !== 1 ? 's' : ''}${next ? ` — next billing ${next}` : ''}. No payment recorded.` });
+      await Promise.all([loadCorporateAccounts(), loadAdverts()]);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to add days', variant: 'destructive' });
+    } finally {
+      setAddingCorpDays(false);
     }
   };
 
@@ -4767,6 +4789,11 @@ const AdminPage: React.FC = () => {
                                 <DropdownMenuItem disabled={corporateSuspendingId === acct.id} onClick={() => toggleCorporateActive(acct)}>
                                   {acct.is_active ? 'Pause account' : 'Activate account'}
                                 </DropdownMenuItem>
+                                {currentRole === 'super_admin' && (
+                                  <DropdownMenuItem onClick={() => setSelectedCorporate(acct)}>
+                                    <CalendarPlus className="w-4 h-4 mr-2" /> Add days
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={() => sendOwnerReset(acct)}>
                                   <Mail className="w-4 h-4 mr-2" /> Email reset link
                                 </DropdownMenuItem>
@@ -5992,6 +6019,17 @@ const AdminPage: React.FC = () => {
                   <div className="bg-gray-50 rounded-lg p-3"><span className="text-gray-500 block mb-0.5">Monthly amount</span><span className="font-bold text-gray-900">KES {corporateMonthlyAmount(selectedCorporate).toLocaleString()}</span></div>
                   <div className="bg-gray-50 rounded-lg p-3"><span className="text-gray-500 block mb-0.5">Next billing</span><span className="font-bold text-gray-900">{selectedCorporate.next_billing_date ? new Date(selectedCorporate.next_billing_date + 'T00:00:00Z').toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span></div>
                 </div>
+                {currentRole === 'super_admin' && (
+                  <div className="border border-dashed border-gray-300 rounded-lg p-3 mb-3">
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Add days — admin extension</p>
+                    <p className="text-[11px] text-gray-500 mb-2">Extends this account and all its placements and reactivates the account. No payment is recorded and invoices are left untouched — use Mark Paid or the client's M-Pesa renewal for actual payments.</p>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min={1} max={365} value={corpDaysInput} onChange={e => setCorpDaysInput(Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 30)))} className="w-20 border border-gray-300 rounded-md px-2 py-1 text-xs text-center focus:ring-2 focus:ring-green-500 outline-none" />
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={addingCorpDays} onClick={() => addCorporateDays()}>{addingCorpDays ? 'Adding...' : 'Add Days'}</Button>
+                      <Button size="sm" variant="outline" disabled={addingCorpDays} onClick={() => addCorporateDays(30)}>+30 Days</Button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2 mb-3">
                   {(() => { const list = (corpInvoices[selectedCorporate.id] || []).sort((a, b) => (b.period_start || '').localeCompare(a.period_start || '')); return list.length === 0 ? <p className="text-sm text-gray-400 py-2">No invoices for this account yet. Click Preview to open a billing cycle.</p> : list.map(inv => (
                     <div key={inv.id} className="flex items-center gap-2 text-xs">

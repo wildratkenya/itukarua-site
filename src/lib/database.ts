@@ -2784,6 +2784,7 @@ interface EdgeCallOptions {
   accountId?: string;
   periodStart?: string;
   invoiceId?: string;
+  days?: number;
 }
 
 async function callCorporateEdge(fn: string, body: EdgeCallOptions) {
@@ -2810,6 +2811,13 @@ export async function issueCorporateInvoice(opts: { accountId: string; periodSta
 /** Admin: manually mark a corporate invoice as paid. */
 export async function markCorporateInvoicePaid(invoiceId: string): Promise<any> {
   return callCorporateEdge('issue-corporate-invoice', { action: 'mark_paid', invoiceId });
+}
+
+/** Admin: add complimentary billing days to a corporate account. Extends the
+ * account window and its placements without recording a payment or touching
+ * invoices — client renewal (invoice → M-Pesa) stays the payment path. */
+export async function addCorporateBillingDays(accountId: string, days: number): Promise<any> {
+  return callCorporateEdge('issue-corporate-invoice', { action: 'add_days', accountId, days });
 }
 
 /** Admin: manually run the monthly invoicing cycle (auto-invoice + digest). */
