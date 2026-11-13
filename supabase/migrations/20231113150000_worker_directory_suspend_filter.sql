@@ -42,3 +42,4 @@ COMMENT ON VIEW public.public_worker_directory IS
   'Card-safe worker profile projection. No phone, email, whatsapp_number or resume. Contact access is gated by get_profile_contact. Excludes suspended users.';
 
 COMMIT;
+

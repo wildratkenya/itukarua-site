@@ -170,7 +170,7 @@ export async function fulfilServiceAd(supabase: any, payment: PaymentRow): Promi
 
   console.log(
     `[fulfilment] service_ad ${adId} paid (${plan}, ${days}d) live until ${endDate}` +
-      (liveBoost ? ' [existing boost preserved]' : ''),
+    (liveBoost ? ' [existing boost preserved]' : ''),
   )
 }
 
@@ -418,7 +418,7 @@ export async function fulfilSubscription(supabase: any, payment: PaymentRow): Pr
 
   console.log(
     `[fulfilment] subscription ${userId}/${role} +${days}d -> ${finalEnd.toISOString()}` +
-      (finalEnd.getTime() === currentEnd?.getTime() ? ' (no-op, longer entitlement already running)' : ''),
+    (finalEnd.getTime() === currentEnd?.getTime() ? ' (no-op, longer entitlement already running)' : ''),
   )
 }
 
@@ -647,7 +647,7 @@ export async function runPaymentEffects(supabase: any, payment: PaymentRow): Pro
     }
 
     case 'contact_access': {
-      // One-Day Contact Access: a per-profile window on the payment row. The
+      // One-Day Contact Access: a per‑profile window on the payment row. The
       // window starts when the payment completes; renewing while one is live
       // simply opens a fresh (later) window, and redemption takes the maximum.
       const hours = await readSettingInt(supabase, 'contact_access_window_hours', 24)
@@ -657,41 +657,50 @@ export async function runPaymentEffects(supabase: any, payment: PaymentRow): Pro
         .update({ access_expires_at: end })
         .eq('id', payment.id)
       if (error) throw new Error(`fulfilContactAccess ${payment.id}: ${error.message}`)
+      // Record audit log for contact access grant
+      await supabase.from('audit_log').insert({
+        user_id: payment.user_id,
+        action: 'grant_contact_access',
+        payment_id: payment.id,
+        created_at: new Date().toISOString(),
+        metadata: { hours, expires_at: end },
+      })
       done.push(`contact_access:${hours}h`)
       console.log(`[fulfilment] contact_access ${payment.id} unlocks ${payment.related_profile_id || '?'} until ${end}`)
       break
     }
-
-    case 'top_rated_day_pass': {
-      // KES 100 day pass: the purchased snapshot of top-rated profile ids is
-      // already on the row metadata; this only opens the 24h window the
-      // redemption RPC checks.
-      const hours = await readSettingInt(supabase, 'top_rated_pass_hours', 24)
-      const end = addHours(new Date(), hours).toISOString()
-      const { error } = await supabase
-        .from('payments')
-        .update({ access_expires_at: end })
-        .eq('id', payment.id)
-      if (error) throw new Error(`fulfilTopRatedPass ${payment.id}: ${error.message}`)
-      done.push(`top_rated_day_pass:${hours}h`)
-      console.log(`[fulfilment] top_rated_day_pass ${payment.id} unlocks the snapshot until ${end}`)
-      break
-    }
-
-    case 'mpesa_test':
-      // Connectivity test fired from /admin. Recorded only — never grants an
-      // entitlement, extends a subscription or touches pricing.
-      done.push('test')
-      break
-
-    default:
-      // job_posting, job_payment, single_job_post: the payment
-      // itself is the entitlement, nothing further to write.
-      done.push('recorded_only')
-      break
   }
 
-  return done
+    case 'top_rated_day_pass': {
+    // KES 100 day pass: the purchased snapshot of top-rated profile ids is
+    // already on the row metadata; this only opens the 24h window the
+    // redemption RPC checks.
+    const hours = await readSettingInt(supabase, 'top_rated_pass_hours', 24)
+    const end = addHours(new Date(), hours).toISOString()
+    const { error } = await supabase
+      .from('payments')
+      .update({ access_expires_at: end })
+      .eq('id', payment.id)
+    if (error) throw new Error(`fulfilTopRatedPass ${payment.id}: ${error.message}`)
+    done.push(`top_rated_day_pass:${hours}h`)
+    console.log(`[fulfilment] top_rated_day_pass ${payment.id} unlocks the snapshot until ${end}`)
+    break
+  }
+
+    case 'mpesa_test':
+  // Connectivity test fired from /admin. Recorded only — never grants an
+  // entitlement, extends a subscription or touches pricing.
+  done.push('test')
+  break
+
+    default:
+  // job_posting, job_payment, single_job_post: the payment
+  // itself is the entitlement, nothing further to write.
+  done.push('recorded_only')
+  break
+}
+
+return done
 }
 
 export type ApplyResult = { claimed: boolean; payment: PaymentRow; effects: string[] | null; error?: string }
