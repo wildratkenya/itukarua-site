@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Menu, X, User, LogOut, ChevronDown, Send, Briefcase, Building2, Megaphone, Zap, Crown, ArrowRight } from 'lucide-react';
 import { setPendingScrollTarget } from '@/lib/pricingScroll';
+import { useNavigate } from 'react-router-dom';
 
 export type Page = 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact' | 'dashboard' | 'job-detail' | 'service-detail' | 'post-job' | 'post-advert' | 'admin' | 'inbox' | 'advertise' | 'corporate' | 'corporate-signup' | 'day-pass';
 
@@ -49,7 +50,7 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
     return () => window.removeEventListener('keydown', onKey);
   }, [productsOpen]);
 
-  import { useNavigate } from 'react-router-dom';
+  
 
   const navigate = useNavigate();
 
