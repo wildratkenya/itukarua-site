@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Eye, EyeOff, MapPin, User, Briefcase, Megaphone, Camera, CheckCircle, Crown, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
@@ -36,6 +36,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     email: '',
     phone: '',
     password: '',
+    national_id: '',
     location: '',
     county: '',
     subcounty: '',
@@ -108,6 +109,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'lo
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Invalid email';
     if (!formData.password || formData.password.length < MIN_PASSWORD_LENGTH) errs.password = PASSWORD_TOO_SHORT;
     if (tab === 'signup' && !formData.phone.trim()) errs.phone = 'Phone is required';
+    if (tab === 'signup' && role === 'jobseeker') {
+      if (!formData.national_id.trim()) errs.national_id = 'National ID is required for due diligence';
+      if (!formData.resume.trim()) errs.resume = 'Resume is required for due diligence';
+      if (certFiles.length === 0) errs.certificates = 'Certificates (PDF) are required for due diligence';
+    }
     if (tab === 'signup' && (role === 'jobseeker' || role === 'employer') && selectedCategories.length === 0) errs.categories = 'Select at least one category of interest';
     if (tab === 'signup' && !termsAccepted) errs.terms = 'You must accept the Terms & Conditions';
     if (tab === 'signup' && !privacyAccepted) errs.privacy = 'You must accept the Privacy Policy';
@@ -139,10 +145,12 @@ data: {
   full_name: formData.name,
   role: role,
   phone: formData.phone,
+  national_id: role === 'jobseeker' ? formData.national_id.trim() : null,
   location: formData.location,
   county: formData.county,
   subcounty: formData.subcounty,
   skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : [],
+  resume: role === 'jobseeker' ? formData.resume.trim() : null,
   selected_categories: (role === 'jobseeker' || role === 'employer') ? selectedCategories : [],
   allow_contact_display: role === 'jobseeker' ? allowContactDisplay : false,
   terms_accepted: true,
@@ -170,6 +178,7 @@ data: {
               email: formData.email,
               phone: formData.phone,
               role,
+              national_id: role === 'jobseeker' ? formData.national_id.trim() : null,
               location: formData.location || null,
               county: formData.county || null,
               subcounty: formData.subcounty || null,
@@ -523,7 +532,7 @@ data: {
               </p>
               <button
                 type="button"
-                onClick={() => { setEmailSent(false); setForgotMode(false); setResetEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', location: '',
+                onClick={() => { setEmailSent(false); setForgotMode(false); setResetEmailSent(false); setTab('login'); setServerError(''); setFormData({ name: '', email: '', phone: '', password: '', national_id: '', location: '',
 county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]); setCertFiles([]); setSubscribeToNewsletter(false); setTermsAccepted(false); setPrivacyAccepted(false); setTermsScrolledToBottom(false); setPrivacyScrolledToBottom(false); }}
                 className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium underline"
               >
@@ -684,6 +693,24 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
           {tab === 'signup' && role === 'jobseeker' && (
             <>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  National ID Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.national_id}
+                  onChange={e => {
+                    setFormData({ ...formData, national_id: e.target.value });
+                    if (errors.national_id) setErrors(prev => ({ ...prev, national_id: '' }));
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-lg border ${errors.national_id ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none`}
+                  placeholder="e.g. 12345678"
+                />
+                {errors.national_id && <p className="text-red-500 text-xs mt-1">{errors.national_id}</p>}
+                <p className="text-[10px] text-gray-400 mt-1">Required for due diligence and identity verification.</p>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -720,7 +747,7 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Professional Resume (Max 500 words)
+                  Professional Resume (Max 500 words) <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={formData.resume}
@@ -729,13 +756,15 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
                     if (words <= 500 || e.target.value.length < formData.resume.length) {
                       setFormData({ ...formData, resume: e.target.value });
                     }
+                    if (errors.resume) setErrors(prev => ({ ...prev, resume: '' }));
                   }}
                   rows={4}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none text-sm"
+                  className={`w-full px-4 py-2.5 rounded-lg border ${errors.resume ? 'border-red-400' : 'border-gray-300'} focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none text-sm`}
                   placeholder="Paste your resume here..."
                 />
+                {errors.resume && <p className="text-red-500 text-xs mt-1">{errors.resume}</p>}
                 <p className="text-[10px] text-gray-400 mt-1">
-                  {formData.resume.trim() ? formData.resume.trim().split(/\s+/).length : 0} / 500 words
+                  {formData.resume.trim() ? formData.resume.trim().split(/\s+/).length : 0} / 500 words • Required for due diligence
                 </p>
               </div>
 
@@ -761,7 +790,7 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Certificates (Max 3, PDF only)
+                  Certificates (Max 3, PDF only) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="file"
@@ -775,15 +804,20 @@ county: '', subcounty: '', skills: '', resume: '' }); setSelectedCategories([]);
                       ? `Only PDF certificates are supported. Skipped: ${rejected.map(f => f.name).join(', ')}`
                       : null);
                     setCertFiles(pdfs.slice(0, 3));
+                    if (pdfs.length > 0 && errors.certificates) {
+                      setErrors(prev => ({ ...prev, certificates: '' }));
+                    }
                   }}
-                  className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  className={`w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 ${errors.certificates ? 'border border-red-400 rounded-lg p-1' : ''}`}
                 />
+                {errors.certificates && <p className="text-red-500 text-xs mt-1">{errors.certificates}</p>}
                 {certPickError && <p className="text-[10px] text-red-600 mt-1">{certPickError}</p>}
                 {certFiles.length > 0 && (
                   <p className="text-[10px] text-green-600 mt-1">
                     {certFiles.length} file(s) selected (max 3 will be uploaded)
                   </p>
                 )}
+                <p className="text-[10px] text-gray-400 mt-1">Required for due diligence (attach certificates or recommendation letters).</p>
               </div>
             </>
           )}

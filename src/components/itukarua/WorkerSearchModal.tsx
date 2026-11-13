@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Search, X, Star, MapPin, Lock, Phone, Mail, Award, FileText, Loader2, Shield, ChevronDown, ChevronUp, Key, Zap, Crown, ThumbsUp, ThumbsDown, CreditCard } from 'lucide-react';
 import { getProfiles, getCustomCategories, trackProfileView, checkContactAccess, redeemToken, checkSubscriptionActive, hasEntitlement, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { KENYA_COUNTIES, PRICING_PLANS } from '@/data/siteData';
@@ -475,6 +475,7 @@ const WorkerSearchModal: React.FC<WorkerSearchModalProps> = ({ isOpen, onClose, 
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             {details.phone && <p className="flex items-center gap-1.5 text-gray-700"><Phone className="w-3.5 h-3.5 text-green-600" /> {details.phone}</p>}
                             {details.email && <p className="flex items-center gap-1.5 text-gray-700"><Mail className="w-3.5 h-3.5 text-green-600" /> {details.email}</p>}
+                            {details.national_id && <p className="flex items-center gap-1.5 text-gray-700 col-span-2"><CreditCard className="w-3.5 h-3.5 text-green-600" /> National ID: <strong className="font-semibold text-gray-900">{details.national_id}</strong></p>}
                             {details.whatsapp_number && <p className="flex items-center gap-1.5 text-gray-700"><a href={`https://wa.me/${details.whatsapp_number.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:text-green-700 font-medium">Chat on WhatsApp</a></p>}
                             {details.location && <p className="flex items-center gap-1.5 text-gray-700 col-span-2"><MapPin className="w-3.5 h-3.5 text-green-600" /> {details.county ? `${details.county}${details.subcounty ? `, ${details.subcounty}` : ''} - ${details.location}` : details.location}</p>}
                           </div>

@@ -25,7 +25,7 @@ export async function downloadMyData(): Promise<void> {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `itukarua-data-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `itukarua-my-data-${new Date().toISOString().slice(0, 10)}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

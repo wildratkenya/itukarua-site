@@ -1,4 +1,4 @@
-﻿import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
+import { supabase, proxyRequest, proxyTable, proxyRpc, supabaseUrl, supabaseKey, ensureValidToken } from './supabase';
 import { getDeviceId } from './deviceId';
 import { compareByPositiveReviews } from './utils';
 import { isCorporateOnlySlot, type SavedCorporateFeatures } from '@/data/siteData';
@@ -59,6 +59,7 @@ export interface DbProfile {
   email_confirmed?: boolean;
   created_at: string;
   updated_at: string;
+  national_id?: string;
   resume?: string;
   certificates?: string[];
   ratings_enabled?: boolean;
@@ -1217,9 +1218,11 @@ export interface ProfileContactResult {
     location?: string | null;
     county?: string | null;
     subcounty?: string | null;
+    national_id?: string | null;
   } | null;
   certificates?: string[] | null;
   resume?: string | null;
+  national_id?: string | null;
 }
 
 export async function getProfileContact(profileId: string): Promise<ProfileContactResult | null> {
@@ -1236,6 +1239,7 @@ export async function getProfileContact(profileId: string): Promise<ProfileConta
     contact: data.contact || null,
     certificates: data.certificates,
     resume: data.resume,
+    national_id: data.national_id || data.contact?.national_id || null,
   };
 }
 

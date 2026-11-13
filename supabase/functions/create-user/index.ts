@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Admin privileges required' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const { email, password, full_name, phone, role, location, county, subcounty, skills, resume, profile_image, ratings_enabled, terms_accepted, data_sharing_consent } = await req.json()
+    const { email, password, full_name, phone, role, location, county, subcounty, skills, resume, national_id, profile_image, ratings_enabled, terms_accepted, data_sharing_consent } = await req.json()
 
     if (!email || !password) {
       return new Response(
@@ -157,7 +157,12 @@ Deno.serve(async (req) => {
       p_ratings_enabled: ratings_enabled || null,
       p_terms_accepted: terms_accepted === true,
       p_data_sharing_consent: data_sharing_consent === true,
+      p_national_id: role === 'jobseeker' ? (national_id || null) : null,
     })
+
+    if (role === 'jobseeker' && national_id) {
+      await supabase.from('profiles').update({ national_id }).eq('id', userId).catch(() => {})
+    }
 
     if (rpcError) {
       console.error('Profile RPC error:', rpcError)

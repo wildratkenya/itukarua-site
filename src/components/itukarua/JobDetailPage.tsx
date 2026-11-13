@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
-import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase, CreditCard } from 'lucide-react';
 import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, employerReactivateJob, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES } from '@/data/siteData';
@@ -856,6 +856,12 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Mail className="w-4 h-4 text-green-600" />
                         <a href={`mailto:${winnerContact.email}`} className="hover:text-green-700 truncate">{winnerContact.email}</a>
+                      </div>
+                    )}
+                    {winnerContact.national_id && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <CreditCard className="w-4 h-4 text-green-600" />
+                        <span>National ID: <strong className="font-semibold text-gray-900">{winnerContact.national_id}</strong></span>
                       </div>
                     )}
                     {winnerAccessExpiresAt && (

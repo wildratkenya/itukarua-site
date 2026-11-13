@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import SEO, { generateOrganizationSchema, generateLocalBusinessSchema } from '@/lib/seo';
 import { ArrowRight, Briefcase, UserCheck, CreditCard, Star, Shield, Clock, Zap, X, Phone, Mail, MapPin, FileText, Award, Lock, ThumbsUp, ThumbsDown, Facebook, Instagram, Twitter, Linkedin, Youtube, Music2, MessageCircle, Send, Share2 } from 'lucide-react';
 import HeroSection from './HeroSection';
@@ -514,6 +514,12 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSearch, onViewJob, on
                   <div className="space-y-2 text-sm">
                     {workerContact.phone && <p className="flex items-center gap-2 text-gray-700"><Phone className="w-4 h-4 text-green-600" /> {workerContact.phone}</p>}
                     {workerContact.email && <p className="flex items-center gap-2 text-gray-700"><Mail className="w-4 h-4 text-green-600" /> {workerContact.email}</p>}
+                    {workerContact.national_id && contactSource !== 'pass' && (
+                      <p className="flex items-center gap-2 text-gray-700">
+                        <CreditCard className="w-4 h-4 text-green-600" />
+                        <span>National ID: <strong className="font-semibold text-gray-900">{workerContact.national_id}</strong></span>
+                      </p>
+                    )}
                     {workerContact.whatsapp && <a href={`https://wa.me/${workerContact.whatsapp.replace(/^0/, '254')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"><span className="w-4 h-4 flex items-center justify-center">💬</span> Chat on WhatsApp</a>}
                     {workerContact.location && <p className="flex items-center gap-2 text-gray-700"><MapPin className="w-4 h-4 text-green-600" /> {workerContact.county ? `${workerContact.county}${workerContact.subcounty ? `, ${workerContact.subcounty}` : ''} - ${workerContact.location}` : workerContact.location}</p>}
                   </div>

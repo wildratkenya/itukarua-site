@@ -90,6 +90,7 @@ interface Profile {
   resume?: string;
   certificates?: string[];
   allow_contact_display?: boolean;
+  national_id?: string;
 }
 
 interface Job {
@@ -1393,6 +1394,7 @@ const AdminPage: React.FC = () => {
     const subcounty = formData.get('subcounty') as string;
     const skills = formData.get('skills') as string;
     const resume = formData.get('resume') as string;
+    const nationalId = formData.get('national_id') as string;
 
     setCreatingUser(true);
 
@@ -1415,6 +1417,7 @@ const AdminPage: React.FC = () => {
         },
         body: JSON.stringify({
           email, password, full_name: fullName, phone, role, location, county: county || undefined, subcounty: subcounty || undefined, skills, resume,
+          national_id: nationalId || undefined,
           ratings_enabled: ratingsEnabled,
           terms_accepted: termsAccepted,
           data_sharing_consent: dataSharingConsent,
@@ -1659,6 +1662,7 @@ const AdminPage: React.FC = () => {
     const role = formData.get('role') as string;
     const skills = formData.get('skills') as string;
     const resume = formData.get('resume') as string;
+    const nationalId = formData.get('national_id') as string;
 
     try {
       // Upload new photo if selected
@@ -1685,8 +1689,12 @@ const AdminPage: React.FC = () => {
         p_resume: role === 'jobseeker' ? (resume || '') : '',
         p_profile_image: profileImageUrl,
         p_ratings_enabled: ratingsEnabled || null,
+        p_national_id: role === 'jobseeker' ? (nationalId || null) : null,
       });
       if (rpcError) throw rpcError;
+      if (role === 'jobseeker') {
+        await proxyTable('profiles').update({ national_id: nationalId || null }, 'id', editingUser.id);
+      }
 
       // Upload new certificates and save the full cert list
       const certsChanged = editCertFiles.length > 0 || editCerts.join('\n') !== (editingUser.certificates || []).join('\n');
@@ -5295,6 +5303,12 @@ const AdminPage: React.FC = () => {
                   <Label className="text-gray-500">Role</Label>
                   <p className="text-sm font-medium capitalize">{selectedUser.role}</p>
                 </div>
+                {selectedUser.national_id && (
+                  <div>
+                    <Label className="text-gray-500">National ID</Label>
+                    <p className="text-sm font-medium">{selectedUser.national_id}</p>
+                  </div>
+                )}
               </div>
 
               {selectedUser.role === 'jobseeker' && (
@@ -5427,6 +5441,10 @@ const AdminPage: React.FC = () => {
               <Label htmlFor="ratings_enabled">Enable ratings for this user</Label>
             </div>
             <div className="jobseeker-fields" style={{ display: 'none' }}>
+              <Label>National ID Number <span className="text-red-500">*</span></Label>
+              <Input name="national_id" placeholder="e.g. 12345678" />
+            </div>
+            <div className="jobseeker-fields" style={{ display: 'none' }}>
               <Label>Skills (comma separated)</Label>
               <Input name="skills" placeholder="e.g. Painting, Plumbing, Carpentry" />
             </div>
@@ -5553,6 +5571,10 @@ const AdminPage: React.FC = () => {
                     <SelectItem value="super_admin">Super Admin</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="edit-jobseeker-fields" style={{ display: editingUser.role === 'jobseeker' ? 'block' : 'none' }}>
+                <Label>National ID Number <span className="text-red-500">*</span></Label>
+                <Input name="national_id" defaultValue={editingUser.national_id || ''} placeholder="e.g. 12345678" />
               </div>
               <div className="edit-jobseeker-fields" style={{ display: editingUser.role === 'jobseeker' ? 'block' : 'none' }}>
                 <Label>Skills (comma separated)</Label>

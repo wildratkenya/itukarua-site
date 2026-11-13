@@ -69,7 +69,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onNavigate, onViewJ
   const [payments, setPayments] = useState<DbPayment[]>([]);
   const [profiles, setProfiles] = useState<DbProfile[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '', whatsapp_number: '' });
+  const [profileForm, setProfileForm] = useState({ full_name: user.name, email: user.email, phone: '', national_id: '', location: '', county: '', subcounty: '', skills: '', resume: '', qualifications: '', experience: '', profile_image: '', whatsapp_number: '' });
   const [saving, setSaving] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
@@ -189,6 +189,7 @@ const notifRef = useRef<HTMLDivElement>(null);
             full_name: user.profile.full_name || user.name,
             email: user.profile.email || user.email,
             phone: user.profile.phone || '',
+            national_id: user.profile.national_id || '',
             location: user.profile.location || '',
             county: user.profile.county || '',
             subcounty: user.profile.subcounty || '',
@@ -266,6 +267,26 @@ const notifRef = useRef<HTMLDivElement>(null);
     setSaving(true);
     setProfileSaveError(null);
     setProfileSaveNotice(null);
+
+    if (isJobseeker) {
+      if (!profileForm.national_id?.trim()) {
+        setProfileSaveError('National ID is required for due diligence.');
+        setSaving(false);
+        return;
+      }
+      if (!profileForm.resume?.trim()) {
+        setProfileSaveError('Professional Resume is required for due diligence.');
+        setSaving(false);
+        return;
+      }
+      const existingCerts = user.profile?.certificates || [];
+      if (existingCerts.length === 0 && certFiles.length === 0) {
+        setProfileSaveError('At least one certificate (PDF) is required for due diligence.');
+        setSaving(false);
+        return;
+      }
+    }
+
     const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) =>
       Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms))]);
     try {
@@ -300,6 +321,7 @@ const notifRef = useRef<HTMLDivElement>(null);
       await withTimeout(updateProfile(user.id, {
         full_name: profileForm.full_name,
         phone: profileForm.phone,
+        national_id: profileForm.national_id?.trim() || null,
         location: profileForm.location,
         county: profileForm.county || null,
         subcounty: profileForm.subcounty || null,
@@ -2037,6 +2059,21 @@ const notifRef = useRef<HTMLDivElement>(null);
                       <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                       <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" />
                     </div>
+                    {isJobseeker && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          National ID Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.national_id}
+                          onChange={e => setProfileForm({ ...profileForm, national_id: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none"
+                          placeholder="e.g. 12345678"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Required for due diligence and identity verification.</p>
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         WhatsApp Number <span className="text-gray-400 text-xs">(optional)</span>
@@ -2093,11 +2130,16 @@ const notifRef = useRef<HTMLDivElement>(null);
                       <input type="text" value={profileForm.experience} onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. 5 years in construction" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Professional Resume</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Professional Resume {isJobseeker && <span className="text-red-500">*</span>}
+                      </label>
                       <textarea value={profileForm.resume} onChange={e => setProfileForm({ ...profileForm, resume: e.target.value })} rows={4} className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none resize-none text-sm" placeholder="Paste your resume here..." />
+                      {isJobseeker && <p className="text-xs text-gray-400 mt-1">Required for due diligence.</p>}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Certificates / Referral Letters <span className="text-gray-400 text-xs">(PDF only)</span></label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Certificates / Referral Letters <span className="text-gray-400 text-xs">(PDF only)</span> {isJobseeker && <span className="text-red-500">*</span>}
+                      </label>
                       <input type="file" multiple accept=".pdf" onChange={e => { if (!e.target.files) return; const picks = Array.from(e.target.files); const pdfs = picks.filter(f => f.type === 'application/pdf'); const rejected = picks.filter(f => f.type !== 'application/pdf'); setCertPickError(rejected.length > 0 ? `Only PDF certificates are supported. Skipped: ${rejected.map(f => f.name).join(', ')}` : null); if (pdfs.length > 0) setCertFiles(prev => [...prev, ...pdfs].slice(0, 3)); }} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
                       {certPickError && <p className="text-xs text-red-600 mt-1">{certPickError}</p>}
                       {certFiles.length > 0 && <p className="text-xs text-green-600 mt-1">{certFiles.length} file(s) selected</p>}
@@ -2109,6 +2151,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                           {(user.profile?.certificates?.length || 0) > 3 && <span className="text-xs text-gray-400">+{(user.profile?.certificates?.length || 0) - 3} more</span>}
                         </div>
                       )}
+                      {isJobseeker && <p className="text-xs text-gray-400 mt-1">Required for due diligence (attach certificates or recommendation letters).</p>}
                     </div>
                     <div className={`flex items-center gap-3 ${!subscriptionActive ? 'opacity-50' : ''}`}>
                       <input type="checkbox" id="ratings_enabled" checked={ratingsEnabled} onChange={e => setRatingsEnabled(e.target.checked)} disabled={!subscriptionActive} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
