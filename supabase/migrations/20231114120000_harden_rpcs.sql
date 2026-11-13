@@ -12,3 +12,4 @@ GRANT EXECUTE ON FUNCTION public.get_profile_contact(uuid) TO authenticated, ser
 GRANT EXECUTE ON FUNCTION public.redeem_contact_token(text) TO authenticated, service_role;
 
 COMMIT;
+
