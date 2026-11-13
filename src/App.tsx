@@ -13,6 +13,16 @@ import { supabase, restoreSession } from "@/lib/supabase";
 import { getProfile } from "@/lib/database";
 import CookieConsent from "@/components/CookieConsent";
 import React, { useState, useEffect } from "react";
+import AboutPage from "./pages/AboutPage";
+import ContactPage from "./pages/ContactPage";
+import CorporatePage from "./pages/CorporatePage";
+import DashboardPage from "./pages/DashboardPage";
+import InboxPage from "./pages/InboxPage";
+import JobsPage from "./pages/JobsPage";
+import ServicesPage from "./pages/ServicesPage";
+import ServiceDetailPage from "./pages/ServiceDetailPage";
+import PricingPage from "./pages/PricingPage";
+import JobDetailPage from "./pages/JobDetailPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,6 +87,15 @@ const App = () => (
             <Route path="/dashboard" element={<AppProvider><AppLayout /></AppProvider>} />
             <Route path="/day-pass" element={<AppProvider><AppLayout initialPage="day-pass" /></AppProvider>} />
             <Route path="/admin" element={<AdminRoute />} />
+            <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/jobs/:id" element={<JobDetailPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/services/:id" element={<ServiceDetailPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/corporate" element={<CorporatePage />} />
+            <Route path="/inbox" element={<InboxPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
