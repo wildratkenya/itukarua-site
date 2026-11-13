@@ -49,11 +49,54 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
     return () => window.removeEventListener('keydown', onKey);
   }, [productsOpen]);
 
+  import { useNavigate } from 'react-router-dom';
+
+  const navigate = useNavigate();
+
   const handleNav = (page: Page) => {
+    // Update current page state for header highlight
     onNavigate(page);
     setMobileMenuOpen(false);
     setProductsOpen(false);
+    // Perform actual navigation using React Router
+    let path = '/';
+    switch (page) {
+      case 'home':
+        path = '/';
+        break;
+      case 'jobs':
+        path = '/jobs';
+        break;
+      case 'services':
+        path = '/services';
+        break;
+      case 'pricing':
+        path = '/pricing';
+        break;
+      case 'about':
+        path = '/about';
+        break;
+      case 'contact':
+        path = '/contact';
+        break;
+      case 'dashboard':
+        path = '/dashboard';
+        break;
+      case 'inbox':
+        path = '/inbox';
+        break;
+      case 'advertise':
+        path = '/advertise';
+        break;
+      case 'corporate':
+        path = '/corporate';
+        break;
+      default:
+        path = '/';
+    }
+    navigate(path);
   };
+
 
   const openProduct = (sectionId: string) => {
     setPendingScrollTarget(sectionId);
