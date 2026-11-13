@@ -1,11 +1,6 @@
-// Dummy commit for push
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
-import Index from "./pages/Index";
+
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
 import { AppProvider } from "./contexts/AppContext";
@@ -24,7 +19,6 @@ import ServicesPage from "./pages/ServicesPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import PricingPage from "./pages/PricingPage";
 import JobDetailPage from "./pages/JobDetailPage";
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -82,23 +76,27 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/advertise" element={<AppProvider><AppLayout initialPage="advertise" /></AppProvider>} />
-            <Route path="/dashboard" element={<AppProvider><AppLayout /></AppProvider>} />
-            <Route path="/day-pass" element={<AppProvider><AppLayout initialPage="day-pass" /></AppProvider>} />
-            <Route path="/admin" element={<AdminRoute />} />
-            <Route path="/jobs" element={<JobsPage />} />
-            <Route path="/jobs/:id" element={<JobDetailPage />} />
-            <Route path="/services" element={<ServicesPage />} />
-            <Route path="/services/:id" element={<ServiceDetailPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/corporate" element={<CorporatePage />} />
-            <Route path="/inbox" element={<InboxPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppProvider>
+            <Routes>
+              <Route path="/" element={<AppLayout />} />
+              <Route path="/advertise" element={<AppLayout initialPage="advertise" />} />
+              <Route path="/dashboard" element={<AppLayout />} />
+              <Route path="/day-pass" element={<AppLayout initialPage="day-pass" />} />
+              <Route path="/admin" element={<AdminRoute />} />
+              <Route path="/jobs" element={<AppLayout initialPage="jobs" />} />
+              <Route path="/jobs/:id" element={<AppLayout initialPage="job-detail" />} />
+              <Route path="/services" element={<AppLayout initialPage="services" />} />
+              <Route path="/services/:id" element={<AppLayout initialPage="service-detail" />} />
+              <Route path="/pricing" element={<AppLayout initialPage="pricing" />} />
+              <Route path="/about" element={<AppLayout initialPage="about" />} />
+              <Route path="/contact" element={<AppLayout initialPage="contact" />} />
+              <Route path="/corporate" element={<AppLayout initialPage="corporate" />} />
+              <Route path="/inbox" element={<AppLayout initialPage="inbox" />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
+            <CookieConsent />
+          </AppProvider>
           {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
           <CookieConsent />
         </BrowserRouter>
