@@ -1,3 +1,4 @@
+// Dummy commit for push
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -106,4 +107,5 @@ const App = () => (
   </ThemeProvider>
 );
 
+// Dummy commit for push
 export default App;
