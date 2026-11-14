@@ -402,7 +402,7 @@ VALUES (
   'contact_access',
   100,
   'completed',
-  'ITK-SUSPENDED-TEST-' || gen_random_uuid()::text,
+  'ITK-SUSPENDED-TEST',
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   now() + interval '24 hours'
 );
@@ -426,6 +426,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE
   test_uid uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  test_pid uuid;
   dup_pid uuid;
 BEGIN
   -- Best-effort seed of an auth.users row so the FK is satisfied.
@@ -434,8 +435,13 @@ BEGIN
     VALUES (test_uid, 'authenticated', 'authenticated', 'test-hardening@example.com', '', '{}', '{}', now(), now());
   EXCEPTION WHEN unique_violation THEN NULL; END;
 
+  -- Insert a real payment so audit_log.payment_id FK is satisfied.
+  INSERT INTO public.payments (id, user_id, payment_type, amount, status, token, access_expires_at)
+  VALUES (gen_random_uuid(), test_uid, 'contact_access', 100, 'completed', 'ITK-AUDIT-TEST', now() + interval '24 hours')
+  RETURNING id INTO test_pid;
+
   INSERT INTO public.audit_log (user_id, action, payment_id, metadata)
-  VALUES (test_uid, 'grant_contact_access:test', gen_random_uuid(), '{"k":"v"}'::jsonb);
+  VALUES (test_uid, 'grant_contact_access:test', test_pid, '{"k":"v"}'::jsonb);
   RAISE NOTICE 'TEST PASS: first audit_log insert accepted';
 
   SELECT payment_id INTO dup_pid
