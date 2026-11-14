@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Send, Loader2, User, Lock } from 'lucide-react';
-import { getConversations, getConversationMessages, sendMessage, markConversationRead, checkSubscriptionActive, type DbConversationWithParticipant, type DbDirectMessage } from '@/lib/database';
+import { getConversations, getConversationMessages, sendMessage, markConversationRead, checkSubscriptionActive, isMessagingEntitlementRequiredError, type DbConversationWithParticipant, type DbDirectMessage } from '@/lib/database';
 import { supabase, optimizeImageUrl } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 
@@ -19,6 +19,7 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState('');
   const [subscriptionActive, setSubscriptionActive] = useState(true);
+  const [premiumRequired, setPremiumRequired] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,7 +82,13 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
     try {
       await sendMessage(activeConv, userId, input.trim());
       setInput('');
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      if (isMessagingEntitlementRequiredError(err)) {
+        setPremiumRequired(true);
+      } else {
+        console.error(err);
+      }
+    }
     finally { setSending(false); }
   }, [input, activeConv, userId, sending]);
 
@@ -213,7 +220,7 @@ const InboxPage: React.FC<InboxPageProps> = ({ userId, onBack }) => {
 
                 {/* Input */}
                 <div className="border-t border-gray-100 p-3">
-                  {!subscriptionActive ? (
+                  {!subscriptionActive || premiumRequired ? (
                     <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                       <Lock className="w-5 h-5 text-amber-600 flex-shrink-0" />
                       <div className="flex-1">

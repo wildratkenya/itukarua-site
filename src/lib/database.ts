@@ -1862,6 +1862,15 @@ export function isFreeBidLimitReachedError(err: any): boolean {
   return msg.includes(FREE_BID_LIMIT_REACHED);
 }
 
+/** Error code raised by the enforce_messaging_entitlement() server trigger. */
+export const MESSAGING_ENTITLEMENT_REQUIRED = 'MESSAGING_ENTITLEMENT_REQUIRED';
+
+/** True when a messaging failure is the server-side Premium entitlement gate. */
+export function isMessagingEntitlementRequiredError(err: any): boolean {
+  const msg = err?.message || String(err || '');
+  return msg.includes(MESSAGING_ENTITLEMENT_REQUIRED) || err?.code === 'P0003';
+}
+
 // ─── Notify Jobseekers of New Job ──────────────────────────────────────────
 
 export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
