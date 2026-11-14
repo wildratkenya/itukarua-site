@@ -37,8 +37,8 @@ const AdminRoute: React.FC = () => {
 
         if (session?.user) {
           const profile = await getProfile(session.user.id);
-          if (mounted && profile?.role === 'super_admin') {
-            setUser({ ...session.user, role: 'super_admin', profile });
+          if (mounted && (profile?.role === 'super_admin' || profile?.role === 'admin')) {
+            setUser({ ...session.user, role: profile.role, profile });
           }
         }
       } catch (e) {

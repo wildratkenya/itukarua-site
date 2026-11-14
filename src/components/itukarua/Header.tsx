@@ -236,7 +236,7 @@ const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate, onOpenAuth, us
                     >
                       <Send className="w-4 h-4" /> Messages
                     </button>
-                    {user.role === 'super_admin' && (
+                    {(user.role === 'super_admin' || user.role === 'admin') && (
                       <button
                         onClick={() => { handleNav('admin'); setUserMenuOpen(false); }}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"

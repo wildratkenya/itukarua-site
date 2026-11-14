@@ -467,7 +467,7 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   }, [currentPage, user, authLoading]);
 
   const handleNavigate = useCallback((page: Page) => {
-    if (page === 'admin' && (!user || user.role !== 'super_admin')) {
+    if (page === 'admin' && (!user || (user.role !== 'super_admin' && user.role !== 'admin'))) {
       return; // Don't allow navigation to admin if not super admin
     }
     const pending = getPendingScrollTarget();
@@ -727,7 +727,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
         case 'day-pass':
           return <DayPassPage onNavigate={handleNavigate} onOpenAuth={handleOpenAuth} onOpenMpesa={handleOpenMpesa} />;
         case 'admin':
-          if (!user || user.role !== 'super_admin') {
+          if (!user || (user.role !== 'super_admin' && user.role !== 'admin')) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
           return <AdminPage />;
