@@ -74,6 +74,34 @@ export function addHours(d: Date, n: number): Date {
   return new Date(d.getTime() + n * 60 * 60 * 1000)
 }
 
+/**
+ * Append an at-most-once audit row for an entitlement grant.
+ *
+ * The unique index audit_log_payment_action_unique (payment_id, action) makes a
+ * retried callback or reconcile race a no-op at the DB layer; we swallow the
+ * 23505 unique-violation so a duplicate grant never fails fulfilment.
+ */
+async function writeAuditLog(
+  supabase: any,
+  userId: string | null,
+  action: string,
+  paymentId: string | null,
+  metadata: Record<string, any> | null
+): Promise<void> {
+  if (!userId || !paymentId) return
+  try {
+    await supabase.from('audit_log').insert({
+      user_id: userId,
+      action,
+      payment_id: paymentId,
+      created_at: new Date().toISOString(),
+      metadata: metadata || null,
+    })
+  } catch (err: any) {
+    if (err?.code !== '23505') throw err
+  }
+}
+
 /** Numeric platform_settings lookup with a sane fallback. */
 export async function readSettingInt(supabase: any, key: string, fallback: number): Promise<number> {
   const { data } = await supabase
@@ -168,6 +196,14 @@ export async function fulfilServiceAd(supabase: any, payment: PaymentRow): Promi
   const { error } = await supabase.from('service_ads').update(patch).eq('id', adId)
   if (error) throw new Error(`fulfilServiceAd ${adId}: ${error.message}`)
 
+  await writeAuditLog(
+    supabase,
+    payment.user_id,
+    `grant_service_ad:${plan}`,
+    payment.id,
+    { days, billing_end: endIso, liveBoost }
+  )
+
   console.log(
     `[fulfilment] service_ad ${adId} paid (${plan}, ${days}d) live until ${endDate}` +
     (liveBoost ? ' [existing boost preserved]' : ''),
@@ -209,6 +245,14 @@ export async function fulfilBanner(supabase: any, payment: PaymentRow): Promise<
     })
     .eq('id', adId)
   if (error) throw new Error(`fulfilBanner ${adId}: ${error.message}`)
+
+  await writeAuditLog(
+    supabase,
+    payment.user_id,
+    'grant_banner',
+    payment.id,
+    { days: planDays(ad.billing_cycle), billing_end: end.toISOString() }
+  )
 
   console.log(`[fulfilment] banner ${adId} paid, live for ${days}d until ${end.toISOString()}`)
 }
@@ -297,6 +341,15 @@ export async function fulfilJobListing(supabase: any, payment: PaymentRow): Prom
     })
     .eq('id', payment.related_job_id)
   if (error) throw new Error(`fulfilJobListing ${payment.related_job_id}: ${error.message}`)
+
+  await writeAuditLog(
+    supabase,
+    payment.user_id,
+    `grant_job_listing:${jobListingDays(payment)}d`,
+    payment.id,
+    { related_job_id: payment.related_job_id, valid_until: end }
+  )
+
   console.log(`[fulfilment] job ${payment.related_job_id} paid, valid until ${end}`)
 }
 
@@ -411,6 +464,14 @@ export async function fulfilSubscription(supabase: any, payment: PaymentRow): Pr
     .eq('id', userId)
   if (profErr) throw new Error(`fulfilSubscription profiles: ${profErr.message}`)
 
+  await writeAuditLog(
+    supabase,
+    userId,
+    `grant_subscription:${role}`,
+    payment.id,
+    { days, expires_at: finalEnd.toISOString(), source: 'mpesa' }
+  )
+
   // Employer Weekly also re-enables every eligible job advert.
   if (role === 'employer' && days === 7) {
     await reactivateEmployerJobs(supabase, userId)
@@ -466,6 +527,14 @@ export async function fulfilFeaturedBoost(supabase: any, payment: PaymentRow): P
     .update({ featured: true, boost_until: boostEndIso })
     .eq('id', id)
   if (error) throw new Error(`fulfilFeaturedBoost ${table}/${id}: ${error.message}`)
+
+  await writeAuditLog(
+    supabase,
+    payment.user_id,
+    'grant_featured_boost',
+    payment.id,
+    { table, id, boost_until: boostEndIso }
+  )
 
   // Featured Boost spec: a boosted service listing also shows in the prime
   // homepage carousel. The carousel reads `advertisements` only, so mirror the
@@ -572,6 +641,14 @@ export async function fulfilCorporate(supabase: any, payment: PaymentRow): Promi
     invoiceId: inv.id,
     mpesaRef: payment.mpesa_ref || null,
   })
+
+  await writeAuditLog(
+    supabase,
+    payment.user_id,
+    'grant_corporate',
+    payment.id,
+    { account_id: payment.related_account_id, invoice_id: payment.related_invoice_id }
+  )
 }
 
 // ─── Dispatcher ─────────────────────────────────────────────────────────────
@@ -657,14 +734,14 @@ export async function runPaymentEffects(supabase: any, payment: PaymentRow): Pro
         .update({ access_expires_at: end })
         .eq('id', payment.id)
       if (error) throw new Error(`fulfilContactAccess ${payment.id}: ${error.message}`)
-      // Record audit log for contact access grant
-      await supabase.from('audit_log').insert({
-        user_id: payment.user_id,
-        action: 'grant_contact_access',
-        payment_id: payment.id,
-        created_at: new Date().toISOString(),
-        metadata: { hours, expires_at: end },
-      })
+      // Record audit log for contact access grant (at-most-once via unique index).
+      await writeAuditLog(
+        supabase,
+        payment.user_id,
+        'grant_contact_access',
+        payment.id,
+        { hours, expires_at: end }
+      )
       done.push(`contact_access:${hours}h`)
       console.log(`[fulfilment] contact_access ${payment.id} unlocks ${payment.related_profile_id || '?'} until ${end}`)
       break
