@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { CheckCircle, CalendarX2, X, Lock } from 'lucide-react';
 import { supabase, saveSession, restoreSession, proxyRequest, proxyTable } from '@/lib/supabase';
@@ -96,23 +97,7 @@ const evaluateSubscriptionNotice = (profile: any): SubscriptionNotice | null => 
 };
 
 const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
-  const [currentPage, setCurrentPage] = useState<Page>(() => {
-    if (initialPage) return initialPage;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const pay = params.get('pay') || params.get('payment') || params.get('type');
-      const role = params.get('role');
-      const intent = params.get('intent');
-      if (pay === 'corporate' || role === 'corporate' || intent === 'corporate') return 'corporate';
-      if (pay || intent || params.get('ad_id') || params.get('job_id') || params.get('invoice_id')) return 'dashboard';
-    } catch {}
-    try {
-      const path = window.location.pathname;
-      if (path === '/dashboard') return 'dashboard';
-      if (path === '/day-pass') return 'day-pass';
-    } catch {}
-    return 'home';
-  });
+  const [currentPage, setCurrentPage] = useState<Page>('home');
   const [user, setUser] = useState<UserState | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
@@ -158,6 +143,90 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
   const [autoOpenWorkerSearch, setAutoOpenWorkerSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Router-driven layout: the URL is the source of truth for which page shell
+  // renders. Menu links call navigate() to real URLs (/jobs, /pricing, etc.).
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const pageFromPathname = (pathname: string): Page => {
+    if (pathname === '/') return 'home';
+    if (pathname === '/jobs') return 'jobs';
+    if (/^\/jobs\/[^/]+$/.test(pathname)) return 'job-detail';
+    if (pathname === '/services') return 'services';
+    if (/^\/services\/[^/]+$/.test(pathname)) return 'service-detail';
+    if (pathname === '/pricing') return 'pricing';
+    if (pathname === '/about') return 'about';
+    if (pathname === '/contact') return 'contact';
+    if (pathname === '/post-job') return 'post-job';
+    if (pathname === '/post-advert') return 'post-advert';
+    if (pathname === '/advertise') return 'advertise';
+    if (pathname === '/dashboard') return 'dashboard';
+    if (pathname === '/inbox') return 'inbox';
+    if (pathname === '/corporate') return 'corporate';
+    if (pathname === '/corporate-signup') return 'corporate-signup';
+    if (pathname === '/day-pass') return 'day-pass';
+    if (pathname === '/admin') return 'admin';
+    return 'home';
+  };
+
+  const pathForPage = (page: Page): string => {
+    switch (page) {
+      case 'home': return '/';
+      case 'jobs': return '/jobs';
+      case 'services': return '/services';
+      case 'pricing': return '/pricing';
+      case 'about': return '/about';
+      case 'contact': return '/contact';
+      case 'post-job': return '/post-job';
+      case 'post-advert': return '/post-advert';
+      case 'advertise': return '/advertise';
+      case 'dashboard': return '/dashboard';
+      case 'inbox': return '/inbox';
+      case 'corporate': return '/corporate';
+      case 'corporate-signup': return '/corporate-signup';
+      case 'day-pass': return '/day-pass';
+      case 'admin': return '/admin';
+      case 'job-detail':
+      case 'service-detail':
+      default: return '/';
+    }
+  };
+
+  // Sync internal page state (and selected job/service ids) with the URL on
+  // every navigation so Header/Footer active states and rendered content match.
+  useEffect(() => {
+    let computed: Page;
+    try {
+      const params = new URLSearchParams(location.search);
+      const pay = params.get('pay') || params.get('payment') || params.get('type');
+      const role = params.get('role');
+      const intent = params.get('intent');
+      if (pay === 'corporate' || role === 'corporate' || intent === 'corporate') {
+        computed = 'corporate';
+      } else if (pay || intent || params.get('ad_id') || params.get('job_id') || params.get('invoice_id')) {
+        computed = 'dashboard';
+      } else if (location.pathname === '/dashboard') {
+        computed = 'dashboard';
+      } else if (location.pathname === '/day-pass') {
+        computed = 'day-pass';
+      } else if (initialPage) {
+        computed = initialPage;
+      } else {
+        computed = pageFromPathname(location.pathname);
+      }
+    } catch {
+      computed = pageFromPathname(location.pathname);
+    }
+    setCurrentPage(computed);
+
+    const jobMatch = location.pathname.match(/^\/jobs\/([^/]+)$/);
+    const svcMatch = location.pathname.match(/^\/services\/([^/]+)$/);
+    if (jobMatch) setSelectedJobId(jobMatch[1]);
+    else if (!location.pathname.startsWith('/jobs/')) setSelectedJobId('');
+    if (svcMatch) setSelectedServiceId(svcMatch[1]);
+    else if (!location.pathname.startsWith('/services/')) setSelectedServiceId('');
+  }, [location, initialPage]);
 
   // Load user from Supabase session on mount
   useEffect(() => {
@@ -418,8 +487,9 @@ const AppLayout: React.FC<{ initialPage?: Page }> = ({ initialPage }) => {
     } else {
       skipTopScroll.current = false;
     }
+    navigate(pathForPage(page));
     setCurrentPage(page);
-  }, [user, currentPage]);
+  }, [user, currentPage, navigate]);
 
   const handleOpenAuth = useCallback((tab: 'login' | 'signup', role?: 'advertiser' | 'employer' | 'jobseeker') => {
     setAuthTab(tab);
@@ -481,25 +551,23 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
   const handleWorkerSearchAuth = useCallback(() => { loginFromWorkerPopup.current = true; setAutoOpenWorkerSearch(true); }, []);
 
   const handleViewJob = useCallback((jobId: string) => {
-    setSelectedJobId(jobId);
-    setCurrentPage('job-detail');
-  }, []);
+    navigate(`/jobs/${jobId}`);
+  }, [navigate]);
 
   const handleViewService = useCallback((serviceId: string) => {
-    setSelectedServiceId(serviceId);
-    setCurrentPage('service-detail');
-  }, []);
+    navigate(`/services/${serviceId}`);
+  }, [navigate]);
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage('jobs');
-  }, []);
+    navigate('/jobs');
+  }, [navigate]);
 
   const handleSearchCounty = useCallback((county: string) => {
     setSearchQuery(`county=${encodeURIComponent(county)}`);
     if (currentPage === 'jobs') window.scrollTo({ top: 0, behavior: 'smooth' });
-    setCurrentPage('jobs');
-  }, [currentPage]);
+    navigate('/jobs');
+  }, [currentPage, navigate]);
 
   const handleOpenMpesa = useCallback((amount: number, description: string, accountRef: string, paymentType?: string, relatedAdId?: string, relatedJobId?: string, relatedProfileId?: string, onComplete?: () => void, employerPlans?: boolean, employerExpired?: boolean, employerExpiredAt?: string | null, role?: EntitlementRole, relatedAccountId?: string, relatedInvoiceId?: string, opts?: { metadata?: Record<string, unknown>; defaultPhone?: string; payingOnBehalfOf?: string; onTokenIssued?: (token: string, expiresAt: string | null) => void }) => {
     setMpesaModal({ open: true, amount, description, accountRef, paymentType: paymentType as any, relatedAdId, relatedJobId, relatedProfileId, onComplete, employerPlans, employerExpired, employerExpiredAt, role, relatedAccountId, relatedInvoiceId, metadata: opts?.metadata, defaultPhone: opts?.defaultPhone, payingOnBehalfOf: opts?.payingOnBehalfOf, onTokenIssued: opts?.onTokenIssued });
@@ -607,7 +675,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             <JobDetailPage
               jobId={selectedJobId}
               onNavigate={handleNavigate}
-              onBack={() => setCurrentPage('jobs')}
+              onBack={() => navigate('/jobs')}
               user={user}
               onOpenAuth={handleOpenAuth}
               onOpenMpesa={handleOpenMpesa}
@@ -621,7 +689,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             <ServiceDetailPage
               serviceId={selectedServiceId}
               onNavigate={handleNavigate}
-              onBack={() => setCurrentPage('services')}
+              onBack={() => navigate('/services')}
               user={user}
               onOpenAuth={handleOpenAuth}
             />
@@ -647,7 +715,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
           if (!user) {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;
           }
-          return <InboxPage userId={user.id} onBack={() => setCurrentPage('dashboard')} />;
+          return <InboxPage userId={user.id} onBack={() => navigate('/dashboard')} />;
         case 'corporate':
           if (!user || user.role !== 'corporate') {
             return <HomePage onNavigate={handleNavigate} onSearch={handleSearch} onViewJob={handleViewJob} onViewService={handleViewService} onOpenMpesa={handleOpenMpesa} onOpenEmployerPayment={handleOpenEmployerPayment} onWorkerPopupOpen={handleWorkerPopupOpen} onOpenAuth={handleOpenAuth} />;

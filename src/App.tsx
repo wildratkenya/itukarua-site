@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
 import { AppProvider } from "./contexts/AppContext";
@@ -13,16 +12,7 @@ import { supabase, restoreSession } from "@/lib/supabase";
 import { getProfile } from "@/lib/database";
 import CookieConsent from "@/components/CookieConsent";
 import React, { useState, useEffect } from "react";
-import AboutPage from "./pages/AboutPage";
-import ContactPage from "./pages/ContactPage";
-import CorporatePage from "./pages/CorporatePage";
-import DashboardPage from "./pages/DashboardPage";
-import InboxPage from "./pages/InboxPage";
-import JobsPage from "./pages/JobsPage";
-import ServicesPage from "./pages/ServicesPage";
-import ServiceDetailPage from "./pages/ServiceDetailPage";
-import PricingPage from "./pages/PricingPage";
-import JobDetailPage from "./pages/JobDetailPage";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -80,34 +70,35 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          {/* AppProvider wraps every route so auth/profile/modal state is shared site-wide. */}
           <AppProvider>
             <Routes>
               <Route path="/" element={<AppLayout />} />
               <Route path="/advertise" element={<AppLayout initialPage="advertise" />} />
               <Route path="/dashboard" element={<AppLayout />} />
               <Route path="/day-pass" element={<AppLayout initialPage="day-pass" />} />
+              <Route path="/post-job" element={<AppLayout />} />
+              <Route path="/post-advert" element={<AppLayout />} />
+              <Route path="/corporate-signup" element={<AppLayout />} />
               <Route path="/admin" element={<AdminRoute />} />
-              <Route path="/jobs" element={<AppLayout initialPage="jobs" />} />
-              <Route path="/jobs/:id" element={<AppLayout initialPage="job-detail" />} />
-              <Route path="/services" element={<AppLayout initialPage="services" />} />
-              <Route path="/services/:id" element={<AppLayout initialPage="service-detail" />} />
-              <Route path="/pricing" element={<AppLayout initialPage="pricing" />} />
-              <Route path="/about" element={<AppLayout initialPage="about" />} />
-              <Route path="/contact" element={<AppLayout initialPage="contact" />} />
-              <Route path="/corporate" element={<AppLayout initialPage="corporate" />} />
-              <Route path="/inbox" element={<AppLayout initialPage="inbox" />} />
+              <Route path="/jobs" element={<AppLayout />} />
+              <Route path="/jobs/:id" element={<AppLayout />} />
+              <Route path="/services" element={<AppLayout />} />
+              <Route path="/services/:id" element={<AppLayout />} />
+              <Route path="/pricing" element={<AppLayout />} />
+              <Route path="/about" element={<AppLayout />} />
+              <Route path="/contact" element={<AppLayout />} />
+              <Route path="/corporate" element={<AppLayout />} />
+              <Route path="/inbox" element={<AppLayout />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
             <CookieConsent />
           </AppProvider>
-          {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
-          <CookieConsent />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   </ThemeProvider>
 );
 
-// Dummy commit for push
 export default App;
