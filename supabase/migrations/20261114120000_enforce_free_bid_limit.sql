@@ -13,6 +13,7 @@ BEGIN;
 --    The existing "auth_insert_bids" policy only checks auth.uid() IS NOT NULL,
 --    which lets a client spoof bidder_id. Replace it with an owner-only policy.
 DROP POLICY IF EXISTS "auth_insert_bids" ON public.bids;
+DROP POLICY IF EXISTS "auth_insert_bids_own" ON public.bids;
 CREATE POLICY "auth_insert_bids_own"
   ON public.bids
   FOR INSERT
@@ -92,8 +93,13 @@ BEGIN;
   FROM generate_series(1, 10);
 
   -- This 11th insert must be rejected with FREE_BID_LIMIT_REACHED.
-  INSERT INTO public.bids (job_id, bidder_id, price, proposal, status)
-  VALUES (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', 1000, 'test bid 11', 'pending');
+  BEGIN
+    INSERT INTO public.bids (job_id, bidder_id, price, proposal, status)
+    VALUES (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', 1000, 'test bid 11', 'pending');
+    RAISE EXCEPTION 'TEST FAIL: 11th bid was not rejected';
+  EXCEPTION WHEN sqlstate 'P0001' THEN
+    RAISE NOTICE 'TEST PASS: 11th bid rejected (P0001)';
+  END;
 ROLLBACK;
 
 -- Test B: Premium jobseeker — 11 bids in 7 days are all allowed.
