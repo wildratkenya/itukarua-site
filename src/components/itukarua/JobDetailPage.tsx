@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase, CreditCard } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, isFreeBidLimitReachedError, isMessagingEntitlementRequiredError, trackJobView, hasEntitlement, employerReactivateJob, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, isFreeBidLimitReachedError, isMessagingEntitlementRequiredError, trackJobView, hasEntitlement, employerReactivateJob, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { IMAGES, PRICING_PLANS } from '@/data/siteData';
 import type { Page } from './Header';
@@ -38,7 +38,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
   const [winnerCerts, setWinnerCerts] = useState<string[]>([]);
   const [winnerResume, setWinnerResume] = useState('');
   const [winnerAccessExpiresAt, setWinnerAccessExpiresAt] = useState<string | null>(null);
-  const [contactFee, setContactFee] = useState(CONTACT_ACCESS_FEE_DEFAULT);
+  const [contactFee, setContactFee] = useState(PRICING_PLANS.contactUnlock.price);
   const [contactWindowHours, setContactWindowHours] = useState(CONTACT_ACCESS_WINDOW_HOURS_DEFAULT);
   const [viewerCert, setViewerCert] = useState<string | null>(null);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
@@ -740,7 +740,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                     </>
                   ) : (
                     <button onClick={() => onOpenMpesa(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
-                      Upgrade to Premium — KES 100/mo
+                      Upgrade to Premium — KES {PRICING_PLANS.jobseekerPremium.price}/mo
                     </button>
                   )}
                 </div>
