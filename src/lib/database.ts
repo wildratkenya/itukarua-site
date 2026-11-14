@@ -271,16 +271,6 @@ export async function getWorkers(limit = 20): Promise<DbProfile[]> {
   if (error) { console.error('getWorkers error:', error); return []; }
   return data || [];
 }
-
-export async function getAllProfiles(): Promise<DbProfile[]> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('getAllProfiles error:', error); return []; }
-  return data || [];
-}
-
 export async function getProfiles(filters?: {
   role?: string;
   location?: string;

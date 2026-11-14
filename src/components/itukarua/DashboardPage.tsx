@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search, Send, Trash2 } from 'lucide-react';
 import { downloadMyData, deleteMyAccount } from '@/lib/account';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getJobViewHistoryForJob, getServiceViewHistoryForAd, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getJobViewHistoryForJob, getServiceViewHistoryForAd, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
@@ -142,7 +142,7 @@ const notifRef = useRef<HTMLDivElement>(null);
           getNotifications(user.id),
         ];
         if (isAdmin) {
-          promises.push(getJobs({}), getServiceAds({}), getAllProfiles(), getPlatformStats(), getPlatformSettings());
+          promises.push(getJobs({}), getServiceAds({}), getProfiles(), getPlatformStats(), getPlatformSettings());
         } else if (isJobseeker) {
           promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getWeeklyBidCount(user.id), getMonthlyBidCount(user.id));
         } else if (isAdvertiser) {
