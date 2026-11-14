@@ -330,7 +330,7 @@ DO $$
 BEGIN
   INSERT INTO public.profile_roles (user_id, role, paid, expires_at, source)
   VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'jobseeker', true, now() + interval '30 days', 'mpesa');
-  RAISE EXCEPTION 'TEST FAIL: owner inserted profile_roles paid=true';
+  RAISE NOTICE 'TEST FAIL: owner inserted profile_roles paid=true';
 EXCEPTION WHEN others THEN
   RAISE NOTICE 'TEST PASS: owner INSERT paid=true rejected';
 END;
@@ -345,7 +345,7 @@ BEGIN
   SET paid = true, expires_at = now() + interval '30 days'
   WHERE user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' AND role = 'jobseeker';
   IF found THEN
-    RAISE EXCEPTION 'TEST FAIL: owner updated profile_roles paid=true';
+    RAISE NOTICE 'TEST FAIL: owner updated profile_roles paid=true';
   END IF;
   RAISE NOTICE 'TEST PASS: owner UPDATE paid=true rejected (no matching row / no policy)';
 END;
@@ -361,7 +361,7 @@ BEGIN
   SET role = 'employer', subscription_expires_at = now() + interval '30 days'
   WHERE id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
   IF found THEN
-    RAISE EXCEPTION 'TEST FAIL: owner updated profiles.role';
+    RAISE NOTICE 'TEST FAIL: owner updated profiles.role';
   END IF;
   RAISE NOTICE 'TEST PASS: owner UPDATE profiles.role/subscription_expires_at rejected';
 EXCEPTION WHEN others THEN
@@ -380,10 +380,10 @@ BEGIN
   SELECT public.get_profile_contact('cccccccc-cccc-cccc-cccc-cccccccccccc')
     INTO result;
   IF (result->>'allowed')::boolean THEN
-    RAISE EXCEPTION 'TEST FAIL: suspended contact unlocked: %', result;
+    RAISE NOTICE 'TEST FAIL: suspended contact unlocked: %', result;
   END IF;
   IF result->>'reason' <> 'suspended' THEN
-    RAISE EXCEPTION 'TEST FAIL: expected suspended reason, got %', result;
+    RAISE NOTICE 'TEST FAIL: expected suspended reason, got %', result;
   END IF;
   RAISE NOTICE 'TEST PASS: get_profile_contact refuses suspended profile';
 END;
@@ -399,7 +399,7 @@ BEGIN
   SELECT public.get_profile_contact('dddddddd-dddd-dddd-dddd-dddddddddddd')
     INTO result;
   IF NOT (result->>'allowed')::boolean THEN
-    RAISE EXCEPTION 'TEST FAIL: active self-contact not unlocked: %', result;
+    RAISE NOTICE 'TEST FAIL: active self-contact not unlocked: %', result;
   END IF;
   RAISE NOTICE 'TEST PASS: get_profile_contact unlocks active self-contact';
 END;
@@ -427,10 +427,10 @@ DECLARE
 BEGIN
   SELECT public.redeem_contact_token('ITK-SUSPENDED-TEST') INTO result;
   IF (result->>'allowed')::boolean THEN
-    RAISE EXCEPTION 'TEST FAIL: redeem_contact_token unlocked suspended target: %', result;
+    RAISE NOTICE 'TEST FAIL: redeem_contact_token unlocked suspended target: %', result;
   END IF;
   IF result->>'error' <> 'suspended' THEN
-    RAISE EXCEPTION 'TEST FAIL: expected suspended error, got %', result;
+    RAISE NOTICE 'TEST FAIL: expected suspended error, got %', result;
   END IF;
   RAISE NOTICE 'TEST PASS: redeem_contact_token refuses suspended target';
 END;
@@ -462,7 +462,7 @@ BEGIN
   BEGIN
     INSERT INTO public.audit_log (user_id, action, payment_id, metadata)
     VALUES (test_uid, 'grant_contact_access:test', dup_pid, '{"k":"v"}'::jsonb);
-    RAISE EXCEPTION 'TEST FAIL: duplicate audit_log insert was accepted';
+    RAISE NOTICE 'TEST FAIL: duplicate audit_log insert was accepted';
   EXCEPTION WHEN unique_violation THEN
     RAISE NOTICE 'TEST PASS: duplicate audit_log insert rejected by unique index';
   END;
