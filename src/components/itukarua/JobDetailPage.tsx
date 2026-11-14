@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import SEO, { generateJobPostingSchema, generateBreadcrumbSchema } from '@/lib/seo';
 import { ArrowLeft, MapPin, Clock, Users, Star, Shield, AlertTriangle, Send, ChevronDown, ChevronUp, Phone, Loader2, X, Mail, Award, FileText, Briefcase, CreditCard } from 'lucide-react';
-import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, trackJobView, hasEntitlement, employerReactivateJob, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
+import { getJobById, getBidsForJob, createBid, updateJob, createRating, getRatingsForJob, checkIfRated, findOrCreateConversation, checkSubscriptionActive, checkSingleJobDayToken, extendSubscription, getWeeklyBidCount, FREE_BID_LIMIT, isFreeBidLimitReachedError, isMessagingEntitlementRequiredError, trackJobView, hasEntitlement, employerReactivateJob, getProfileContact, getContactAccessConfig, CONTACT_ACCESS_FEE_DEFAULT, CONTACT_ACCESS_WINDOW_HOURS_DEFAULT, getProfileRatingsFlag, type DbJob, type DbBid, type DbRating, type DbProfile } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
-import { IMAGES } from '@/data/siteData';
+import { IMAGES, PRICING_PLANS } from '@/data/siteData';
 import type { Page } from './Header';
 import type { UserState } from '../AppLayout';
 import ImageViewerModal from './ImageViewerModal';
@@ -203,6 +203,10 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
         setWeeklyBidCount(prev => prev + 1);
       }
     } catch (err: any) {
+      if (isFreeBidLimitReachedError(err)) {
+        onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker');
+        return;
+      }
       alert(err.message || 'Failed to submit bid');
     } finally { setBidSubmitting(false); }
   };
@@ -308,6 +312,10 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
       await findOrCreateConversation(user.id, bidderId, job.id);
       onNavigate('inbox');
     } catch (err) {
+      if (isMessagingEntitlementRequiredError(err)) {
+        onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker');
+        return;
+      }
       console.error('Error starting conversation:', err);
       alert('Could not start conversation. Please try again.');
     }
@@ -600,7 +608,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                                 </div>
                               ) : (
                                 <button onClick={handleUnlockContact} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 mt-2">
-                                  <Phone className="w-4 h-4" /> Unlock Contact (KES 50)
+                                  <Phone className="w-4 h-4" /> Unlock Contact (KES {contactFee})
                                 </button>
                               )
                             ) : null
@@ -637,7 +645,7 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                   </div>
                   {!hasJobAccess && bids.length > 0 && (
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
-                      <p className="text-xs text-amber-700 font-medium mb-2">Contacts locked — pay KES 100 for 1-day access to this job, or KES 200/week for unlimited access.</p>
+                      <p className="text-xs text-amber-700 font-medium mb-2">Contacts locked — pay KES {PRICING_PLANS.singleJobPost.price} for 1-day access to this job, or KES {PRICING_PLANS.employerSubscription.price}/week for unlimited access.</p>
                       <button
                         onClick={() => onOpenEmployerPayment(job.id, job.title, () => setDayTokenAccess(true))}
                         className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors"
@@ -726,12 +734,12 @@ const JobDetailPage: React.FC<JobDetailPageProps> = ({ jobId, onNavigate, onBack
                       <button onClick={() => setShowBidForm(true)} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 mb-2">
                         <Send className="w-4 h-4" /> Bid on This Job
                       </button>
-                      <button disabled onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-gray-200 text-gray-400 font-semibold rounded-lg transition-colors cursor-not-allowed">
-                        Upgrade to Premium — KES 100/mo
+                      <button disabled onClick={() => onOpenMpesa(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-gray-200 text-gray-400 font-semibold rounded-lg transition-colors cursor-not-allowed">
+                        Upgrade to Premium — KES {PRICING_PLANS.jobseekerPremium.price}/mo
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => onOpenMpesa(100, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
+                    <button onClick={() => onOpenMpesa(PRICING_PLANS.jobseekerPremium.price, 'Jobseeker Premium Subscription', 'PREM-NEW', 'registration', undefined, undefined, undefined, undefined, false, false, null, 'jobseeker')} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors">
                       Upgrade to Premium — KES 100/mo
                     </button>
                   )}

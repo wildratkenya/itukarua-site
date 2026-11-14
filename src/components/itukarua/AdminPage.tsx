@@ -4,7 +4,7 @@ import AdminDashboard from './admin/AdminDashboard';
 import { supabase, supabaseUrl, supabaseKey, optimizeImageUrl, proxyImageUrl, proxyRequest, proxyTable, proxyRpc, ensureValidToken } from '@/lib/supabase';
 import { getProfile, subscribeNewsletter, getNewsletterSubscribers, deleteNewsletterSubscriber, getCustomCategories, addCustomCategory, deleteCustomCategory, createChatMessage, getChatConversation, adminResetPassword, getAdBannerSettings, updateAdBannerSetting, type AdBannerSettings, DEFAULT_AD_BANNER_SETTINGS, getActiveAds, getJobs, getServiceAds, getEmailProviders, saveEmailProvider, deleteEmailProvider, type DbEmailProvider, getBillingItems, getBillingNotifications, type BillingItem, type BillingNotification, extendSubscription, getWeeklyBidCount, getCorporateAccounts, getCorporateMembers, getAllCorporateInvoices, issueCorporateInvoice, markCorporateInvoicePaid, addCorporateBillingDays, runMonthlyCorporateBilling, setCorporateLink, toggleProfileContactDisplay, getSocialLinks, setSocialLink, SOCIAL_PLATFORMS, type SocialLinks, type DbCorporateAccount, type DbCorporateMember, type DbCorporateInvoice, getPlatformSettings, updatePlatformSetting, getPlatformContent, updatePlatformContent } from '@/lib/database';
 
-import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, type SavedCorporateFeatures } from '@/data/siteData';
+import { KENYA_COUNTIES, CORPORATE_TIER_FEATURES, TIER_FEATURE_IDS, effectiveFeaturesFor, slotLabel, isCorporateOnlySlot, corporateMonthlyAmount, PRICING_PLANS, type SavedCorporateFeatures } from '@/data/siteData';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine, servicePlanDays } from '@/lib/adLifecycle';
 import MpesaModal from './MpesaModal';
 import { CorporateFeaturesBuilder } from './CorporateFeaturesBuilder';
@@ -2539,9 +2539,9 @@ const AdminPage: React.FC = () => {
                   <p className="text-sm text-gray-700">{slotLabel(adForm.slot || 'homepage_banner')}</p>
                 </div>
                 <select value={adForm.billing_cycle || '10 days'} onChange={e => setAdForm({ ...adForm, billing_cycle: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                  <option value="10 days">10 Days (KES 300)</option>
-                  <option value="20 days">20 Days (KES 500)</option>
-                  <option value="30 days">30 Days (KES 800)</option>
+                  <option value="10 days">10 Days (KES {PRICING_PLANS.advertPlans[0].price})</option>
+                  <option value="20 days">20 Days (KES {PRICING_PLANS.advertPlans[1].price})</option>
+                  <option value="30 days">30 Days (KES {PRICING_PLANS.advertPlans[2].price})</option>
                 </select>
                 <input type="email" value={adForm.owner_email || ''} onChange={e => setAdForm({ ...adForm, owner_email: e.target.value })} placeholder="Advertiser email (for billing invoices)" className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" />
                 {adForm.corporate_account_id ? (
@@ -2568,7 +2568,7 @@ const AdminPage: React.FC = () => {
                     Featured <span className="text-xs text-gray-400">(boost: homepage carousel + top of jobs/services rail)</span>
                   </label>
                 </div>
-                <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '10 days'} cycle at KES {adForm.billing_cycle === '30 days' ? '800' : adForm.billing_cycle === '20 days' ? '500' : '300'}. Boosted banners run on the homepage carousel and top of the jobs/services rail; others show in the jobs/services side rail. Renewal alerts &amp; invoices are sent from the Billing tab.</p>
+                <p className="text-[11px] text-gray-400 col-span-full -mt-1">Billing: {adForm.billing_cycle || '10 days'} cycle at KES {adForm.billing_cycle === '30 days' ? PRICING_PLANS.advertPlans[2].price : adForm.billing_cycle === '20 days' ? PRICING_PLANS.advertPlans[1].price : PRICING_PLANS.advertPlans[0].price}. Boosted banners run on the homepage carousel and top of the jobs/services rail; others show in the jobs/services side rail. Renewal alerts &amp; invoices are sent from the Billing tab.</p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={async () => {
@@ -5202,7 +5202,7 @@ const AdminPage: React.FC = () => {
             <div>
               <Label>Advertiser Email (for billing invoices)</Label>
               <Input name="owner_email" type="email" defaultValue={editingAd?.owner_email || ''} placeholder="e.g. advertiser@example.com" />
-              <p className="text-[11px] text-gray-400 mt-1">Used to send renewal alerts & invoices. Billing cycle follows the plan ({servicePlanDays(adFormPlan)} days at KES {adFormPlan === '10-day' ? '300' : adFormPlan === '20-day' ? '500' : '800'}).</p>
+              <p className="text-[11px] text-gray-400 mt-1">Used to send renewal alerts & invoices. Billing cycle follows the plan ({servicePlanDays(adFormPlan)} days at KES {adFormPlan === '10-day' ? PRICING_PLANS.advertPlans[0].price : adFormPlan === '20-day' ? PRICING_PLANS.advertPlans[1].price : PRICING_PLANS.advertPlans[2].price}).</p>
             </div>
             {/* Image Upload for Ads */}
             <div>

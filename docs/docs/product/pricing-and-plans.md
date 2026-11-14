@@ -26,9 +26,9 @@ Key legacy payment rows for jobseekers:
 | `registration` | `ADV-SUB` | Advertiser subscription |
 | `employer_day_token` | `TOKEN-<day>` | Daily employer token(s) |
 | `employer_day_access` | daily access | Day-access window |
-| `contact_access` | — | Contact-unlock window for one worker |
-| `single_job_post` | — | One job post |
-| `advert` | — | Advert campaign |
+| `contact_access` | KES 100 | Contact-unlock window for one worker |
+| `single_job_post` | KES 100 | One job post |
+| `advert` | KES 300 / 500 / 800 | Advert campaign (10/20/30 days) |
 
 ## Employers
 
@@ -85,3 +85,13 @@ bids per week" without the category qualifier.
 - Feature matrices → `PRICING_PLANS.employer` (weekly vs single-day) and `PRICING_PLANS.jobseeker`
   in `siteData.ts`, rendered by `MpesaModal` / `PricingPage`.
 - Change logs/detail lines → `DashboardPage` payments table.
+
+## Server-side price validation
+
+Every payment amount is validated server-side before a payment row is created, so a tampered client cannot initiate an M-Pesa payment for less than the plan price and receive a full entitlement:
+
+- `supabase/functions/_shared/pricing.ts` exports `minimumAmountKes()`, which returns the canonical KES price per `payment_type` (registration 100/200, employer day 100, job listing/advert 100/200/300/500/800, contact access 100, top rated day pass 100, featured boost 500).
+- `supabase/functions/mpesa-stk-push/index.ts` calls `minimumAmountKes()` during STK push initiation and rejects any `amount` below the minimum (HTTP 400).
+- Fulfilment in `_shared/paymentEffects.ts` only grants entitlements for `completed` payments whose amount covers the canonical price.
+
+These server-side prices mirror `PRICING_PLANS` in `src/data/siteData.ts`; the frontend is a convenience layer only — the Edge Function is the source of truth for what a product costs.

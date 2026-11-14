@@ -208,6 +208,12 @@ export const PRICING_PLANS = {
     period: 'per week',
     description: 'Boost your advert to the top of search results and homepage carousel.',
   },
+  contactUnlock: {
+    name: 'Contact Access',
+    price: 100,
+    period: '/24 hours',
+    description: 'One-day access to a single worker contact (phone, email, WhatsApp).',
+  },
 };
 
 // Corporate placements (Phase 1 pricing — quoted via /advertise, no price listed on page).

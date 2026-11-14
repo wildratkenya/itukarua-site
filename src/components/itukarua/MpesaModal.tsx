@@ -41,14 +41,14 @@ interface MpesaModalProps {
 }
 
 const EMPLOYER_WEEKLY = {
-  amount: 200,
+  amount: PRICING_PLANS.employerSubscription.price,
   description: 'Employer Weekly Access',
   accountRef: 'EMP-WK',
   paymentType: 'registration' as const,
 };
 
 const EMPLOYER_DAY = {
-  amount: 100,
+  amount: PRICING_PLANS.singleJobPost.price,
   description: 'Single Job Token',
   accountRef: 'EMP-DAY',
   paymentType: 'employer_day_token' as const,
@@ -371,7 +371,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
               <div className="border-2 border-green-500 rounded-xl p-5 bg-green-50 relative">
                 <span className="absolute -top-2.5 left-3 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase rounded-full">Recommended</span>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-3xl font-extrabold text-green-700">KES 200</span>
+                  <span className="text-3xl font-extrabold text-green-700">KES {PRICING_PLANS.employerSubscription.price}</span>
                   <Crown className="w-6 h-6 text-green-600" />
                 </div>
                 <p className="text-sm font-semibold text-gray-900">{PRICING_PLANS.employerSubscription.name}</p>
@@ -391,7 +391,7 @@ const MpesaModal: React.FC<MpesaModalProps> = ({
 
               <div className="border-2 rounded-xl p-5 border-blue-300 bg-blue-50">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-3xl font-extrabold text-blue-700">KES 100</span>
+                  <span className="text-3xl font-extrabold text-blue-700">KES {PRICING_PLANS.singleJobPost.price}</span>
                   <Zap className="w-6 h-6 text-blue-600" />
                 </div>
                 <p className="text-sm font-semibold text-gray-900">{PRICING_PLANS.singleJobPost.name}</p>

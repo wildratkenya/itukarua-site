@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
         'architecture/overview',
         'architecture/frontend',
         'architecture/data-layer',
+        'architecture/session-handling',
         'architecture/edge-functions',
       ],
     },

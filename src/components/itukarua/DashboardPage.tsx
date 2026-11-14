@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Briefcase, FileText, CreditCard, User, Star, MapPin, Clock, TrendingUp, Users, Building2, Settings, Bell, Loader2, Camera, AlertCircle, RefreshCw, Megaphone, Upload, X, Plus, Eye, MousePointerClick, Zap, Flame, ChevronDown, ChevronUp, CheckCircle, Check, Lock, Crown, Phone, Mail, Award, Search, Send, Trash2 } from 'lucide-react';
 import { downloadMyData, deleteMyAccount } from '@/lib/account';
-import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getAllProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getJobViewHistoryForJob, getServiceViewHistoryForAd, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
+import { getJobs, getBidsByUser, getBidsReceivedOnMyJobs, getServiceAds, getPayments, getWorkers, getProfiles, getPlatformStats, updateProfile, getNotifications, getUnreadNotificationCount, markNotificationRead, getPlatformSettings, updatePlatformSetting, checkSubscriptionActive, getSubscriptionDaysRemaining, getNewsletterSubscribers, getProfileViewHistory, getSiteTraffic, getProfileRanking, updateBid, updateJob, deleteJob, employerReactivateJob, retireJob, JOB_LISTING_PLANS, getWeeklyBidCount, getMonthlyBidCount, FREE_BID_LIMIT, getCustomCategories, getJobViewHistory, getJobViewHistoryForJob, getServiceViewHistoryForAd, getTotalJobViews, getMyServiceAds, ensureJobseekerEntitlement, ensureAdvertiserEntitlement, hasActiveAdvertiserSubscription, getActiveAdvertiserTier, type DbJob, type DbBid, type DbServiceAd, type DbPayment, type DbProfile, type PlatformStats, type DbNotification, getProfileContact, type ProfileContactResult } from '@/lib/database';
 import { supabase, optimizeImageUrl, handleImageError } from '@/lib/supabase';
 import { DEFAULT_OG_IMAGE } from '@/lib/siteConfig';
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
@@ -142,7 +142,7 @@ const notifRef = useRef<HTMLDivElement>(null);
           getNotifications(user.id),
         ];
         if (isAdmin) {
-          promises.push(getJobs({}), getServiceAds({}), getAllProfiles(), getPlatformStats(), getPlatformSettings());
+          promises.push(getJobs({}), getServiceAds({}), getProfiles(), getPlatformStats(), getPlatformSettings());
         } else if (isJobseeker) {
           promises.push(getBidsByUser(user.id), checkSubscriptionActive(user.id), getSubscriptionDaysRemaining(user.id), getWeeklyBidCount(user.id), getMonthlyBidCount(user.id));
         } else if (isAdvertiser) {
@@ -876,9 +876,9 @@ const notifRef = useRef<HTMLDivElement>(null);
                   <div key={b.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-amber-200">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-gray-900 truncate">{b.title}</p>
-                      <p className="text-[10px] text-gray-500">Expires in {b.daysLeft} day{b.daysLeft === 1 ? '' : 's'} · KES 500 for +7 days</p>
+                      <p className="text-[10px] text-gray-500">Expires in {b.daysLeft} day{b.daysLeft === 1 ? '' : 's'} · KES {PRICING_PLANS.featuredBoost.price} for +7 days</p>
                     </div>
-                    <button onClick={() => onOpenMpesa(500, `Extend Boost — ${b.title}`, `BOOST-${b.id.slice(0, 8).toUpperCase()}`, 'featured_boost', b.relatedAdId, b.relatedJobId)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors whitespace-nowrap">
+                    <button onClick={() => onOpenMpesa(PRICING_PLANS.featuredBoost.price, `Extend Boost — ${b.title}`, `BOOST-${b.id.slice(0, 8).toUpperCase()}`, 'featured_boost', b.relatedAdId, b.relatedJobId)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors whitespace-nowrap">
                       <Zap className="w-3 h-3" /> Renew +7d
                     </button>
                   </div>
@@ -948,8 +948,8 @@ const notifRef = useRef<HTMLDivElement>(null);
                                 <button onClick={() => onNavigate('jobs')} disabled={weeklyBidCount >= FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${weeklyBidCount >= FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
                                   <Briefcase className="w-4 h-4" /> Bid on Jobs
                                 </button>
-                                <button onClick={() => openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription')} disabled={weeklyBidCount < FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${weeklyBidCount < FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
-                                  Upgrade — KES 100/mo
+                                <button onClick={() => openJobseekerSubscription(PRICING_PLANS.jobseekerPremium.price, 30, 'Jobseeker Premium Subscription')} disabled={weeklyBidCount < FREE_BID_LIMIT} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${weeklyBidCount < FREE_BID_LIMIT ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+                                  Upgrade — KES {PRICING_PLANS.jobseekerPremium.price}/mo
                                 </button>
                               </>
                             )}
@@ -1075,11 +1075,11 @@ const notifRef = useRef<HTMLDivElement>(null);
                             ? 'You\'ve used all free bids this week. Upgrade to Premium for unlimited bids.'
                             : `${FREE_BID_LIMIT - weeklyBidCount} free bid${FREE_BID_LIMIT - weeklyBidCount === 1 ? '' : 's'} remaining this week.`}
                         </p>
-                        {weeklyBidCount >= FREE_BID_LIMIT && (
-                          <button onClick={() => openJobseekerSubscription(100, 30, 'Jobseeker Premium Subscription')} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                            Upgrade to Premium — KES 100/mo
-                          </button>
-                        )}
+                          {weeklyBidCount >= FREE_BID_LIMIT && (
+                            <button onClick={() => openJobseekerSubscription(PRICING_PLANS.jobseekerPremium.price, 30, 'Jobseeker Premium Subscription')} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                              Upgrade to Premium — KES {PRICING_PLANS.jobseekerPremium.price}/mo
+                            </button>
+                          )}
                         {bids.length > 0 && (
                           <div className="mt-4 pt-3 border-t border-gray-100">
                             <p className="text-xs font-medium text-gray-700 mb-2">Recent Bids This Week</p>
@@ -1313,7 +1313,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                     <p className="text-xs text-gray-500 mb-2">Choose how to reactivate this ad:</p>
                     {!employerAccessActive && (
                       <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <p className="text-xs text-amber-800 font-medium mb-2">No active Employer Access — reactivate with a paid listing plan below, or renew Employer Access (KES 200/week) and your reactivations ride on your plan for free (up to 30 days).</p>
+                        <p className="text-xs text-amber-800 font-medium mb-2">No active Employer Access — reactivate with a paid listing plan below, or renew Employer Access (KES {PRICING_PLANS.employerSubscription.price}/week) and your reactivations ride on your plan for free (up to 30 days).</p>
                         <button onClick={(e) => { e.stopPropagation(); openRolePayment('employer'); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">Renew Employer Access</button>
                       </div>
                     )}
@@ -1340,8 +1340,8 @@ const notifRef = useRef<HTMLDivElement>(null);
                           {p.days} days · KES {p.amount}
                         </button>
                       ))}
-                      <button onClick={(e) => { e.stopPropagation(); payToPublishJob(job, 1); }} className="px-3 py-1.5 border border-blue-300 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-50 transition-colors">1 day · KES 100</button>
-                      <button onClick={(e) => { e.stopPropagation(); payToPublishJob(job, 7); }} className="px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors">7 days · KES 200</button>
+                      <button onClick={(e) => { e.stopPropagation(); payToPublishJob(job, 1); }} className="px-3 py-1.5 border border-blue-300 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-50 transition-colors">1 day · KES {PRICING_PLANS.singleJobPost.price}</button>
+                      <button onClick={(e) => { e.stopPropagation(); payToPublishJob(job, 7); }} className="px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors">7 days · KES {PRICING_PLANS.employerSubscription.price}</button>
                       <button onClick={(e) => { e.stopPropagation(); setPublishingJobId(null); }} className="px-3 py-1.5 text-gray-500 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors">Cancel</button>
                     </div>
                   </div>
@@ -1721,8 +1721,8 @@ const notifRef = useRef<HTMLDivElement>(null);
                             Extend
                           </button>
                           {status === 'active' && (
-                            <button onClick={() => onOpenMpesa(500, `Featured Boost — ${sa.business_name}`, `BOOST-${sa.id.slice(0, 8).toUpperCase()}`, 'featured_boost', sa.id, undefined, undefined, () => { loadMyServiceAds(); }, false, false, null, 'advertiser', undefined, undefined, { metadata: { kind: 'featured_boost', days: 7 } })} className="text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-md shadow-amber-200 hover:shadow-lg transition-all flex items-center gap-1 whitespace-nowrap">
-                              <Zap className="w-3 h-3" /> {sa.featured ? 'Extend +7d' : 'Boost'} · KES 500
+                            <button onClick={() => onOpenMpesa(PRICING_PLANS.featuredBoost.price, `Featured Boost — ${sa.business_name}`, `BOOST-${sa.id.slice(0, 8).toUpperCase()}`, 'featured_boost', sa.id, undefined, undefined, () => { loadMyServiceAds(); }, false, false, null, 'advertiser', undefined, undefined, { metadata: { kind: 'featured_boost', days: 7 } })} className="text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-md shadow-amber-200 hover:shadow-lg transition-all flex items-center gap-1 whitespace-nowrap">
+                              <Zap className="w-3 h-3" /> {sa.featured ? 'Extend +7d' : 'Boost'} · KES {PRICING_PLANS.featuredBoost.price}
                             </button>
                           )}
                         </>
@@ -1845,9 +1845,9 @@ const notifRef = useRef<HTMLDivElement>(null);
                       <span className="text-[10px] text-amber-600 font-semibold">Live · {boostDaysLeft}d left</span>
                     </div>
                   )}
-                  <button onClick={() => onOpenMpesa(500, isBoosted ? `Extend Boost — ${ad.business_name}` : `Boost — ${ad.business_name} — 7 days`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
+                  <button onClick={() => onOpenMpesa(PRICING_PLANS.featuredBoost.price, isBoosted ? `Extend Boost — ${ad.business_name}` : `Boost — ${ad.business_name} — 7 days`, `BOOST-${ad.id.slice(0, 8).toUpperCase()}`, 'featured_boost', ad.id)} className="relative group text-xs font-bold text-white px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 bg-[length:200%_100%] hover:bg-right transition-all duration-300 shadow-md shadow-amber-200 hover:shadow-lg hover:shadow-amber-300 flex items-center gap-1">
                     <Zap className="w-3 h-3" /> {isBoosted ? 'Extend +7d' : 'Boost'}
-                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES 500 — Top of search for 7 days</span>
+                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">KES {PRICING_PLANS.featuredBoost.price} — Top of search for 7 days</span>
                   </button>
                   <p className="text-xs text-gray-400">Expires: {ad.expiry_date}</p>
                 </div>
@@ -1962,7 +1962,7 @@ const notifRef = useRef<HTMLDivElement>(null);
                         <Zap className="w-5 h-5 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-white mb-1">Premium</h3>
-                      <p className="text-xs text-green-100 mb-4">KES 100/week — Unlimited bids, messaging, analytics & more</p>
+                      <p className="text-xs text-green-100 mb-4">KES {PRICING_PLANS.jobseekerPremium.price}/week — Unlimited bids, messaging, analytics & more</p>
                       <ul className="space-y-2 mb-5 flex-1">
                         {PRICING_PLANS.jobseekerPremium.features.map((f, j) => (
                           <li key={j} className="flex items-start gap-2 text-sm text-white/95">

@@ -271,16 +271,6 @@ export async function getWorkers(limit = 20): Promise<DbProfile[]> {
   if (error) { console.error('getWorkers error:', error); return []; }
   return data || [];
 }
-
-export async function getAllProfiles(): Promise<DbProfile[]> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('getAllProfiles error:', error); return []; }
-  return data || [];
-}
-
 export async function getProfiles(filters?: {
   role?: string;
   location?: string;
@@ -1852,6 +1842,24 @@ export async function getMonthlyBidCount(userId: string): Promise<number> {
 }
 
 export const FREE_BID_LIMIT = 10;
+
+/** Error code raised by the enforce_free_bid_limit() server trigger. */
+export const FREE_BID_LIMIT_REACHED = 'FREE_BID_LIMIT_REACHED';
+
+/** True when a createBid failure is the server-side free-bid cap being hit. */
+export function isFreeBidLimitReachedError(err: any): boolean {
+  const msg = err?.message || String(err || '');
+  return msg.includes(FREE_BID_LIMIT_REACHED);
+}
+
+/** Error code raised by the enforce_messaging_entitlement() server trigger. */
+export const MESSAGING_ENTITLEMENT_REQUIRED = 'MESSAGING_ENTITLEMENT_REQUIRED';
+
+/** True when a messaging failure is the server-side Premium entitlement gate. */
+export function isMessagingEntitlementRequiredError(err: any): boolean {
+  const msg = err?.message || String(err || '');
+  return msg.includes(MESSAGING_ENTITLEMENT_REQUIRED) || err?.code === 'P0003';
+}
 
 // ─── Notify Jobseekers of New Job ──────────────────────────────────────────
 

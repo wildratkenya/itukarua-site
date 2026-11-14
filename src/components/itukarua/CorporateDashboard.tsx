@@ -7,6 +7,7 @@ import { effectiveFeaturesFor, corporateMonthlyAmount, type EffectiveCorporateFe
 import { localAdStatus, AD_STATUS_LABEL, AD_STATUS_TONE, statusLine } from '@/lib/adLifecycle';
 import { compressImage } from '@/lib/imageUtils';
 import { cn } from '@/lib/utils';
+import SEO from '@/lib/seo';
 import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 
 interface CorporateDashboardProps {
@@ -336,6 +337,7 @@ const CorporateDashboard: React.FC<CorporateDashboardProps> = ({ user, onNavigat
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO title="Corporate Panel - Itukarua" description="Manage your corporate account, job placements, invoices, and team members on Itukarua." noindex={true} />
       {/* Header */}
       <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
