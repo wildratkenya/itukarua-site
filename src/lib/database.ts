@@ -1853,6 +1853,15 @@ export async function getMonthlyBidCount(userId: string): Promise<number> {
 
 export const FREE_BID_LIMIT = 10;
 
+/** Error code raised by the enforce_free_bid_limit() server trigger. */
+export const FREE_BID_LIMIT_REACHED = 'FREE_BID_LIMIT_REACHED';
+
+/** True when a createBid failure is the server-side free-bid cap being hit. */
+export function isFreeBidLimitReachedError(err: any): boolean {
+  const msg = err?.message || String(err || '');
+  return msg.includes(FREE_BID_LIMIT_REACHED);
+}
+
 // ─── Notify Jobseekers of New Job ──────────────────────────────────────────
 
 export async function notifyJobseekersOfNewJob(jobId: string): Promise<void> {
