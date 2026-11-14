@@ -93,6 +93,7 @@ BEGIN;
   FROM generate_series(1, 10);
 
   -- This 11th insert must be rejected with FREE_BID_LIMIT_REACHED.
+  DO $$
   BEGIN
     INSERT INTO public.bids (job_id, bidder_id, price, proposal, status)
     VALUES (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', 1000, 'test bid 11', 'pending');
@@ -100,6 +101,7 @@ BEGIN;
   EXCEPTION WHEN sqlstate 'P0001' THEN
     RAISE NOTICE 'TEST PASS: 11th bid rejected (P0001)';
   END;
+  $$ LANGUAGE plpgsql;
 ROLLBACK;
 
 -- Test B: Premium jobseeker — 11 bids in 7 days are all allowed.
