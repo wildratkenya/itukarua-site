@@ -4,8 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
 import { AppProvider } from "./contexts/AppContext";
 import AdminPage from "./components/itukarua/AdminPage";
@@ -13,16 +11,7 @@ import { supabase, restoreSession } from "@/lib/supabase";
 import { getProfile } from "@/lib/database";
 import CookieConsent from "@/components/CookieConsent";
 import React, { useState, useEffect } from "react";
-import AboutPage from "./pages/AboutPage";
-import ContactPage from "./pages/ContactPage";
-import CorporatePage from "./pages/CorporatePage";
-import DashboardPage from "./pages/DashboardPage";
-import InboxPage from "./pages/InboxPage";
-import JobsPage from "./pages/JobsPage";
-import ServicesPage from "./pages/ServicesPage";
-import ServiceDetailPage from "./pages/ServiceDetailPage";
-import PricingPage from "./pages/PricingPage";
-import JobDetailPage from "./pages/JobDetailPage";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -81,25 +70,31 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/advertise" element={<AppProvider><AppLayout initialPage="advertise" /></AppProvider>} />
-            <Route path="/dashboard" element={<AppProvider><AppLayout /></AppProvider>} />
-            <Route path="/day-pass" element={<AppProvider><AppLayout initialPage="day-pass" /></AppProvider>} />
-            <Route path="/admin" element={<AdminRoute />} />
-            <Route path="/jobs" element={<JobsPage />} />
-            <Route path="/jobs/:id" element={<JobDetailPage />} />
-            <Route path="/services" element={<ServicesPage />} />
-            <Route path="/services/:id" element={<ServiceDetailPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/corporate" element={<CorporatePage />} />
-            <Route path="/inbox" element={<InboxPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
-          <CookieConsent />
+          {/* AppProvider wraps every route so auth/profile/modal state is shared site-wide. */}
+          <AppProvider>
+            <Routes>
+              <Route path="/" element={<AppLayout />} />
+              <Route path="/advertise" element={<AppLayout initialPage="advertise" />} />
+              <Route path="/dashboard" element={<AppLayout />} />
+              <Route path="/day-pass" element={<AppLayout initialPage="day-pass" />} />
+              <Route path="/post-job" element={<AppLayout />} />
+              <Route path="/post-advert" element={<AppLayout />} />
+              <Route path="/corporate-signup" element={<AppLayout />} />
+              <Route path="/admin" element={<AdminRoute />} />
+              <Route path="/jobs" element={<AppLayout />} />
+              <Route path="/jobs/:id" element={<AppLayout />} />
+              <Route path="/services" element={<AppLayout />} />
+              <Route path="/services/:id" element={<AppLayout />} />
+              <Route path="/pricing" element={<AppLayout />} />
+              <Route path="/about" element={<AppLayout />} />
+              <Route path="/contact" element={<AppLayout />} />
+              <Route path="/corporate" element={<AppLayout />} />
+              <Route path="/inbox" element={<AppLayout />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            {/* Cookie/privacy consent bar - covers the site and /admin alike. */}
+            <CookieConsent />
+          </AppProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
