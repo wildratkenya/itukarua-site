@@ -435,6 +435,11 @@ BEGIN
     VALUES (test_uid, 'authenticated', 'authenticated', 'test-hardening@example.com', '', '{}', '{}', now(), now());
   EXCEPTION WHEN unique_violation THEN NULL; END;
 
+  -- Seed a profile row for test_uid so payments.user_id FK is satisfied.
+  INSERT INTO public.profiles (id, role, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at)
+  VALUES (test_uid, 'jobseeker', true, now(), '2.0', '2.0', now())
+  ON CONFLICT (id) DO NOTHING;
+
   -- Insert a real payment so audit_log.payment_id FK is satisfied.
   INSERT INTO public.payments (id, user_id, payment_type, amount, status, token, access_expires_at)
   VALUES (gen_random_uuid(), test_uid, 'contact_access', 100, 'completed', 'ITK-AUDIT-TEST', now() + interval '24 hours')
