@@ -402,11 +402,10 @@ VALUES (
   'contact_access',
   100,
   'completed',
-  'ITK-SUSPENDED-TEST',
+  'ITK-SUSPENDED-TEST-' || gen_random_uuid()::text,
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   now() + interval '24 hours'
-)
-ON CONFLICT (token) DO NOTHING;
+);
 
 DO $$
 DECLARE
