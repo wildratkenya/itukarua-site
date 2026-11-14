@@ -19,6 +19,12 @@ User-agent: Googlebot
 Allow: /
 Allow: /
 Allow: /advertise
+Allow: /jobs
+Allow: /services
+Allow: /pricing
+Allow: /about
+Allow: /contact
+Allow: /corporate
 Allow: /day-pass
 Disallow: /dashboard
 Disallow: /admin
@@ -30,6 +36,12 @@ User-agent: Bingbot
 Allow: /
 Allow: /
 Allow: /advertise
+Allow: /jobs
+Allow: /services
+Allow: /pricing
+Allow: /about
+Allow: /contact
+Allow: /corporate
 Allow: /day-pass
 Disallow: /dashboard
 Disallow: /admin

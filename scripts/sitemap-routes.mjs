@@ -4,36 +4,36 @@
  * The sitemap is generated at build time from this data plus VITE_SITE_URL, so
  * the host is never hardcoded and a domain change needs no edits here.
  *
- * Only routes the router actually serves belong in ROUTES. The app is a
- * client-state SPA: pages like /jobs, /services and /pricing are rendered by
- * <AppLayout> from React state, not from a URL. The router in src/App.tsx
- * declares only "/", "/advertise", "/admin" and a catch-all "*" -> NotFound,
- * and nothing in the codebase calls pushState. Any path outside ROUTES
- * therefore renders the 404 page.
+ * Only routes the router actually serves belong in SITEMAP_ROUTES. The router
+ * in src/App.tsx declares real URL routes for "/", "/jobs", "/jobs/:id",
+ * "/services", "/services/:id", "/pricing", "/about", "/contact", "/corporate",
+ * "/inbox", "/dashboard", "/advertise", "/day-pass", plus catch-all "*"
+ * (NotFound). Private/auth-gated routes are intentionally excluded below.
  *
- * Paths the sitemap previously advertised that have no matching route are kept
- * in RETIRED_PATHS below rather than deleted, so they can be restored if the
- * app later grows real URL routes. Do not add them back to the sitemap until a
- * route exists for them.
+ * Paths previously advertised that now have a real router entry were moved out
+ * of RETIRED_PATHS into SITEMAP_ROUTES. Paths that remain client-state-only
+ * (e.g. /jobs/<county>, /jobs/<county>/<category>, /services/<county>) have no
+ * matching URL route and render the 404 page, so they stay retired.
  */
 
 export const SITEMAP_ROUTES = [
   { path: '/', changefreq: 'daily', priority: 1.0 },
   { path: '/advertise', changefreq: 'weekly', priority: 0.6 },
+  { path: '/jobs', changefreq: 'daily', priority: 0.8 },
+  { path: '/services', changefreq: 'daily', priority: 0.8 },
+  { path: '/pricing', changefreq: 'weekly', priority: 0.7 },
+  { path: '/about', changefreq: 'monthly', priority: 0.5 },
+  { path: '/contact', changefreq: 'monthly', priority: 0.5 },
+  { path: '/corporate', changefreq: 'monthly', priority: 0.5 },
   { path: '/day-pass', changefreq: 'weekly', priority: 0.5 },
 ];
 
 /**
- * Previously advertised in sitemap.xml. None of these have a router entry, so
- * Googlebot fetched them and got the NotFound page.
- *
- * /jobs            /services        /pricing         /about
- * /contact         /jobs/<county>   (47 counties)
- * /jobs/<county>/<category>         (20 county+category pairs)
- * /services/<county>                (6 counties)
+ * Previously advertised in sitemap.xml. These have no matching URL route, so
+ * Googlebot fetched them and got the NotFound page. Kept retired until a route
+ * exists for them. Do not add them back to SITEMAP_ROUTES until then.
  */
 export const RETIRED_PATHS = [
-  '/jobs', '/services', '/pricing', '/about', '/contact',
   '/jobs/nairobi', '/jobs/kiambu', '/jobs/mombasa', '/jobs/kisumu', '/jobs/nakuru',
   '/jobs/nyeri', '/jobs/meru', '/jobs/embu', '/jobs/machakos', '/jobs/kajiado',
   '/jobs/kisii', '/jobs/kericho', '/jobs/uasin-gishu', '/jobs/bungoma', '/jobs/kakamega',
