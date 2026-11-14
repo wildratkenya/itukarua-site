@@ -131,7 +131,7 @@ FOR INSERT
 TO authenticated
 WITH CHECK (auth.role() = 'authenticated');
 
-DROP POLICY IF EXISTS "participants insert messages" ON public.direct_messages;
+DROP POLICY IF EXISTS "participant insert messages" ON public.direct_messages;
 CREATE POLICY "participant insert messages"
 ON public.direct_messages
 FOR INSERT
