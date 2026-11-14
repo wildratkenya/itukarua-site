@@ -83,8 +83,8 @@ COMMIT;
 
 -- Test A: Free jobseeker — 11th bid in 7 days is rejected.
 BEGIN;
-  INSERT INTO public.profiles (id, role, registration_paid, subscription_expires_at)
-  VALUES ('11111111-1111-1111-1111-111111111111', 'jobseeker', false, null)
+  INSERT INTO public.profiles (id, role, registration_paid, subscription_expires_at, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at)
+  VALUES ('11111111-1111-1111-1111-111111111111', 'jobseeker', false, null, true, now(), '2.0', '2.0', now())
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.bids (job_id, bidder_id, price, proposal, status)
@@ -98,8 +98,8 @@ ROLLBACK;
 
 -- Test B: Premium jobseeker — 11 bids in 7 days are all allowed.
 BEGIN;
-  INSERT INTO public.profiles (id, role, registration_paid, subscription_expires_at)
-  VALUES ('22222222-2222-2222-2222-222222222222', 'jobseeker', false, null)
+  INSERT INTO public.profiles (id, role, registration_paid, subscription_expires_at, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at)
+  VALUES ('22222222-2222-2222-2222-222222222222', 'jobseeker', false, null, true, now(), '2.0', '2.0', now())
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.profile_roles (user_id, role, paid, expires_at, token_days)

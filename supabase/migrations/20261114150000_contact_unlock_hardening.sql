@@ -244,22 +244,51 @@ drop policy if exists "profile_roles_owner_update" on public.profile_roles;
 -- Server-side grants (paymentEffects.ts, admin RPCs) use service_role.
 
 -- =========================================================================
--- 3. profiles: block self-promotion via auth_update_own_profile
+-- 3. profiles: block self-promotion via a BEFORE UPDATE trigger (policies
+--    cannot reference NEW/OLD, so a trigger is used instead).
 -- =========================================================================
 drop policy if exists "auth_update_own_profile" on public.profiles;
 create policy "auth_update_own_profile" on public.profiles
 for update
 to authenticated
-using (auth.uid() = id)
-with check (
-  auth.uid() = id
-  and (new.role is not distinct from old.role)
-  and (new.subscription_expires_at is not distinct from old.subscription_expires_at)
-  and (new.registration_paid is not distinct from old.registration_paid)
-  and (new.suspended is not distinct from old.suspended)
-  and (new.email is not distinct from old.email)
-  and (new.verified is not distinct from old.verified)
-);
+using (auth.uid() = id);
+
+create or replace function public.block_profile_self_promotion()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cur public.profiles%rowtype;
+begin
+  -- Only block authenticated (non-service-role) self-updates of privileged columns.
+  if auth.role() = 'authenticated' then
+    select * into cur from public.profiles where id = new.id;
+
+    if new.role is not distinct from cur.role
+      and new.subscription_expires_at is not distinct from cur.subscription_expires_at
+      and new.registration_paid is not distinct from cur.registration_paid
+      and new.suspended is not distinct from cur.suspended
+      and new.email is not distinct from cur.email
+      and new.verified is not distinct from cur.verified then
+      return new;
+    end if;
+
+    raise exception 'Self-update of role, subscription_expires_at, registration_paid, suspended, email or verified is not permitted'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_block_profile_self_promotion on public.profiles;
+create trigger trg_block_profile_self_promotion
+before update on public.profiles
+for each row
+when (auth.role() = 'authenticated')
+execute function public.block_profile_self_promotion();
 
 -- =========================================================================
 -- 4. audit_log: at-most-once index + admin SELECT policy alignment
@@ -280,91 +309,107 @@ using (
 );
 
 -- =========================================================================
--- 5. Verification tests (test data rolled back; DDL persists).
+-- 5. Verification tests (run separately; each in its own BEGIN; ... ROLLBACK;
+--    so a test failure never rolls back the DDL above).
 -- =========================================================================
-savepoint verify_tests;
+COMMIT;
 
 -- Seed test users (profiles.id has no FK to auth.users in this schema).
-insert into public.profiles (id, role, full_name, suspended, deleted_at, allow_contact_display) values
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'jobseeker', 'Suspended Worker', true, null, true),
-  ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'jobseeker', 'Active Worker', false, null, true),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'jobseeker', 'Unlocked Worker', false, null, true)
-on conflict (id) do nothing;
+BEGIN;
+INSERT INTO public.profiles (id, role, full_name, suspended, deleted_at, allow_contact_display, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at) VALUES
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'jobseeker', 'Suspended Worker', true, null, true, true, now(), '2.0', '2.0', now()),
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'jobseeker', 'Active Worker', false, null, true, true, now(), '2.0', '2.0', now()),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'jobseeker', 'Unlocked Worker', false, null, true, true, now(), '2.0', '2.0', now())
+ON CONFLICT (id) DO NOTHING;
+ROLLBACK;
 
 -- T1: profile_roles owner INSERT with paid = true is rejected.
-set request.jwt.claims = '{"sub": "cccccccc-cccc-cccc-cccc-cccccccccccc", "role": "authenticated"}';
-do $$
-begin
-  insert into public.profile_roles (user_id, role, paid, expires_at, source)
-  values ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'jobseeker', true, now() + interval '30 days', 'mpesa');
-  raise exception 'TEST FAIL: owner inserted profile_roles paid=true';
-exception when others then
-  raise notice 'TEST PASS: owner INSERT paid=true rejected';
-end;
-$$ language plpgsql;
+BEGIN;
+SET request.jwt.claims = '{"sub": "cccccccc-cccc-cccc-cccc-cccccccccccc", "role": "authenticated"}';
+DO $$
+BEGIN
+  INSERT INTO public.profile_roles (user_id, role, paid, expires_at, source)
+  VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'jobseeker', true, now() + interval '30 days', 'mpesa');
+  RAISE EXCEPTION 'TEST FAIL: owner inserted profile_roles paid=true';
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'TEST PASS: owner INSERT paid=true rejected';
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;
 
 -- T2: profile_roles owner UPDATE to paid = true is rejected (no owner UPDATE policy).
-do $$
-begin
-  update public.profile_roles
-  set paid = true, expires_at = now() + interval '30 days'
-  where user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' and role = 'jobseeker';
-  if found then
-    raise exception 'TEST FAIL: owner updated profile_roles paid=true';
-  end if;
-  raise notice 'TEST PASS: owner UPDATE paid=true rejected (no matching row / no policy)';
-end;
-$$ language plpgsql;
+BEGIN;
+DO $$
+BEGIN
+  UPDATE public.profile_roles
+  SET paid = true, expires_at = now() + interval '30 days'
+  WHERE user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' AND role = 'jobseeker';
+  IF found THEN
+    RAISE EXCEPTION 'TEST FAIL: owner updated profile_roles paid=true';
+  END IF;
+  RAISE NOTICE 'TEST PASS: owner UPDATE paid=true rejected (no matching row / no policy)';
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;
 
--- T3: profiles owner UPDATE of role is rejected (WITH CHECK).
-do $$
-begin
-  update public.profiles
-  set role = 'employer', subscription_expires_at = now() + interval '30 days'
-  where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
-  if found then
-    raise exception 'TEST FAIL: owner updated profiles.role';
-  end if;
-  raise notice 'TEST PASS: owner UPDATE profiles.role/subscription_expires_at rejected';
-end;
-$$ language plpgsql;
+-- T3: profiles owner UPDATE of role is rejected (BEFORE UPDATE trigger).
+BEGIN;
+SET request.jwt.claims = '{"sub": "cccccccc-cccc-cccc-cccc-cccccccccccc", "role": "authenticated"}';
+DO $$
+BEGIN
+  UPDATE public.profiles
+  SET role = 'employer', subscription_expires_at = now() + interval '30 days'
+  WHERE id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  IF found THEN
+    RAISE EXCEPTION 'TEST FAIL: owner updated profiles.role';
+  END IF;
+  RAISE NOTICE 'TEST PASS: owner UPDATE profiles.role/subscription_expires_at rejected';
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'TEST PASS: owner UPDATE profiles.role rejected by trigger';
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;
 
 -- T4: get_profile_contact refuses a suspended profile.
-set request.jwt.claims = '{"sub": "dddddddd-dddd-dddd-dddd-dddddddddddd", "role": "authenticated"}';
-do $$
-declare
+BEGIN;
+SET request.jwt.claims = '{"sub": "dddddddd-dddd-dddd-dddd-dddddddddddd", "role": "authenticated"}';
+DO $$
+DECLARE
   result json;
-begin
-  select public.get_profile_contact('cccccccc-cccc-cccc-cccc-cccccccccccc')
-    into result;
-  if (result->>'allowed')::boolean then
-    raise exception 'TEST FAIL: suspended contact unlocked: %', result;
-  end if;
-  if result->>'reason' <> 'suspended' then
-    raise exception 'TEST FAIL: expected suspended reason, got %', result;
-  end if;
-  raise notice 'TEST PASS: get_profile_contact refuses suspended profile';
-end;
-$$ language plpgsql;
+BEGIN
+  SELECT public.get_profile_contact('cccccccc-cccc-cccc-cccc-cccccccccccc')
+    INTO result;
+  IF (result->>'allowed')::boolean THEN
+    RAISE EXCEPTION 'TEST FAIL: suspended contact unlocked: %', result;
+  END IF;
+  IF result->>'reason' <> 'suspended' THEN
+    RAISE EXCEPTION 'TEST FAIL: expected suspended reason, got %', result;
+  END IF;
+  RAISE NOTICE 'TEST PASS: get_profile_contact refuses suspended profile';
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;
 
 -- T5: get_profile_contact unlocks an active (opted-in) profile owned by caller.
-do $$
-declare
+BEGIN;
+DO $$
+DECLARE
   result json;
-begin
-  select public.get_profile_contact('dddddddd-dddd-dddd-dddd-dddddddddddd')
-    into result;
-  if not (result->>'allowed')::boolean then
-    raise exception 'TEST FAIL: active self-contact not unlocked: %', result;
-  end if;
-  raise notice 'TEST PASS: get_profile_contact unlocks active self-contact';
-end;
-$$ language plpgsql;
+BEGIN
+  SELECT public.get_profile_contact('dddddddd-dddd-dddd-dddd-dddddddddddd')
+    INTO result;
+  IF NOT (result->>'allowed')::boolean THEN
+    RAISE EXCEPTION 'TEST FAIL: active self-contact not unlocked: %', result;
+  END IF;
+  RAISE NOTICE 'TEST PASS: get_profile_contact unlocks active self-contact';
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;
 
 -- T6: redeem_contact_token refuses a suspended target profile.
--- Mint a completed contact_access payment for the suspended target, then redeem.
-insert into public.payments (id, user_id, payment_type, amount, status, token, related_profile_id, access_expires_at)
-values (
+BEGIN;
+INSERT INTO public.payments (id, user_id, payment_type, amount, status, token, related_profile_id, access_expires_at)
+VALUES (
   gen_random_uuid(),
   'dddddddd-dddd-dddd-dddd-dddddddddddd',
   'contact_access',
@@ -374,54 +419,53 @@ values (
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   now() + interval '24 hours'
 )
-on conflict (token) do nothing;
+ON CONFLICT (token) DO NOTHING;
 
-do $$
-declare
+DO $$
+DECLARE
   result json;
-begin
-  select public.redeem_contact_token('ITK-SUSPENDED-TEST') into result;
-  if (result->>'allowed')::boolean then
-    raise exception 'TEST FAIL: redeem_contact_token unlocked suspended target: %', result;
-  end if;
-  if result->>'error' <> 'suspended' then
-    raise exception 'TEST FAIL: expected suspended error, got %', result;
-  end if;
-  raise notice 'TEST PASS: redeem_contact_token refuses suspended target';
-end;
-$$ language plpgsql;
+BEGIN
+  SELECT public.redeem_contact_token('ITK-SUSPENDED-TEST') INTO result;
+  IF (result->>'allowed')::boolean THEN
+    RAISE EXCEPTION 'TEST FAIL: redeem_contact_token unlocked suspended target: %', result;
+  END IF;
+  IF result->>'error' <> 'suspended' THEN
+    RAISE EXCEPTION 'TEST FAIL: expected suspended error, got %', result;
+  END IF;
+  RAISE NOTICE 'TEST PASS: redeem_contact_token refuses suspended target';
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;
 
 -- T7: audit_log at-most-once via unique index (duplicate payment_id+action rejected).
-do $$
-declare
+BEGIN;
+DO $$
+DECLARE
   test_uid uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
   dup_pid uuid;
-begin
+BEGIN
   -- Best-effort seed of an auth.users row so the FK is satisfied.
-  begin
-    insert into auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    values (test_uid, 'authenticated', 'authenticated', 'test-hardening@example.com', '', '{}', '{}', now(), now());
-  exception when unique_violation then null; end;
+  BEGIN
+    INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (test_uid, 'authenticated', 'authenticated', 'test-hardening@example.com', '', '{}', '{}', now(), now());
+  EXCEPTION WHEN unique_violation THEN NULL; END;
 
-  insert into public.audit_log (user_id, action, payment_id, metadata)
-  values (test_uid, 'grant_contact_access:test', gen_random_uuid(), '{"k":"v"}'::jsonb);
-  raise notice 'TEST PASS: first audit_log insert accepted';
+  INSERT INTO public.audit_log (user_id, action, payment_id, metadata)
+  VALUES (test_uid, 'grant_contact_access:test', gen_random_uuid(), '{"k":"v"}'::jsonb);
+  RAISE NOTICE 'TEST PASS: first audit_log insert accepted';
 
-  select payment_id into dup_pid
-  from public.audit_log
-  where user_id = test_uid
-  limit 1;
+  SELECT payment_id INTO dup_pid
+  FROM public.audit_log
+  WHERE user_id = test_uid
+  LIMIT 1;
 
-  begin
-    insert into public.audit_log (user_id, action, payment_id, metadata)
-    values (test_uid, 'grant_contact_access:test', dup_pid, '{"k":"v"}'::jsonb);
-    raise exception 'TEST FAIL: duplicate audit_log insert was accepted';
-  exception when unique_violation then
-    raise notice 'TEST PASS: duplicate audit_log insert rejected by unique index';
-  end;
-end;
-$$ language plpgsql;
-
-rollback to savepoint verify_tests;
-
-commit;
+  BEGIN
+    INSERT INTO public.audit_log (user_id, action, payment_id, metadata)
+    VALUES (test_uid, 'grant_contact_access:test', dup_pid, '{"k":"v"}'::jsonb);
+    RAISE EXCEPTION 'TEST FAIL: duplicate audit_log insert was accepted';
+  EXCEPTION WHEN unique_violation THEN
+    RAISE NOTICE 'TEST PASS: duplicate audit_log insert rejected by unique index';
+  END;
+END;
+$$ LANGUAGE plpgsql;
+ROLLBACK;

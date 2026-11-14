@@ -9,10 +9,10 @@
 -- whatsapp_number, resume, national_id or certificates. Grants remain
 -- authenticated-only (anon already revoked in 20261103100000).
 --
--- Includes runnable BEGIN; SAVEPOINT; ROLLBACK verification tests that prove
--- a suspended user does not appear in public_worker_directory while an active
--- user does, and that no contact column leaks through the view. Test data is
--- rolled back; the view definition persists.
+-- Includes runnable BEGIN; ... ROLLBACK; verification tests (run separately
+-- after the DDL commits) that prove a suspended user does not appear in
+-- public_worker_directory while an active user does, and that no contact column
+-- leaks through the view. Test data is rolled back; the view definition persists.
 
 BEGIN;
 
@@ -57,18 +57,22 @@ revoke all on public.public_worker_directory from anon;
 grant select on public.public_worker_directory to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 2. Verification tests (test data rolled back; DDL persists).
+-- 2. Verification tests (run separately; each in its own BEGIN; ... ROLLBACK;
+--    so a test failure never rolls back the DDL above).
 -- ---------------------------------------------------------------------------
-SAVEPOINT verify_tests;
+COMMIT;
 
 -- Seed test users directly into profiles (profiles.id has no FK to auth.users
 -- in this schema, so INSERT works without an auth row).
-INSERT INTO public.profiles (id, role, full_name, suspended, deleted_at, allow_contact_display) VALUES
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'jobseeker', 'Suspended Worker', true, null, true),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'jobseeker', 'Active Worker', false, null, true)
+BEGIN;
+INSERT INTO public.profiles (id, role, full_name, suspended, deleted_at, allow_contact_display, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at) VALUES
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'jobseeker', 'Suspended Worker', true, null, true, true, now(), '2.0', '2.0', now()),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'jobseeker', 'Active Worker', false, null, true, true, now(), '2.0', '2.0', now())
 ON CONFLICT (id) DO NOTHING;
+ROLLBACK;
 
 -- T1: suspended jobseeker must NOT appear in the directory.
+BEGIN;
 DO $$
 DECLARE
   found int;
@@ -84,8 +88,10 @@ begin
   raise notice 'TEST PASS: suspended profile excluded from public_worker_directory';
 end;
 $$ language plpgsql;
+ROLLBACK;
 
 -- T2: active jobseeker must still appear in the directory.
+BEGIN;
 DO $$
 DECLARE
   found int;
@@ -101,8 +107,10 @@ begin
   raise notice 'TEST PASS: active profile present in public_worker_directory';
 end;
 $$ language plpgsql;
+ROLLBACK;
 
 -- T3: no contact column may be exposed by the view.
+BEGIN;
 DO $$
 DECLARE
   leaked text[];
@@ -120,7 +128,4 @@ begin
   raise notice 'TEST PASS: no contact columns exposed by public_worker_directory';
 end;
 $$ language plpgsql;
-
-ROLLBACK TO SAVEPOINT verify_tests;
-
-COMMIT;
+ROLLBACK;
