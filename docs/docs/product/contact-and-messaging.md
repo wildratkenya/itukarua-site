@@ -26,8 +26,11 @@ treated as `opted_out` no matter their entitlement (that privacy opt-out is resp
 
 - Row-level conversations via `conversations` + `direct_messages`, paginated with
   `getConversations` / `getDirectMessages`.
-- **Jobseekers messaging an employer about a job is Premium-only** (audited gate in
-  `JobDetailPage`). Employer→jobseeker outreach is fine under an employer entitlement.
+- **Jobseekers messaging an employer about a job is Premium-only**, enforced server-side by
+  `BEFORE INSERT` triggers on `conversations` and `direct_messages` raising
+  `MESSAGING_ENTITLEMENT_REQUIRED` (`ERRCODE = 'P0003'`). Employer→jobseeker outreach is fine
+  under an employer entitlement. `direct_messages` RLS enforces `sender_id = auth.uid()` (anti-spoofing)
+  + participant membership, so the sender cannot be forged from the client.
 - The chat UI (`InboxPage`) shows unread counts; new messages create notification rows.
 
 ## Notifications

@@ -49,8 +49,13 @@ Without a completed payment the user can browse public pages, but Premium featur
 
 | Capability | Gate | Where |
 | --- | --- | --- |
-| Weekly bid cap | **Free = 10/week**, Premium = unlimited. Client-side counter over all bids (`getWeeklyBidCount`), not category-scoped. | `JobDetailPage`, `PostJobPage` |
-| Message/contact employer about a job | **Premium-only** for jobseekers. | `JobDetailPage` (message CTA) |
+| Weekly bid cap | **Free = 10/week**, Premium = unlimited. Enforced server-side by a `BEFORE INSERT` trigger on
+| `bids` raising `FREE_BID_LIMIT_REACHED` (`ERRCODE = 'P0003'`). Client-side counter (`getWeeklyBidCount`)
+| is UX convenience only; the DB is the source of truth. | `JobDetailPage`, `PostJobPage` |
+| Message/contact employer about a job | **Premium-only** for jobseekers. Enforced server-side by `BEFORE INSERT` triggers on
+| `conversations` and `direct_messages` raising `MESSAGING_ENTITLEMENT_REQUIRED` (`ERRCODE = 'P0003'`).
+| Employers and advertisers message freely. `direct_messages` RLS enforces `sender_id = auth.uid()`
+| (anti-spoofing) + participant membership. | `JobDetailPage` (message CTA), `InboxPage` (send) |
 | See/preview a bidder's profile + contact | `profiles_select_own` blocks direct row reads; foreign reads go through `public_worker_directory`. Contact data only via `get_profile_contact` / `redeem_contact_token` | `WorkerSearchModal`, `JobDetailPage`, `TopRatedWorkersModal` |
 | Employer contact unlock | `contact_access` window must exist | `getContactAccessConfig`, `checkContactAccess` |
 | Employer unlimited post/week | `profile_roles 'employer'` active with token_days/week | `PostJobPage` |
@@ -72,15 +77,55 @@ export const isPremiumOrFeatured = (p) =>
 Used in `HomePage`, `WorkerSearchModal` and `TopRatedWorkersModal` so live Premium subscribers
 show the featured-style badge.
 
-## Server-side enforcement is out of scope (for now)
+## Server-side enforcement
 
-Several locks are UI-enforced only — the bid cap and Premium-messaging in particular. The
-database offers no equivalent RLS/trigger. Before this tightens, treat `database.ts` as
-authoritative product code and keep "the client shows what a user may do" honest in every new
-component.
+The following gates are enforced in Postgres, not just the UI. They cannot be bypassed by calling
+PostgREST directly:
 
-:::info Audit note
-The Free/Premium audit (commit `dd4e114`) deliberately scoped fixes to **client-side** rules only,
-no new migrations. Any future server-side enforcement belongs in a new migration — see
-[Database migrations](./../development/database-migrations.md).
-:::
+| Gate | Enforcement | Server-side error |
+| --- | --- | --- |
+| Free-tier bid cap (10/rolling 7 days) | `BEFORE INSERT` trigger on `bids` | `FREE_BID_LIMIT_REACHED` (`ERRCODE = 'P0003'`) |
+| Premium-only messaging (jobseeker sends) | `BEFORE INSERT` trigger on `conversations` + `direct_messages` | `MESSAGING_ENTITLEMENT_REQUIRED` (`ERRCODE = 'P0003'`) |
+| Message sender anti-spoofing | `direct_messages` RLS `WITH CHECK sender_id = auth.uid()` | RLS `42501` |
+| Suspended worker excluded from directory | `public_worker_directory` view `coalesce(p.suspended, false) = false` | (row absent) |
+| Contact unlock refused for suspended target | `get_profile_contact` / `redeem_contact_token` RPCs | `reason = 'suspended'` / `error = 'suspended'` |
+
+Client-side checks (`getWeeklyBidCount`, `checkSubscriptionActive`, `hasEntitlement`) remain as UX
+convenience only; the database is the source of truth. Frontend code maps the server error codes to
+the Premium upgrade flow (`onOpenMpesa` with account ref `PREM-NEW`) and the bid-limit upsell.
+
+## SPA routes
+
+The app is a single-page application with React Router handling three real routes (`/`,
+`/advertise`, `/admin`) and internal pages switched inside `AppLayout`. The navigable pages are:
+
+| Route | Page | Gate |
+| --- | --- | --- |
+| `/` | Home | Public |
+| `/jobs` | Jobs listing | Public |
+| `/jobs/:id` | Job detail | Public to view; Premium to message/apply |
+| `/services` | Services / adverts | Public |
+| `/services/:id` | Service detail | Public |
+| `/pricing` | Pricing | Public |
+| `/about` | About | Public |
+| `/contact` | Contact | Public |
+| `/corporate` | Corporate portal | Corporate OTP session |
+| `/dashboard` | Dashboard | Authenticated (role-aware tabs) |
+| `/inbox` | Inbox / direct messages | Authenticated; Premium to send as jobseeker |
+| `/post-job` | Post job | Employer entitlement |
+| `/post-advert` | Post advert | Advertiser subscription |
+| `/advertise` | Advertise landing | Public |
+| `/admin` | Admin dashboard | `user_roles.role = 'admin'` |
+
+Pages navigate via `onNavigate(page)`; `AppLayout` renders the matching component and hosts the
+auth modal (`AuthModal`), M-Pesa payment modal (`MpesaModal`), chatbot, and post-signup payment gate.
+
+The discriminated `Page` union (defined in `Header.tsx`):
+
+```ts
+export type Page =
+  | 'home' | 'jobs' | 'services' | 'pricing' | 'about' | 'contact'
+  | 'dashboard' | 'inbox' | 'job-detail' | 'service-detail'
+  | 'post-job' | 'post-advert' | 'advertise' | 'admin'
+  | 'corporate' | 'corporate-signup';
+```
