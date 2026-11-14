@@ -1199,7 +1199,7 @@ export async function redeemToken(token: string): Promise<{ profileId: string; e
 
 export interface ProfileContactResult {
   allowed: boolean;
-  reason?: 'opted_out' | 'locked' | 'expired' | 'missing';
+  reason?: 'opted_out' | 'locked' | 'expired' | 'missing' | 'suspended';
   expiresAt?: string | null;
   contact?: {
     phone?: string | null;
