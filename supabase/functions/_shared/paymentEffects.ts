@@ -746,7 +746,6 @@ export async function runPaymentEffects(supabase: any, payment: PaymentRow): Pro
       console.log(`[fulfilment] contact_access ${payment.id} unlocks ${payment.related_profile_id || '?'} until ${end}`)
       break
     }
-  }
 
     case 'top_rated_day_pass': {
     // KES 100 day pass: the purchased snapshot of top-rated profile ids is
