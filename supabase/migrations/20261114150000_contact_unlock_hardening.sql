@@ -315,16 +315,13 @@ using (
 COMMIT;
 
 -- Seed test users (profiles.id has no FK to auth.users in this schema).
-BEGIN;
 INSERT INTO public.profiles (id, role, full_name, suspended, deleted_at, allow_contact_display, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at) VALUES
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'jobseeker', 'Suspended Worker', true, null, true, true, now(), '2.0', '2.0', now()),
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'jobseeker', 'Active Worker', false, null, true, true, now(), '2.0', '2.0', now()),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'jobseeker', 'Unlocked Worker', false, null, true, true, now(), '2.0', '2.0', now())
 ON CONFLICT (id) DO NOTHING;
-ROLLBACK;
 
 -- T1: profile_roles owner INSERT with paid = true is rejected.
-BEGIN;
 SET request.jwt.claims = '{"sub": "cccccccc-cccc-cccc-cccc-cccccccccccc", "role": "authenticated"}';
 DO $$
 BEGIN
@@ -335,10 +332,8 @@ EXCEPTION WHEN others THEN
   RAISE NOTICE 'TEST PASS: owner INSERT paid=true rejected';
 END;
 $$ LANGUAGE plpgsql;
-ROLLBACK;
 
 -- T2: profile_roles owner UPDATE to paid = true is rejected (no owner UPDATE policy).
-BEGIN;
 DO $$
 BEGIN
   UPDATE public.profile_roles
@@ -350,10 +345,8 @@ BEGIN
   RAISE NOTICE 'TEST PASS: owner UPDATE paid=true rejected (no matching row / no policy)';
 END;
 $$ LANGUAGE plpgsql;
-ROLLBACK;
 
 -- T3: profiles owner UPDATE of role is rejected (BEFORE UPDATE trigger).
-BEGIN;
 SET request.jwt.claims = '{"sub": "cccccccc-cccc-cccc-cccc-cccccccccccc", "role": "authenticated"}';
 DO $$
 BEGIN
@@ -368,10 +361,8 @@ EXCEPTION WHEN others THEN
   RAISE NOTICE 'TEST PASS: owner UPDATE profiles.role rejected by trigger';
 END;
 $$ LANGUAGE plpgsql;
-ROLLBACK;
 
 -- T4: get_profile_contact refuses a suspended profile.
-BEGIN;
 SET request.jwt.claims = '{"sub": "dddddddd-dddd-dddd-dddd-dddddddddddd", "role": "authenticated"}';
 DO $$
 DECLARE
@@ -388,10 +379,8 @@ BEGIN
   RAISE NOTICE 'TEST PASS: get_profile_contact refuses suspended profile';
 END;
 $$ LANGUAGE plpgsql;
-ROLLBACK;
 
 -- T5: get_profile_contact unlocks an active (opted-in) profile owned by caller.
-BEGIN;
 DO $$
 DECLARE
   result json;
@@ -404,10 +393,8 @@ BEGIN
   RAISE NOTICE 'TEST PASS: get_profile_contact unlocks active self-contact';
 END;
 $$ LANGUAGE plpgsql;
-ROLLBACK;
 
 -- T6: redeem_contact_token refuses a suspended target profile.
-BEGIN;
 INSERT INTO public.payments (id, user_id, payment_type, amount, status, token, related_profile_id, access_expires_at)
 VALUES (
   gen_random_uuid(),
@@ -435,10 +422,8 @@ BEGIN
   RAISE NOTICE 'TEST PASS: redeem_contact_token refuses suspended target';
 END;
 $$ LANGUAGE plpgsql;
-ROLLBACK;
 
 -- T7: audit_log at-most-once via unique index (duplicate payment_id+action rejected).
-BEGIN;
 DO $$
 DECLARE
   test_uid uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
@@ -468,4 +453,5 @@ BEGIN
   END;
 END;
 $$ LANGUAGE plpgsql;
+
 ROLLBACK;

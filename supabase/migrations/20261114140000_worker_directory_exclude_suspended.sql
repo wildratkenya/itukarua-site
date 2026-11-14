@@ -63,16 +63,15 @@ grant select on public.public_worker_directory to authenticated;
 COMMIT;
 
 -- Seed test users directly into profiles (profiles.id has no FK to auth.users
--- in this schema, so INSERT works without an auth row).
+-- in this schema, so INSERT works without an auth row). Inserted once and
+-- reused by T1, T2 and T3 below.
 BEGIN;
 INSERT INTO public.profiles (id, role, full_name, suspended, deleted_at, allow_contact_display, terms_accepted, accepted_terms_at, terms_version, privacy_version, age_attested_at) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'jobseeker', 'Suspended Worker', true, null, true, true, now(), '2.0', '2.0', now()),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'jobseeker', 'Active Worker', false, null, true, true, now(), '2.0', '2.0', now())
 ON CONFLICT (id) DO NOTHING;
-ROLLBACK;
 
 -- T1: suspended jobseeker must NOT appear in the directory.
-BEGIN;
 DO $$
 DECLARE
   found int;
@@ -88,10 +87,8 @@ begin
   raise notice 'TEST PASS: suspended profile excluded from public_worker_directory';
 end;
 $$ language plpgsql;
-ROLLBACK;
 
 -- T2: active jobseeker must still appear in the directory.
-BEGIN;
 DO $$
 DECLARE
   found int;
@@ -107,10 +104,8 @@ begin
   raise notice 'TEST PASS: active profile present in public_worker_directory';
 end;
 $$ language plpgsql;
-ROLLBACK;
 
 -- T3: no contact column may be exposed by the view.
-BEGIN;
 DO $$
 DECLARE
   leaked text[];
@@ -128,4 +123,5 @@ begin
   raise notice 'TEST PASS: no contact columns exposed by public_worker_directory';
 end;
 $$ language plpgsql;
+
 ROLLBACK;
