@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPlatformSettings } from '@/lib/database';
+import { PRICING_PLANS } from '@/data/siteData';
 
 export interface PlatformPricing {
   jobseeker: number;
@@ -13,14 +14,14 @@ export interface PlatformPricing {
 }
 
 const DEFAULT_PRICING: PlatformPricing = {
-  jobseeker: 100,
-  employerWeekly: 200,
-  employerDay: 100,
-  contactAccess: 100,
-  topRatedPass: 100,
-  advert10Day: 300,
-  advert20Day: 500,
-  advert30Day: 800,
+  jobseeker: PRICING_PLANS.jobseekerPremium.price,
+  employerWeekly: PRICING_PLANS.employerSubscription.price,
+  employerDay: PRICING_PLANS.singleJobPost.price,
+  contactAccess: PRICING_PLANS.contactUnlock.price,
+  topRatedPass: PRICING_PLANS.jobseekerPremium.price,
+  advert10Day: PRICING_PLANS.advertPlans[0].price,
+  advert20Day: PRICING_PLANS.advertPlans[1].price,
+  advert30Day: PRICING_PLANS.advertPlans[2].price,
 };
 
 export function usePlatformPricing(): PlatformPricing {

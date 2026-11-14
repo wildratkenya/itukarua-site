@@ -9,6 +9,7 @@ import { takeSubscriptionIntent } from '@/lib/checkoutIntent';
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/consent';
 import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password';
 import { SITE_URL } from '@/lib/siteConfig';
+import { PRICING_PLANS } from '@/data/siteData';
 import Header, { type Page } from './itukarua/Header';
 import Footer from './itukarua/Footer';
 import HomePage from './itukarua/HomePage';
@@ -67,9 +68,9 @@ const rolePaymentSpec = (role: string) => {
     return { employerChooser: true, amount: 0, description: '', accountRef: '', paymentType: 'registration' as const };
   }
   if (role === 'jobseeker') {
-    return { employerChooser: false, amount: 100, description: 'Jobseeker Premium Subscription', accountRef: 'PREM-NEW', paymentType: 'registration' as const };
+    return { employerChooser: false, amount: PRICING_PLANS.jobseekerPremium.price, description: 'Jobseeker Premium Subscription', accountRef: 'PREM-NEW', paymentType: 'registration' as const };
   }
-  return { employerChooser: false, amount: 100, description: 'Advertiser Subscription', accountRef: 'ADV-SUB', paymentType: 'registration' as const };
+  return { employerChooser: false, amount: PRICING_PLANS.jobseekerPremium.price, description: 'Advertiser Subscription', accountRef: 'ADV-SUB', paymentType: 'registration' as const };
 };
 
 // Evaluate the subscription status shown after login for payable profiles.
@@ -582,7 +583,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
       : null;
     setMpesaModal({
       open: true,
-      amount: 200,
+      amount: PRICING_PLANS.employerSubscription.price,
       description: 'Employer Weekly Access',
       accountRef: 'EMP-WK',
       paymentType: 'registration',
@@ -873,7 +874,7 @@ const handleWorkerPopupOpen = useCallback(() => { loginFromWorkerPopup.current =
             <button onClick={() => handleOpenEmployerPayment()} className="w-full mt-5 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors">
               Renew Now — Weekly Plan
             </button>
-            <button onClick={() => handleOpenMpesa(100, 'Employer 1-Day Access', 'EMP-DAY', 'employer_day_access', undefined, undefined, undefined, undefined, false, true, undefined, 'employer')} className="w-full mt-2 py-3 border border-green-200 text-green-700 font-semibold rounded-xl transition-colors hover:bg-green-50">
+            <button onClick={() => handleOpenMpesa(PRICING_PLANS.singleJobPost.price, 'Employer 1-Day Access', 'EMP-DAY', 'employer_day_access', undefined, undefined, undefined, undefined, false, true, undefined, 'employer')} className="w-full mt-2 py-3 border border-green-200 text-green-700 font-semibold rounded-xl transition-colors hover:bg-green-50">
               Or Unlock 1 Day — KES 100
             </button>
             <button onClick={handleLogout} className="w-full mt-4 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Briefcase, Wrench, LogIn, X, Zap, Clock, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PRICING_PLANS } from '@/data/siteData';
 import { getMyServiceAds, getJobs } from '@/lib/database';
 import type { MpesaHandler } from '@/lib/mpesa';
 
@@ -262,7 +263,7 @@ export default function BoostProductModal({
                               {boosting ? (
                                 <><Clock className="w-3.5 h-3.5 animate-spin" /> Processing…</>
                               ) : (
-                                <><Zap className="w-3.5 h-3.5" /> {isBoosted ? 'Extend +7d' : 'Boost'} · KES 500</>
+                                <><Zap className="w-3.5 h-3.5" />                                 {isBoosted ? 'Extend +7d' : 'Boost'} · KES {PRICING_PLANS.featuredBoost.price}</>
                               )}
                             </button>
                           </div>
